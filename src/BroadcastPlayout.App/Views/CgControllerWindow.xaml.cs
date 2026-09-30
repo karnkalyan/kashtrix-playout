@@ -398,6 +398,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             return cat;
 
         var n = (project.Name ?? string.Empty).ToUpperInvariant();
+        if (n.Contains("AP1") || n.Contains("AP 1")) return "AP1 HD";
         if (n.Contains("PRIME")) return "PRIME HD";
         if (n.Contains("SPACE")) return "SPACE 4K";
         if (n.Contains("AAJ") || n.Contains("TAK")) return "AAJ TAK";

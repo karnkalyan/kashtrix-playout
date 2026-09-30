@@ -1,0 +1,19 @@
+.logo {
+    display: flex;
+    justify-content: flex-end;
+    position: absolute;
+    top: 4%;
+    right: 4.5%;
+}
+
+
+.live {
+    display: flex;
+    justify-content: flex-end;
+    position: absolute;
+    top: 17%;
+    right: 10%;
+}
+
+
+

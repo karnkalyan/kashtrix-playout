@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ne">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, initial-scale=1.0" />
+  <title>Top Crawl Smooth</title>
+  <link rel="preload" as="image" href="logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    @font-face {
+      font-family: 'Suvadin';
+      src: url('arab.TTF') format('truetype'), url('fonts/arab.TTF') format('truetype');
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'Arab';
+      src: url('fonts/arab.TTF') format('truetype'), url('fonts/arab.ttf') format('truetype'), url('arapgraphics.ttf') format('truetype');
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'PREETI';
+      src: url('fonts/PREETI.TTF') format('truetype'), url('fonts/PREETI.ttf') format('truetype');
+      font-display: swap;
+    }
+
+    html,
+    body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    body {
+      position: relative;
+      font-family: 'Mukta', sans-serif;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    /* Background bar using bg.png with all gradient shapes & shine removed */
+    .bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 20px;
+      width: 1920px;
+      height: 82px;
+      overflow: hidden;
+      background: url('bg.png') no-repeat center;
+      background-size: 1920px 82px;
+    }
+
+    /* Container Time (placed precisely in the white box of bg.png: x=75px to 343px, y=4px to 77px) */
+    .container-time {
+      position: absolute;
+      left: 75px;
+      top: 4px;
+      width: 268px;
+      height: 74px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    .slider {
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .slide {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 36px;
+      font-weight: 700;
+      color: #111111;
+      transform: translate3d(100%, 0, 0);
+      transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+      white-space: nowrap;
+      will-change: transform;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    .slide.active {
+      transform: translate3d(0, 0, 0);
+    }
+
+    .slide.exit {
+      transform: translate3d(-100%, 0, 0);
+    }
+
+    .nepali-font-Arab {
+      font-family: 'Arab', sans-serif;
+      font-size: 60px;
+      font-weight: 700;
+      color: #111111;
+      line-height: 1;
+    }
+
+    /* Viewport for scrolling text (placed to the right of the white box) */
+    .viewport {
+      position: absolute;
+      left: 345px;
+      right: 20px;
+      top: 0;
+      bottom: 0;
+      overflow: hidden;
+      z-index: 4;
+      contain: strict;
+    }
+
+    .track {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      will-change: transform;
+      transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    .group {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      white-space: nowrap;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    .item {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      color: #ffffff;
+      font-family: 'Suvadin', 'Mukta', sans-serif;
+      font-size: 60px;
+      line-height: 1;
+      font-weight: 700;
+      padding-right: 30px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+      white-space: nowrap;
+    }
+
+    .sep {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      height: 100%;
+      margin-right: 30px;
+    }
+
+    .sep-logo {
+      height: 50px;
+      width: 88px;
+      aspect-ratio: 350 / 200;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35));
+    }
+  </style>
+</head>
+
+<body>
+  <section class="bar">
+    <!-- Time / Date / Day Slider Widget in White Part -->
+    <div class="container-time">
+      <div class="slider">
+        <div class="slide nepali-font-Arab active" id="time"></div>
+        <div class="slide nepali-font-Arab" id="date"></div>
+        <div class="slide nepali-font-Arab" id="day"></div>
+      </div>
+    </div>
+
+    <!-- Scrolling News Ticker -->
+    <div class="viewport">
+      <div class="track" id="track">
+        <div class="group" id="groupA"></div>
+        <div class="group" id="groupB"></div>
+        <div class="group" id="groupC"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scripts for Nepali Date / Time Slider from tvtoday TopNews -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+    integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+  <script src="nepali_function.js"></script>
+  <script src="unicode_converter.js"></script>
+  <script src="nepaliDateTimeScript.js"></script>
+
+  <!-- Smooth Continuous Ticker Logic -->
+  <script>
+    (() => {
+      const params = new URLSearchParams(location.search);
+      const API_URL = params.get('api') || '/nrcs/api_data/data.php?content=top&token=jPkHwW2E7sr23YWuZpYz5tibnQI08C&company=13';
+      const REFRESH_MS = Math.max(5000, Number(params.get('refresh')) || 15000);
+      const SPEED = Math.max(40, Number(params.get('speed')) || 120); // px/sec
+
+      const viewport = document.querySelector('.viewport');
+      const track = document.getElementById('track');
+      const groupA = document.getElementById('groupA');
+      const groupB = document.getElementById('groupB');
+      const groupC = document.getElementById('groupC');
+
+      let currentRawData = [];  // Raw data from server to accurately detect actual DB changes
+      let pendingRawData = null; // Queued new data waiting for seamless off-screen swap
+      let activeItems = [];     // Currently rendered items (repeated if necessary)
+      let groupWidth = 0;
+      let offsetX = 0;
+      let lastTs = 0;
+      let running = false;
+      let refreshing = false;
+
+      function pickText(row) {
+        if (!row) return '';
+        if (typeof row === 'string') return row.trim();
+        if (typeof row.Top === 'string' && row.Top.trim()) return row.Top.trim();
+
+        const key = Object.keys(row).find(k => k.toLowerCase() === 'top');
+        if (key && typeof row[key] === 'string') return row[key].trim();
+        return '';
+      }
+
+      function extractItems(payload) {
+        if (!Array.isArray(payload)) return [];
+        return payload.map(pickText).filter(Boolean);
+      }
+
+      function renderGroup(target, list) {
+        const frag = document.createDocumentFragment();
+        list.forEach((text) => {
+          const item = document.createElement('span');
+          item.className = 'item';
+          item.textContent = text;
+          frag.appendChild(item);
+
+          const sep = document.createElement('span');
+          sep.className = 'sep';
+          const img = document.createElement('img');
+          img.className = 'sep-logo';
+          img.src = 'logo.png';
+          img.alt = '';
+          sep.appendChild(img);
+          frag.appendChild(sep);
+        });
+        target.replaceChildren(frag);
+      }
+
+      // Build repeated list if necessary so a single group is wider than viewport + safety buffer
+      function buildExpandedList(rawList) {
+        if (!rawList || !rawList.length) return { list: [], width: 0 };
+        const minWidth = (viewport.clientWidth || 1555) + 300;
+        let list = rawList.slice();
+
+        renderGroup(groupA, list);
+        let w = groupA.getBoundingClientRect().width;
+
+        let safety = 0;
+        while (w < minWidth && safety < 10) {
+          list = list.concat(rawList);
+          renderGroup(groupA, list);
+          w = groupA.getBoundingClientRect().width;
+          safety++;
+        }
+        return { list, width: w };
+      }
+
+      function applyNewData(rawList, isInitial = false) {
+        currentRawData = rawList.slice();
+        const { list, width } = buildExpandedList(rawList);
+        activeItems = list;
+        groupWidth = width;
+
+        renderGroup(groupB, activeItems);
+        renderGroup(groupC, activeItems);
+
+        if (isInitial) {
+          offsetX = 0;
+          track.style.transform = `translate3d(0,0,0)`;
+        }
+      }
+
+      async function fetchItems() {
+        const response = await fetch(API_URL, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const raw = (await response.text()).replace(/^\uFEFF/, '');
+        return extractItems(JSON.parse(raw));
+      }
+
+      async function refreshData(initial = false) {
+        if (refreshing) return;
+        refreshing = true;
+        try {
+          const next = await fetchItems();
+          if (!next.length) return;
+
+          if (initial || !currentRawData.length) {
+            applyNewData(next, true);
+          } else if (JSON.stringify(next) !== JSON.stringify(currentRawData)) {
+            // News content actually changed in database, queue update for seamless boundary swap
+            pendingRawData = next.slice();
+          }
+        } catch (error) {
+          console.error('[Top Crawl Smooth] API error:', error);
+        } finally {
+          refreshing = false;
+        }
+      }
+
+      function animationLoop(ts) {
+        if (!running) return;
+
+        if (!lastTs) lastTs = ts;
+        // Cap dt to 0.05s (20 fps minimum) to avoid sudden jumps during micro-stalls
+        const dt = Math.min((ts - lastTs) / 1000, 0.05);
+        lastTs = ts;
+
+        offsetX -= SPEED * dt;
+
+        if (offsetX <= -groupWidth) {
+          // Wrap smoothly by exact subpixel groupWidth
+          offsetX += groupWidth;
+
+          // If new headlines were fetched from server, apply them seamlessly at this boundary
+          if (pendingRawData) {
+            applyNewData(pendingRawData, false);
+            pendingRawData = null;
+          }
+        }
+
+        track.style.transform = `translate3d(${offsetX}px,0,0)`;
+        requestAnimationFrame(animationLoop);
+      }
+
+      async function start() {
+        await refreshData(true);
+        if (!activeItems.length) return;
+
+        running = true;
+        requestAnimationFrame(animationLoop);
+        setInterval(() => refreshData(false), REFRESH_MS);
+      }
+
+      window.addEventListener('resize', () => {
+        if (currentRawData.length) {
+          const { list, width } = buildExpandedList(currentRawData);
+          activeItems = list;
+          groupWidth = width;
+          renderGroup(groupB, activeItems);
+          renderGroup(groupC, activeItems);
+        }
+      });
+
+      start();
+    })();
+  </script>
+</body>
+
+</html>

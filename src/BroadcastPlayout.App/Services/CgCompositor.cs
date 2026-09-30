@@ -849,12 +849,11 @@ public sealed class CgCompositor : IDisposable
                 outProgress = 1;
             }
         }
-        else if (isTickerLayer && project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, evalTime, out _, out var catElapsed, out var catDur, out _))
+        else if (project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, evalTime, out _, out var catElapsed, out var catDur, out _))
         {
-            inProgress = Math.Clamp((catElapsed - delay) / Math.Max(.05, layer.AnimationInSeconds), 0, 1);
-            // Category changes must not replay the project's OUT animation. The next
-            // badge animates in while the shared strip remains continuously on-air.
-            outProgress = 1;
+            var inSec = layer.AnimationInSeconds > 0.05 ? layer.AnimationInSeconds : CgDataSourceService.CategoryIntroSeconds;
+            var outSec = layer.AnimationOutSeconds > 0.05 ? layer.AnimationOutSeconds : CgDataSourceService.CategoryOutroSeconds;
+            CgDataSourceService.GetCategoryAnimationProgress(catElapsed, catDur, inSec, outSec, out _, out _, out inProgress, out outProgress);
         }
         else if (layer.DataSourceId != Guid.Empty && layer.DataItemDurationSeconds > 0 && !isTickerLayer)
         {

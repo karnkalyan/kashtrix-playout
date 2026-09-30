@@ -19,6 +19,15 @@ public static class CgUniqueDemoFactory
     public const string PrimeLogoDemoName = "Prime HD · Station Logo Bug";
     public const string PrimeTickerDemoName = "Prime HD · News Ticker Scroll";
 
+    public const string Ap1hdBreakingDemoName = "AP1 HD · Breaking News Live";
+    public const string Ap1hdFlashDemoName = "AP1 HD · Flash News Live";
+    public const string Ap1hdThreeWindowsDemoName = "AP1 HD · 3 Windows Breaking";
+    public const string Ap1hdFullBreakingDemoName = "AP1 HD · Full Breaking Screen";
+    public const string Ap1hdTickerDemoName = "AP1 HD · News Ticker Scroll";
+    public const string Ap1hdLivePlateDemoName = "AP1 HD · Live Plate";
+    public const string Ap1hdLogoDemoName = "AP1 HD · Station Logo Bug";
+    public const string Ap1hdWeatherDemoName = "AP1 HD · Weather Live";
+
     public const string Public4kNewsUpdateDemoName = "Public 4K · News Update Live";
 
     public const string Space4kBreakingDemoName = "Space 4K · Breaking News Live";
@@ -55,6 +64,16 @@ public static class CgUniqueDemoFactory
         CgDemoValidator.NormalizeDemoProject(CreatePrimeNamePlateDemo()),
         CgDemoValidator.NormalizeDemoProject(CreatePrimeLogoDemo()),
         CgDemoValidator.NormalizeDemoProject(CreatePrimeTickerDemo()),
+
+        // AP1 HD Channel Package
+        CgDemoValidator.NormalizeDemoProject(CreateAp1hdBreakingDemo()),
+        CgDemoValidator.NormalizeDemoProject(CreateAp1hdFlashDemo()),
+        CgDemoValidator.NormalizeDemoProject(CreateAp1hdThreeWindowsDemo()),
+        CgDemoValidator.NormalizeDemoProject(CreateAp1hdFullBreakingDemo()),
+        CgDemoValidator.NormalizeDemoProject(CreateAp1hdTickerDemo()),
+        CgDemoValidator.NormalizeDemoProject(CreateAp1hdLivePlateDemo()),
+        CgDemoValidator.NormalizeDemoProject(CreateAp1hdLogoDemo()),
+        CgDemoValidator.NormalizeDemoProject(CreateAp1hdWeatherDemo()),
 
         // Space 4K Channel Package
         CgDemoValidator.NormalizeDemoProject(CreateSpace4kBreakingDemo()),
@@ -103,6 +122,15 @@ public static class CgUniqueDemoFactory
         if (name == PrimeNamePlateDemoName) return CreatePrimeNamePlateDemo();
         if (name == PrimeLogoDemoName) return CreatePrimeLogoDemo();
         if (name == PrimeTickerDemoName) return CreatePrimeTickerDemo();
+
+        if (name == Ap1hdBreakingDemoName) return CreateAp1hdBreakingDemo();
+        if (name == Ap1hdFlashDemoName) return CreateAp1hdFlashDemo();
+        if (name == Ap1hdThreeWindowsDemoName) return CreateAp1hdThreeWindowsDemo();
+        if (name == Ap1hdFullBreakingDemoName) return CreateAp1hdFullBreakingDemo();
+        if (name == Ap1hdTickerDemoName) return CreateAp1hdTickerDemo();
+        if (name == Ap1hdLivePlateDemoName) return CreateAp1hdLivePlateDemo();
+        if (name == Ap1hdLogoDemoName) return CreateAp1hdLogoDemo();
+        if (name == Ap1hdWeatherDemoName) return CreateAp1hdWeatherDemo();
 
         if (name == Public4kNewsUpdateDemoName) return CreatePublic4kNewsUpdateDemo();
 
@@ -922,6 +950,786 @@ public static class CgUniqueDemoFactory
     }
     #endregion
 
+    #region AP1 HD Native Demos
+    private static CgProject CreateAp1hdBreakingDemo()
+    {
+        const double duration = 10.0;
+        var project = new CgProject { Id = new Guid("11112222-3333-4444-5555-666677778888"), Name = Ap1hdBreakingDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration, Loop = true };
+        var liveNewsDs = new CgDataSource
+        {
+            Id = new Guid("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+            Name = "AP1 HD Breaking Feed",
+            SourceType = "UrlJson",
+            Source = QuantumBreakingNewsUrl,
+            RefreshSeconds = 15,
+            CachedItemsJson = QuantumBreakingNewsCachedJson
+        };
+        project.DataSources.Add(liveNewsDs);
+        var group = new CgGroup { Id = Guid.NewGuid(), Name = "AP1 HD Breaking Lower Third" };
+        project.Groups.Add(group);
+        var seqPath = ResolveAp1hdPath("BreakingNews");
+        project.Layers.Add(new CgLayer { Id = Guid.NewGuid(), Name = "AP1 HD Breaking Loop", Type = "ImageSequence", Source = seqPath, X = 0, Y = 880, Width = 1920, Height = 200, SequenceFps = 50, SequenceStartFrame = 0, SequenceEndFrame = 229, SequenceLoop = true, SequenceHoldLastFrame = true, GroupId = group.Id, StartSeconds = 0, EndSeconds = duration, Visible = true, Opacity = 1.0 });
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "AP1 HD Headline Text",
+            Type = "Text",
+            Text = "d]nDrLsf] kfOk km'6]\\/ e]n k;]kl5 ljz]if cbfntsf] ;'g'jfO \\/f]lsof]",
+            X = 260,
+            Y = 905,
+            Width = 1620,
+            Height = 70,
+            FontSize = 44,
+            FontFamily = "Kantipur",
+            Bold = true,
+            Fill = "#FFFFFFFF",
+            ShadowEnabled = true,
+            ShadowColor = "#80000000",
+            ShadowOffsetX = 2,
+            ShadowOffsetY = 2,
+            ShadowBlur = 3,
+            GroupId = group.Id,
+            DataSourceId = liveNewsDs.Id,
+            DataField = "brk_text",
+            DataItemDurationSeconds = 3.90,
+            StartSeconds = 0.85,
+            EndSeconds = duration,
+            AnimationIn = "Slide Left",
+            AnimationInSeconds = 0.45,
+            AnimationOut = "Fade",
+            AnimationOutSeconds = 0.35,
+            Visible = true,
+            Opacity = 1.0
+        });
+        return project;
+    }
+
+    private static CgProject CreateAp1hdFlashDemo()
+    {
+        const double duration = 10.0;
+        var project = new CgProject { Id = new Guid("22223333-4444-5555-6666-777788889999"), Name = Ap1hdFlashDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration, Loop = true };
+        var liveNewsDs = new CgDataSource
+        {
+            Id = new Guid("bbbbbbbb-cccc-dddd-eeee-ffffffffffff"),
+            Name = "AP1 HD Flash Feed",
+            SourceType = "UrlJson",
+            Source = QuantumBreakingNewsUrl,
+            RefreshSeconds = 15,
+            CachedItemsJson = QuantumBreakingNewsCachedJson
+        };
+        project.DataSources.Add(liveNewsDs);
+        var group = new CgGroup { Id = Guid.NewGuid(), Name = "AP1 HD Flash Lower Third" };
+        project.Groups.Add(group);
+        var seqPath = ResolveAp1hdPath("FlashNews");
+        project.Layers.Add(new CgLayer { Id = Guid.NewGuid(), Name = "AP1 HD Flash Loop", Type = "ImageSequence", Source = seqPath, X = 0, Y = 920, Width = 1920, Height = 132, SequenceFps = 50, SequenceStartFrame = 36, SequenceEndFrame = 199, SequenceLoop = true, SequenceHoldLastFrame = true, GroupId = group.Id, StartSeconds = 0, EndSeconds = duration, Visible = true, Opacity = 1.0 });
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "AP1 HD Flash Text",
+            Type = "Text",
+            Text = "d]nDrLsf] kfOk km'6]\\/ e]n k;]kl5 ljz]if cbfntsf] ;'g'jfO \\/f]lsof]",
+            X = 260,
+            Y = 945,
+            Width = 1620,
+            Height = 60,
+            FontSize = 40,
+            FontFamily = "Kantipur",
+            Bold = true,
+            Fill = "#FFFFFFFF",
+            ShadowEnabled = true,
+            ShadowColor = "#80000000",
+            ShadowOffsetX = 2,
+            ShadowOffsetY = 2,
+            ShadowBlur = 3,
+            GroupId = group.Id,
+            DataSourceId = liveNewsDs.Id,
+            DataField = "brk_text",
+            DataItemDurationSeconds = 3.90,
+            StartSeconds = 0.85,
+            EndSeconds = duration,
+            AnimationIn = "Slide Left",
+            AnimationInSeconds = 0.45,
+            AnimationOut = "Fade",
+            AnimationOutSeconds = 0.35,
+            Visible = true,
+            Opacity = 1.0
+        });
+        return project;
+    }
+
+    private static CgProject CreateAp1hdThreeWindowsDemo()
+    {
+        const double duration = 20.0;
+        var project = new CgProject { Id = new Guid("33334444-5555-6666-7777-888899990000"), Name = Ap1hdThreeWindowsDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration, Loop = true };
+        var liveNewsDs = new CgDataSource
+        {
+            Id = new Guid("cccccccc-dddd-eeee-ffff-000011112222"),
+            Name = "AP1 HD Quantum News Feed",
+            SourceType = "UrlJson",
+            Source = QuantumBreakingNewsUrl,
+            RefreshSeconds = 15,
+            CachedItemsJson = QuantumBreakingNewsCachedJson
+        };
+        project.DataSources.Add(liveNewsDs);
+
+        // Top Breaking News Header Bar
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "AP1 HD Top Bar Header",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 0,
+            Y = 0,
+            Width = 1920,
+            Height = 110,
+            Background = "#800818",
+            UseGradient = true,
+            GradientColor2 = "#2D124D",
+            GradientAngle = 90,
+            BorderColor = "#EF233C",
+            BorderWidth = 4,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "AP1 HD Top Bar Title",
+            Type = "Text",
+            Text = "AP1 HD · BREAKING NEWS SPECIAL",
+            X = 50,
+            Y = 25,
+            Width = 1820,
+            Height = 60,
+            FontSize = 42,
+            FontFamily = "Segoe UI",
+            Bold = true,
+            Fill = "#FFFFFFFF",
+            ShadowEnabled = true,
+            ShadowColor = "#80000000",
+            ShadowOffsetX = 2,
+            ShadowOffsetY = 2,
+            ShadowBlur = 4,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        // 3 Windows for Studio, Field Reporter, and Expert Guest
+        var windowDefs = new[]
+        {
+            (Name: "Window 1 (Studio Anchor)", X: 64, Label: "STUDIO 1 · KATHMANDU"),
+            (Name: "Window 2 (Field Live)", X: 690, Label: "SPECIAL REPORT · ON SCENE"),
+            (Name: "Window 3 (Panel Guest)", X: 1316, Label: "PARLIAMENT COMPLEX")
+        };
+
+        foreach (var w in windowDefs)
+        {
+            project.Layers.Add(new CgLayer
+            {
+                Id = Guid.NewGuid(),
+                Name = w.Name,
+                Type = "Shape",
+                ShapeKind = "Rectangle",
+                X = w.X,
+                Y = 170,
+                Width = 540,
+                Height = 360,
+                Background = "#180C1F",
+                BorderColor = "#EF233C",
+                BorderWidth = 3,
+                StartSeconds = 0,
+                EndSeconds = duration,
+                DurationSeconds = duration
+            });
+
+            project.Layers.Add(new CgLayer
+            {
+                Id = Guid.NewGuid(),
+                Name = w.Name + " Label Plate",
+                Type = "Shape",
+                ShapeKind = "Rectangle",
+                X = w.X,
+                Y = 490,
+                Width = 540,
+                Height = 40,
+                Background = "#CC800818",
+                StartSeconds = 0,
+                EndSeconds = duration,
+                DurationSeconds = duration
+            });
+
+            project.Layers.Add(new CgLayer
+            {
+                Id = Guid.NewGuid(),
+                Name = w.Name + " Label Text",
+                Type = "Text",
+                Text = w.Label,
+                X = w.X,
+                Y = 495,
+                Width = 540,
+                Height = 30,
+                FontSize = 18,
+                FontFamily = "Segoe UI",
+                Bold = true,
+                Fill = "#FFD84A",
+                HorizontalTextAlignment = "Center",
+                StartSeconds = 0,
+                EndSeconds = duration,
+                DurationSeconds = duration
+            });
+        }
+
+        // Lower Third Breaking Headline Plate
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Lower Third Card Background",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 64,
+            Y = 880,
+            Width = 1792,
+            Height = 120,
+            Background = "#FAF7FF",
+            BorderColor = "#EF233C",
+            BorderWidth = 3,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Lower Third Badge Plate",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 64,
+            Y = 880,
+            Width = 260,
+            Height = 120,
+            Background = "#800818",
+            UseGradient = true,
+            GradientColor2 = "#7E0919",
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Lower Third Badge Text",
+            Type = "Text",
+            Text = "BREAKING\nNEWS",
+            X = 64,
+            Y = 895,
+            Width = 260,
+            Height = 90,
+            FontSize = 26,
+            FontFamily = "Segoe UI",
+            Bold = true,
+            Fill = "#FFFFFFFF",
+            HorizontalTextAlignment = "Center",
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Lower Third Headline Text",
+            Type = "Text",
+            Text = "d]nDrLsf] kfOk km'6]\\/ e]n k;]kl5 ljz]if cbfntsf] ;'g'jfO \\/f]lsof]",
+            X = 350,
+            Y = 905,
+            Width = 1480,
+            Height = 70,
+            FontSize = 42,
+            FontFamily = "Kantipur",
+            Bold = true,
+            Fill = "#17080A",
+            DataSourceId = liveNewsDs.Id,
+            DataField = "brk_text",
+            DataItemDurationSeconds = 4.0,
+            StartSeconds = 0.5,
+            EndSeconds = duration,
+            AnimationIn = "Slide Left",
+            AnimationInSeconds = 0.4,
+            AnimationOut = "Fade",
+            AnimationOutSeconds = 0.35,
+            DurationSeconds = duration
+        });
+
+        return project;
+    }
+
+    private static CgProject CreateAp1hdFullBreakingDemo()
+    {
+        const double duration = 15.0;
+        var project = new CgProject { Id = new Guid("44445555-6666-7777-8888-999900001111"), Name = Ap1hdFullBreakingDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration, Loop = true };
+        var liveNewsDs = new CgDataSource
+        {
+            Id = new Guid("dddddddd-eeee-ffff-0000-111122223333"),
+            Name = "AP1 HD Quantum Breaking Feed",
+            SourceType = "UrlJson",
+            Source = QuantumBreakingNewsUrl,
+            RefreshSeconds = 15,
+            CachedItemsJson = QuantumBreakingNewsCachedJson
+        };
+        project.DataSources.Add(liveNewsDs);
+
+        // Full Screen Dark Purple/Violet Gradient
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Full Screen Background",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 0,
+            Y = 0,
+            Width = 1920,
+            Height = 1080,
+            Background = "#2D124D",
+            UseGradient = true,
+            GradientColor2 = "#6F2DBD",
+            GradientAngle = 135,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        // Top Breaking News Bar
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Top Breaking Bar",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 0,
+            Y = 0,
+            Width = 1920,
+            Height = 180,
+            Background = "#800818",
+            UseGradient = true,
+            GradientColor2 = "#2D124D",
+            BorderColor = "#EF233C",
+            BorderWidth = 6,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Top Breaking Bar Title",
+            Type = "Text",
+            Text = "AP1 HD · BREAKING NEWS",
+            X = 0,
+            Y = 50,
+            Width = 1920,
+            Height = 80,
+            FontSize = 64,
+            FontFamily = "Segoe UI",
+            Bold = true,
+            Fill = "#FFFFFFFF",
+            HorizontalTextAlignment = "Center",
+            ShadowEnabled = true,
+            ShadowColor = "#80000000",
+            ShadowOffsetX = 3,
+            ShadowOffsetY = 3,
+            ShadowBlur = 6,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        // Center Story Card
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Breaking Story Card",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 120,
+            Y = 240,
+            Width = 1680,
+            Height = 740,
+            Background = "#FAF7FF",
+            BorderColor = "#EF233C",
+            BorderWidth = 4,
+            CornerRadius = 8,
+            ShadowEnabled = true,
+            ShadowColor = "#80000000",
+            ShadowOffsetX = 4,
+            ShadowOffsetY = 4,
+            ShadowBlur = 12,
+            StartSeconds = 0.3,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Breaking Headline Story",
+            Type = "Text",
+            Text = "d]nDrLsf] kfOk km'6]\\/ e]n k;]kl5 ljz]if cbfntsf] ;'g'jfO \\/f]lsof]",
+            X = 180,
+            Y = 320,
+            Width = 1560,
+            Height = 580,
+            FontSize = 68,
+            FontFamily = "Kantipur",
+            Bold = true,
+            Fill = "#17080A",
+            HorizontalTextAlignment = "Center",
+            VerticalTextAlignment = "Center",
+            DataSourceId = liveNewsDs.Id,
+            DataField = "brk_text",
+            DataItemDurationSeconds = 5.0,
+            StartSeconds = 0.5,
+            EndSeconds = duration,
+            AnimationIn = "Scale Down",
+            AnimationInSeconds = 0.6,
+            AnimationOut = "Fade",
+            AnimationOutSeconds = 0.35,
+            DurationSeconds = duration
+        });
+
+        return project;
+    }
+
+    private static CgProject CreateAp1hdTickerDemo()
+    {
+        const double duration = 30.0;
+        var project = new CgProject { Id = new Guid("55556666-7777-8888-9999-000011112222"), Name = Ap1hdTickerDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration, Loop = true, OnAir = false };
+        var ds = new CgDataSource
+        {
+            Id = Guid.NewGuid(),
+            Name = "AP1 HD Category Ticker Feed",
+            SourceType = "LocalJson",
+            Source = "ticker_categories.sample.json",
+            CachedItemsJson = "[{\"category\":\"WORLD NEWS\",\"items\":[\"Global leaders conclude international sustainable energy accord with net zero milestones\",\"United Nations summit passes landmark multilateral digital safety framework\",\"International space agency completes construction of lunar gateway module\",\"European rail consortium launches high-speed zero-emission transnational transit\"]},{\"category\":\"CRICKET\",\"items\":[\"National team secures decisive 5-wicket victory in international series opener\",\"Star batter smashes fastest championship century in tournament history\",\"Strike bowler claims remarkable six-wicket haul in thrilling death overs\"]},{\"category\":\"BUSINESS\",\"items\":[\"Global equity markets climb to record heights led by AI infrastructure expansion\",\"Central banks maintain benchmark interest rate stability amid cooling inflation\",\"Clean technology investments surpass fossil fuels for third consecutive year\"]},{\"category\":\"WEATHER\",\"items\":[\"Clear blue skies and comfortable seasonal warmth forecasted across metro regions\",\"Mountain highways report optimal transit conditions with dry road surfaces\",\"Coastal districts enjoy gentle offshore breezes and calm maritime conditions\"]}]"
+        };
+        project.DataSources.Add(ds);
+        var g = Guid.NewGuid();
+        project.Groups.Add(new CgGroup { Id = g, Name = "AP1 HD Ticker Group" });
+
+        var scrollBandPath = ResolveAp1hdPath("Scroll");
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "AP1 HD Scroll Band",
+            Type = "ImageSequence",
+            Source = scrollBandPath,
+            X = 0,
+            Y = 998,
+            Width = 1920,
+            Height = 82,
+            GroupId = g,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        // AP1 HD Category Badge Plate
+        Add(project, new CgLayer
+        {
+            Name = "Category Badge Plate",
+            Role = "Badge",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 0,
+            Y = 998,
+            Width = 260,
+            Height = 82,
+            Background = "#800818",
+            UseGradient = true,
+            GradientColor2 = "#7E0919",
+            GradientAngle = 90,
+            CornerRadiusTopRight = 6,
+            CornerRadiusBottomRight = 6,
+            BorderWidth = 0,
+            GroupId = g,
+            AnimationIn = "Slide Left",
+            AnimationInSeconds = 0.35,
+            AnimationOut = "Slide Left",
+            AnimationOutSeconds = 0.35,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        // Category Badge Text
+        Add(project, new CgLayer
+        {
+            Name = "Category Badge Text",
+            Role = "Badge",
+            Type = "Text",
+            Text = "WORLD NEWS",
+            X = 10,
+            Y = 998,
+            Width = 240,
+            Height = 82,
+            FontSize = 24,
+            FontFamily = "Segoe UI",
+            Bold = true,
+            Fill = "#FFFFFFFF",
+            HorizontalTextAlignment = "Center",
+            VerticalTextAlignment = "Center",
+            ShadowEnabled = true,
+            ShadowColor = "#80000000",
+            ShadowOffsetX = 1,
+            ShadowOffsetY = 1,
+            ShadowBlur = 2,
+            DataSourceId = ds.Id,
+            DataField = "category",
+            GroupId = g,
+            AnimationIn = "Fade",
+            AnimationInSeconds = 0.25,
+            AnimationOut = "Fade",
+            AnimationOutSeconds = 0.25,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        // Headline Ticker Layer
+        Add(project, new CgLayer
+        {
+            Name = "Headline Ticker",
+            Type = "Ticker",
+            Text = "Global leaders conclude international sustainable energy accord with net zero milestones  ★  United Nations summit passes landmark multilateral digital safety framework  ★  International space agency completes construction of lunar gateway module",
+            X = 275,
+            Y = 998,
+            Width = 1640,
+            Height = 82,
+            FontSize = 32,
+            FontFamily = "Segoe UI",
+            Bold = true,
+            Fill = "#FFFFFFFF",
+            Speed = 160,
+            TickerSpeed = 160,
+            TickerMode = "Continuous",
+            TickerRepeat = true,
+            TickerGap = 120,
+            TickerSeparator = "  ★  ",
+            TickerCategoriesEnabled = true,
+            DataSourceId = ds.Id,
+            DataField = "items",
+            GroupId = g,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        return project;
+    }
+
+    private static CgProject CreateAp1hdLivePlateDemo()
+    {
+        const double duration = 10.0;
+        var project = new CgProject { Id = new Guid("66667777-8888-9999-0000-111122223333"), Name = Ap1hdLivePlateDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration };
+        var seqPath = ResolveAp1hdPath("Live");
+        project.Layers.Add(new CgLayer { Id = Guid.NewGuid(), Name = "AP1 HD Live Plate Sequence", Type = "ImageSequence", Source = seqPath, X = 1640, Y = 180, Width = 200, Height = 112, SequenceFps = 25, SequenceStartFrame = 0, SequenceEndFrame = 304, SequenceLoop = true, SequenceHoldLastFrame = true, StartSeconds = 0, EndSeconds = duration, Visible = true, Opacity = 1.0 });
+        project.Layers.Add(new CgLayer { Id = Guid.NewGuid(), Name = "Live Plate Text", Type = "Text", Text = "LIVE", X = 1640, Y = 215, Width = 200, Height = 40, FontSize = 28, FontFamily = "Segoe UI", Bold = true, Fill = "#FFFFFFFF", StartSeconds = 0.50, EndSeconds = duration, AnimationIn = "Fade", AnimationInSeconds = 0.35, AnimationOut = "Fade", AnimationOutSeconds = 0.35, Visible = true, Opacity = 1.0 });
+        return project;
+    }
+
+    private static CgProject CreateAp1hdLogoDemo()
+    {
+        const double duration = 30.0;
+        var project = new CgProject { Id = new Guid("77778888-9999-0000-1111-222233334444"), Name = Ap1hdLogoDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration };
+        var seqPath = ResolveAp1hdPath("logo");
+        project.Layers.Add(new CgLayer { Id = Guid.NewGuid(), Name = "AP1 HD Station Logo Sequence", Type = "ImageSequence", Source = seqPath, X = 1550, Y = 40, Width = 320, Height = 180, SequenceFps = 25, SequenceStartFrame = 0, SequenceEndFrame = 193, SequenceLoop = true, SequenceHoldLastFrame = true, StartSeconds = 0, EndSeconds = duration, Visible = true, Opacity = 1.0 });
+        return project;
+    }
+
+    private static CgProject CreateAp1hdWeatherDemo()
+    {
+        const double duration = 20.0;
+        var project = new CgProject { Id = new Guid("88889999-0000-1111-2222-333344445555"), Name = Ap1hdWeatherDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration, Loop = true };
+        var weatherDs = new CgDataSource
+        {
+            Id = Guid.NewGuid(),
+            Name = "AP1 HD Nepal Weather Feed",
+            SourceType = "LocalJson",
+            Source = "nepal_weather.sample.json",
+            CachedItemsJson = "[{\"cityName\":\"Kathmandu\",\"temp\":24,\"min\":16,\"max\":27,\"condition\":\"Partly Cloudy\",\"humidity\":\"62%\"},{\"cityName\":\"Pokhara\",\"temp\":26,\"min\":18,\"max\":29,\"condition\":\"Sunny\",\"humidity\":\"55%\"},{\"cityName\":\"Biratnagar\",\"temp\":30,\"min\":22,\"max\":33,\"condition\":\"Warm\",\"humidity\":\"70%\"},{\"cityName\":\"Nepalgunj\",\"temp\":32,\"min\":24,\"max\":35,\"condition\":\"Clear\",\"humidity\":\"48%\"},{\"cityName\":\"Dhangadhi\",\"temp\":31,\"min\":23,\"max\":34,\"condition\":\"Sunny\",\"humidity\":\"52%\"},{\"cityName\":\"Dharan\",\"temp\":28,\"min\":20,\"max\":31,\"condition\":\"Pleasant\",\"humidity\":\"65%\"}]"
+        };
+        project.DataSources.Add(weatherDs);
+
+        // Board background
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Weather Board Plate",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 120,
+            Y = 160,
+            Width = 1680,
+            Height = 820,
+            Background = "#081422",
+            UseGradient = true,
+            GradientColor2 = "#10253D",
+            GradientAngle = 135,
+            BorderColor = "#FFD84A",
+            BorderWidth = 2,
+            CornerRadius = 12,
+            ShadowEnabled = true,
+            ShadowColor = "#80000000",
+            ShadowOffsetX = 4,
+            ShadowOffsetY = 4,
+            ShadowBlur = 12,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        // Board Header
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Weather Header Bar",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 120,
+            Y = 160,
+            Width = 1680,
+            Height = 80,
+            Background = "#800818",
+            UseGradient = true,
+            GradientColor2 = "#7E0919",
+            CornerRadiusTopLeft = 12,
+            CornerRadiusTopRight = 12,
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        project.Layers.Add(new CgLayer
+        {
+            Id = Guid.NewGuid(),
+            Name = "Weather Header Title",
+            Type = "Text",
+            Text = "AP1 HD · NEPAL WEATHER · नेपाल मौसम",
+            X = 150,
+            Y = 180,
+            Width = 1620,
+            Height = 50,
+            FontSize = 32,
+            FontFamily = "Segoe UI",
+            Bold = true,
+            Fill = "#FFD84A",
+            StartSeconds = 0,
+            EndSeconds = duration,
+            DurationSeconds = duration
+        });
+
+        // City weather cards
+        var cities = new[]
+        {
+            (City: "काठमाडौँ (Kathmandu)", Temp: "24°C", MinMax: "16° / 27°C", Cond: "आंशिक बदली (Partly Cloudy)", X: 160, Y: 280),
+            (City: "पोखरा (Pokhara)", Temp: "26°C", MinMax: "18° / 29°C", Cond: "घाम लाग्ने (Sunny)", X: 980, Y: 280),
+            (City: "विराटनगर (Biratnagar)", Temp: "30°C", MinMax: "22° / 33°C", Cond: "न्यानो (Warm)", X: 160, Y: 450),
+            (City: "नेपालगन्ज (Nepalgunj)", Temp: "32°C", MinMax: "24° / 35°C", Cond: "सफा (Clear)", X: 980, Y: 450),
+            (City: "धनगढी (Dhangadhi)", Temp: "31°C", MinMax: "23° / 34°C", Cond: "घाम लाग्ने (Sunny)", X: 160, Y: 620),
+            (City: "धरान (Dharan)", Temp: "28°C", MinMax: "20° / 31°C", Cond: "सुहाउँदो (Pleasant)", X: 980, Y: 620),
+            (City: "चितवन (Chitwan)", Temp: "29°C", MinMax: "21° / 32°C", Cond: "न्यानो (Warm)", X: 160, Y: 790),
+            (City: "बुटवल (Butwal)", Temp: "30°C", MinMax: "22° / 33°C", Cond: "सफा (Clear)", X: 980, Y: 790)
+        };
+
+        foreach (var c in cities)
+        {
+            project.Layers.Add(new CgLayer
+            {
+                Id = Guid.NewGuid(),
+                Name = c.City + " Card Plate",
+                Type = "Shape",
+                ShapeKind = "Rectangle",
+                X = c.X,
+                Y = c.Y,
+                Width = 780,
+                Height = 140,
+                Background = "#152436",
+                BorderColor = "#2C4058",
+                BorderWidth = 1,
+                CornerRadius = 8,
+                StartSeconds = 0.2,
+                EndSeconds = duration,
+                DurationSeconds = duration
+            });
+
+            project.Layers.Add(new CgLayer
+            {
+                Id = Guid.NewGuid(),
+                Name = c.City + " Name",
+                Type = "Text",
+                Text = c.City,
+                X = c.X + 24,
+                Y = c.Y + 20,
+                Width = 500,
+                Height = 36,
+                FontSize = 24,
+                FontFamily = "Segoe UI",
+                Bold = true,
+                Fill = "#FFFFFFFF",
+                StartSeconds = 0.3,
+                EndSeconds = duration,
+                DurationSeconds = duration
+            });
+
+            project.Layers.Add(new CgLayer
+            {
+                Id = Guid.NewGuid(),
+                Name = c.City + " Condition",
+                Type = "Text",
+                Text = c.Cond + "  ·  " + c.MinMax,
+                X = c.X + 24,
+                Y = c.Y + 68,
+                Width = 500,
+                Height = 30,
+                FontSize = 18,
+                FontFamily = "Segoe UI",
+                Fill = "#B0BEC5",
+                StartSeconds = 0.4,
+                EndSeconds = duration,
+                DurationSeconds = duration
+            });
+
+            project.Layers.Add(new CgLayer
+            {
+                Id = Guid.NewGuid(),
+                Name = c.City + " Temp",
+                Type = "Text",
+                Text = c.Temp,
+                X = c.X + 560,
+                Y = c.Y + 25,
+                Width = 190,
+                Height = 80,
+                FontSize = 52,
+                FontFamily = "Segoe UI",
+                Bold = true,
+                Fill = "#FFD84A",
+                HorizontalTextAlignment = "Right",
+                StartSeconds = 0.3,
+                EndSeconds = duration,
+                DurationSeconds = duration
+            });
+        }
+
+        return project;
+    }
+    #endregion
+
     #region Asset Path Resolvers
     public static string ResolvePrimePath(string subfolder)
     {
@@ -1032,6 +1840,64 @@ public static class CgUniqueDemoFactory
         }
 
         return Path.Combine(AppContext.BaseDirectory, "cgdemo-templates", "space4k", "assets", normalizedSub);
+    }
+
+    public static string ResolveAp1hdPath(string subfolder)
+    {
+        var normalizedSub = subfolder.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        var baseDirs = new List<string?>
+        {
+            AppContext.BaseDirectory,
+            Directory.GetCurrentDirectory(),
+            AppDomain.CurrentDomain.BaseDirectory,
+            Path.GetDirectoryName(Environment.ProcessPath),
+            Environment.GetEnvironmentVariable("KASHTRIX_WORKSPACE_ROOT"),
+            @"c:\Users\karnk\Downloads\Kashtrix-COMPLETE-PROJECT-FIX49H-FULL-BUILD-DEBUG-RECOVERY-FINAL\Kashtrix-FIX49H"
+        };
+
+        foreach (var baseDir in baseDirs)
+        {
+            if (string.IsNullOrWhiteSpace(baseDir) || !Directory.Exists(baseDir)) continue;
+            var dir = new DirectoryInfo(baseDir);
+            for (int i = 0; i < 12 && dir != null; i++)
+            {
+                var candidates = new[]
+                {
+                    Path.Combine(dir.FullName, "cgdemo-templates", "ap1hd", "assets", normalizedSub),
+                    Path.Combine(dir.FullName, "cgdemo-templates", "ap1hd", "png", normalizedSub),
+                    Path.Combine(dir.FullName, "cgdemo-templates", "ap1hd", normalizedSub),
+                    Path.Combine(dir.FullName, "src", "BroadcastPlayout.App", "demos", "gfx", "ap1hd", "assets", normalizedSub),
+                    Path.Combine(dir.FullName, "src", "BroadcastPlayout.App", "demos", "gfx", "ap1hd", "png", normalizedSub),
+                    Path.Combine(dir.FullName, "src", "BroadcastPlayout.App", "demos", "gfx", "ap1hd", normalizedSub),
+                    Path.Combine(dir.FullName, "demos", "gfx", "ap1hd", "assets", normalizedSub),
+                    Path.Combine(dir.FullName, "demos", "gfx", "ap1hd", normalizedSub)
+                };
+                foreach (var c in candidates)
+                {
+                    if (Directory.Exists(c) || File.Exists(c)) return c;
+                }
+
+                var ap1Root = Path.Combine(dir.FullName, "cgdemo-templates", "ap1hd");
+                if (Directory.Exists(ap1Root))
+                {
+                    var targetLeaf = Path.GetFileName(normalizedSub);
+                    try
+                    {
+                        var matchDir = Directory.GetDirectories(ap1Root, targetLeaf, SearchOption.AllDirectories)
+                            .FirstOrDefault(d => Directory.EnumerateFiles(d, "*.png").Any());
+                        if (matchDir != null) return matchDir;
+
+                        var matchFile = Directory.GetFiles(ap1Root, targetLeaf, SearchOption.AllDirectories).FirstOrDefault();
+                        if (matchFile != null) return matchFile;
+                    }
+                    catch { }
+                }
+
+                dir = dir.Parent;
+            }
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, "cgdemo-templates", "ap1hd", "assets", normalizedSub);
     }
 
     public static string ResolvePublic4kPath(string subfolder)
@@ -1215,10 +2081,11 @@ public static class CgUniqueDemoFactory
         // Glowing cyan accent line along top edge
         Add(p, new CgLayer { Name = "Top Accent Line", Type = "Shape", X = 0, Y = 988, Width = 1920, Height = 3, Background = "#FF00E5FF", GroupId = g, StartSeconds = 0, EndSeconds = duration, DurationSeconds = duration });
 
-        // Fixed-position Category Badge Plate on left (slides in once on project start and holds fixed)
+        // Fixed-position Category Badge Plate on left (smoothly slides in/out on category switch)
         Add(p, new CgLayer
         {
             Name = "Category Badge Plate",
+            Role = "Badge",
             Type = "Shape",
             ShapeKind = "Rectangle",
             X = 0,
@@ -1234,16 +2101,19 @@ public static class CgUniqueDemoFactory
             BorderWidth = 0,
             GroupId = g,
             AnimationIn = "Slide Left",
-            AnimationInSeconds = 0.40,
+            AnimationInSeconds = 0.35,
+            AnimationOut = "Slide Left",
+            AnimationOutSeconds = 0.35,
             StartSeconds = 0,
             EndSeconds = duration,
             DurationSeconds = duration
         });
 
-        // Fixed-position Category Text inside the badge plate (smoothly cross-fades when category transitions)
+        // Fixed-position Category Text inside the badge plate (smoothly fades when category transitions)
         Add(p, new CgLayer
         {
             Name = "Category Badge Text",
+            Role = "Badge",
             Type = "Text",
             Text = "WORLD NEWS",
             X = 10,
@@ -1311,7 +2181,7 @@ public static class CgUniqueDemoFactory
             TickerRepeat = true,
             TickerGap = 120,
             TickerSeparator = "  ★  ",
-            TickerCategoriesEnabled = false,
+            TickerCategoriesEnabled = true,
             DataSourceId = ds.Id,
             DataField = "items",
             GroupId = g,
@@ -1432,7 +2302,7 @@ public static class CgUniqueDemoFactory
             DataItemDurationSeconds = 4.0,
             TickerGap = 0.5,
             TickerRepeat = true,
-            TickerCategoriesEnabled = false,
+            TickerCategoriesEnabled = true,
             DataSourceId = ds.Id,
             DataField = "items",
             GroupId = g,

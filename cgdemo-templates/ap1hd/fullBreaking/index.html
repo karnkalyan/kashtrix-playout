@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, initial-scale=1.0" />
+<title>Breaking News Full Screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mukta:wght@500;600;700;800&family=Orbitron:wght@700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@font-face{font-family:'Suvadin';src:url('suvadin.ttf') format('truetype'),url('fonts/suvadin.ttf') format('truetype');font-display:swap}
+:root{--red:#ef233c;--red2:#c1121f;--dark:#5b2a86;--deep:#2d124d;--yellow:#ffffff;--ink:#17080a}
+html,body{width:1920px;height:1080px;overflow:hidden;background:transparent}
+body{position:relative;font-family:'Mukta',sans-serif;transform:translateZ(0);backface-visibility:hidden;perspective:1400px}
+.fullscreen{position:absolute;inset:0;overflow:hidden;background:radial-gradient(circle at 86% 78%,rgba(239,35,60,.16),transparent 24%),radial-gradient(circle at 18% 24%,rgba(255,255,255,.08),transparent 20%),linear-gradient(135deg,var(--deep) 0%,var(--dark) 42%,#6f2dbd 68%,#4a1f75 100%)}
+.fullscreen:before{content:'';position:absolute;inset:0;opacity:.34;background:repeating-linear-gradient(135deg,rgba(255,255,255,.055) 0 14px,rgba(255,255,255,0) 14px 48px);transform:translateX(32%)}
+.fullscreen:after{content:'';position:absolute;left:0;right:0;bottom:0;height:14px;background:var(--red);box-shadow:0 -4px 18px rgba(239,35,60,.30)}
+.decor-left,.decor-right{position:absolute;top:-180px;width:220px;height:1450px;background:rgba(255,255,255,.06);transform:skewX(-22deg)}
+.decor-left{left:90px}.decor-right{right:120px;opacity:.45}
+.intro-stage{position:absolute;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.big-title-wrap{position:relative;width:1500px;min-height:420px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center}
+.big-kicker{font-family:'Mukta',sans-serif;color:#ffffff;font-weight:800;font-size:40px;letter-spacing:.18em;opacity:.92;margin-bottom:12px}
+.big-title{font-family:'Orbitron',sans-serif;color:#fff;font-weight:900;font-size:148px;line-height:.88;letter-spacing:.03em;text-shadow:0 10px 0 rgba(0,0,0,.18),0 20px 40px rgba(0,0,0,.34);white-space:nowrap}
+.big-title span{display:block}
+.intro-line{width:760px;height:11px;margin-top:38px;background:var(--red);transform-origin:center;box-shadow:0 0 22px rgba(239,35,60,.48)}
+.top-breaking{position:absolute;left:0;right:0;top:0;height:190px;z-index:700;display:flex;align-items:center;justify-content:center;background:linear-gradient(100deg,var(--deep),var(--dark) 48%,#6f2dbd 74%,var(--red2) 100%);border-bottom:11px solid var(--red);box-shadow:0 18px 34px rgba(0,0,0,.28);transform:translateY(-205px);overflow:hidden}
+.top-breaking:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 22px,rgba(255,255,255,.08) 22px 34px,transparent 34px 72px);transform:translateX(45%)}
+.top-dot{width:34px;height:34px;border-radius:50%;margin-right:32px;background:#ffffff;box-shadow:0 0 0 16px rgba(255,255,255,.10),0 0 28px rgba(255,255,255,.72);position:relative;z-index:2}
+.top-title{position:relative;z-index:2;font-family:'Orbitron',sans-serif;font-size:78px;font-weight:900;letter-spacing:.035em;color:#fff;text-shadow:0 5px 18px rgba(0,0,0,.28)}
+.top-char{display:inline-block;transform-origin:50% 58%}
+.story-stage{position:absolute;left:95px;right:95px;top:225px;bottom:65px;z-index:300;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.story-card{position:relative;width:100%;min-height:620px;max-height:770px;display:flex;align-items:center;justify-content:center;padding:72px 125px;border:3px solid rgba(239,35,60,.72);background:linear-gradient(135deg,rgba(255,255,255,.985),rgba(249,245,255,.985));box-shadow:0 26px 60px rgba(0,0,0,.33),inset 0 0 0 8px rgba(255,255,255,.45);clip-path:polygon(2.2% 0,100% 0,97.8% 100%,0 100%);opacity:0;transform:scale(.97)}
+.story-card:before{content:'';position:absolute;left:0;top:0;bottom:0;width:22px;background:linear-gradient(#ffffff,#f2eaff,#ffffff)}
+.story-card:after{content:'';position:absolute;right:0;top:0;bottom:0;width:24px;background:linear-gradient(var(--red),var(--dark))}
+#headline{position:relative;z-index:2;width:100%;max-width:100%;text-align:center;color:var(--ink);font-family:'Suvadin','Mukta',sans-serif;font-size:112px;line-height:1.18;font-weight:700;white-space:normal;overflow:visible;word-break:normal;text-wrap:balance;will-change:transform,opacity,filter}
+.story-accent{position:absolute;width:290px;height:14px;background:var(--red);top:42px;left:50%;transform:translateX(-50%)}
+.story-accent:after{content:'';position:absolute;left:50%;top:0;width:85px;height:14px;transform:translateX(-50%);background:#ffffff}
+.corner{position:absolute;width:150px;height:150px;border:12px solid rgba(255,255,255,.22);transform:rotate(45deg)}
+.c1{left:-80px;bottom:105px}.c2{right:-75px;top:270px;opacity:.6}
+.story-char{display:inline-block;transform-origin:50% 58%;will-change:transform,opacity;min-width:.02em}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="fullscreen" id="fullscreen">
+  <i class="decor-left"></i><i class="decor-right"></i><i class="corner c1"></i><i class="corner c2"></i>
+  <div class="top-breaking" id="topBreaking">
+    <div class="top-dot" id="topDot"></div>
+    <div class="top-title" id="topTitle">BREAKING NEWS</div>
+  </div>
+  <div class="story-stage">
+    <div class="story-card" id="storyCard">
+      <div class="story-accent"></div>
+      <div id="headline"></div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const API_URL = params.get('api') || '/nrcs/api_data/data.php?content=breaking&token=jPkHwW2E7sr23YWuZpYz5tibnQI08C&company=13';
+  const ROTATE_MS = Number(params.get('rotate')) || 7000;
+  const REFRESH_MS = Number(params.get('refresh')) || 8000;
+  const fullscreen = document.getElementById('fullscreen');
+  const topBreaking = document.getElementById('topBreaking');
+  const topTitle = document.getElementById('topTitle');
+  const storyCard = document.getElementById('storyCard');
+  const headline = document.getElementById('headline');
+
+  let items = [], pendingItems = null, index = 0, refreshing = false, playing = false, topWave = null;
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  function extractItems(payload){
+    return Array.isArray(payload)
+      ? payload.map(row => row && typeof row.brk_text === 'string' ? row.brk_text.trim() : '').filter(Boolean)
+      : [];
+  }
+
+  function prepareTopChars(){
+    const text = topTitle.textContent;
+    topTitle.textContent = '';
+    [...text].forEach(ch => {
+      const s = document.createElement('span');
+      s.className = 'top-char';
+      s.textContent = ch === ' ' ? '\u00A0' : ch;
+      topTitle.appendChild(s);
+    });
+  }
+
+  function startTopWave(){
+    if(topWave) topWave.kill();
+    const chars = Array.from(topTitle.querySelectorAll('.top-char'));
+    gsap.killTweensOf(chars);
+    gsap.set(chars,{scale:1});
+    topWave = gsap.timeline({repeat:-1,repeatDelay:.65});
+    chars.forEach(char => {
+      topWave.to(char,{scale:1.18,duration:.055,ease:'power2.out'})
+             .to(char,{scale:1,duration:.055,ease:'power2.in'});
+    });
+  }
+
+  function stopTopWave(){
+    if(topWave){topWave.kill();topWave=null}
+    gsap.set(topTitle.querySelectorAll('.top-char'),{scale:1});
+  }
+
+  function fitHeadline(){
+    let size = 112;
+    headline.style.fontSize = size + 'px';
+    const maxW = storyCard.clientWidth - 250;
+    const maxH = storyCard.clientHeight - 170;
+    while((headline.scrollWidth > maxW || headline.scrollHeight > maxH) && size > 58){
+      size -= 2;
+      headline.style.fontSize = size + 'px';
+    }
+  }
+
+  function setHeadlineChars(text){
+    headline.textContent = '';
+    const frag = document.createDocumentFragment();
+    [...(text || '')].forEach(ch => {
+      const span = document.createElement('span');
+      span.className = 'story-char';
+      span.textContent = ch === ' ' ? '\u00A0' : ch;
+      frag.appendChild(span);
+    });
+    headline.appendChild(frag);
+  }
+
+  function makeIntro(){
+    const stage = document.createElement('div');
+    stage.className = 'intro-stage';
+    stage.innerHTML = '<div class="big-title-wrap"><div class="big-kicker">LATEST UPDATE</div><div class="big-title"><span>BREAKING</span><span>NEWS</span></div><div class="intro-line"></div></div>';
+    fullscreen.appendChild(stage);
+    return stage;
+  }
+
+  async function playIntroToTop(){
+    playing = true;
+    stopTopWave();
+    gsap.set(storyCard,{opacity:0,scale:.97,x:0,y:0});
+    gsap.set(topBreaking,{y:-205});
+
+    const intro = makeIntro();
+    const wrap = intro.querySelector('.big-title-wrap');
+    const kicker = intro.querySelector('.big-kicker');
+    const titleLines = intro.querySelectorAll('.big-title span');
+    const line = intro.querySelector('.intro-line');
+
+    await new Promise(resolve => {
+      const tl = gsap.timeline({onComplete:resolve});
+      tl.fromTo(wrap,{scale:.82,opacity:0,filter:'blur(18px)'},{scale:1,opacity:1,filter:'blur(0px)',duration:.62,ease:'back.out(1.35)'})
+        .fromTo(titleLines,{x:-150,opacity:0,skewX:-12},{x:0,opacity:1,skewX:0,duration:.48,stagger:.11,ease:'power4.out'},.08)
+        .fromTo(kicker,{y:-20,opacity:0},{y:0,opacity:1,duration:.34,ease:'power2.out'},.20)
+        .fromTo(line,{scaleX:0,opacity:0},{scaleX:1,opacity:1,duration:.40,ease:'power3.out'},.30)
+        .to({}, {duration:.85})
+        .to(wrap,{y:-360,scale:.52,opacity:0,duration:.58,ease:'power3.inOut'})
+        .to(topBreaking,{y:0,duration:.58,ease:'power4.out'},'<+.05');
+    });
+
+    intro.remove();
+    startTopWave();
+    playing = false;
+  }
+
+  async function showStory(text){
+    playing = true;
+    headline.style.fontFamily = "'Suvadin','Mukta',sans-serif";
+    setHeadlineChars(text || '');
+    fitHeadline();
+
+    const chars = Array.from(headline.querySelectorAll('.story-char'));
+    gsap.killTweensOf(chars);
+
+    await new Promise(resolve => {
+      const tl = gsap.timeline({onComplete:resolve});
+      tl.fromTo(
+          storyCard,
+          {opacity:0,scale:.965,y:38},
+          {opacity:1,scale:1,y:0,duration:.55,ease:'power3.out'}
+        )
+        .fromTo(
+          chars,
+          {scale:1.42,opacity:0},
+          {scale:1,opacity:1,duration:.18,stagger:.022,ease:'power2.out'},
+          .14
+        );
+    });
+
+    playing = false;
+  }
+
+  async function hideStory(){
+    playing = true;
+
+    const chars = Array.from(headline.querySelectorAll('.story-char'));
+    gsap.killTweensOf(chars);
+
+    await new Promise(resolve => {
+      const tl = gsap.timeline({onComplete:resolve});
+      tl.to(
+          chars,
+          {scale:.68,opacity:0,duration:.12,stagger:.015,ease:'power2.in'}
+        )
+        .to(
+          storyCard,
+          {opacity:0,scale:.98,duration:.26,ease:'power2.in'},
+          '<+.08'
+        );
+    });
+
+    playing = false;
+  }
+
+  async function fetchItems(){
+    const res = await fetch(API_URL,{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const raw = (await res.text()).replace(/^\uFEFF/,'');
+    return extractItems(JSON.parse(raw));
+  }
+
+  async function refreshData(initial=false){
+    if(refreshing) return;
+    refreshing = true;
+    try{
+      const next = await fetchItems();
+      if(!next.length) return;
+      if(initial || !items.length){
+        items = next;
+        index = 0;
+        pendingItems = null;
+      }else if(JSON.stringify(next) !== JSON.stringify(items)){
+        pendingItems = next;
+      }
+    }catch(err){
+      console.error('[Full Screen Breaking] API error:',err);
+    }finally{
+      refreshing = false;
+    }
+  }
+
+  async function start(){
+    prepareTopChars();
+    await refreshData(true);
+
+    if(!items.length){
+      items = ['ब्रेकिङ समाचार उपलब्ध छैन'];
+      headline.style.fontFamily = "'Mukta',sans-serif";
+    }
+
+    await playIntroToTop();
+    await showStory(items[index]);
+
+    while(true){
+      await sleep(ROTATE_MS);
+      if(playing) continue;
+
+      await hideStory();
+      index += 1;
+
+      if(index >= items.length){
+        if(pendingItems && pendingItems.length){
+          items = pendingItems;
+          pendingItems = null;
+        }
+        index = 0;
+        await playIntroToTop();
+      }
+
+      await showStory(items[index]);
+    }
+  }
+
+  window.addEventListener('resize',fitHeadline);
+  setInterval(() => refreshData(false),REFRESH_MS);
+  start();
+})();
+</script>
+</body>
+</html>

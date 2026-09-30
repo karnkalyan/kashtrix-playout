@@ -202,6 +202,7 @@
                             <MenuItem Header="SCTE-35 &amp; SCTE-104 Trigger Center..." Click="ScteTriggerManager_Click"/>
                             <MenuItem Header="Operations with FRAMES (Optical Cue)..." Click="FrameComparison_Click"/>
                             <MenuItem Header="Select Now / Next Fields..." Click="NowNextFields_Click"/>
+                            <MenuItem Header="Select Weather Fields..." Click="WeatherFields_Click"/>
                             <Separator/>
                             <MenuItem Header="Settings" Click="Settings_Click"/>
                         </MenuItem>

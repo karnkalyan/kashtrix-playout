@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, initial-scale=1.0" />
+<title>Breaking News Split Screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mukta:wght@500;600;700;800&family=Orbitron:wght@700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@font-face{font-family:'Suvadin';src:url('suvadin.ttf') format('truetype'),url('fonts/suvadin.ttf') format('truetype');font-display:swap}
+:root{--red:#ef233c;--red2:#c1121f;--dark:#5b2a86;--deep:#2d124d;--yellow:#ffffff;--paper:#f8f5ff;--ink:#17080a}
+html,body{width:1920px;height:1080px;overflow:hidden;background:transparent}
+body{
+  position:relative;
+  font-family:'Mukta',sans-serif;
+  transform:translateZ(0);
+  backface-visibility:hidden;
+  perspective:1400px;
+  background:transparent;
+}
+
+/*
+  Full-screen animated background is drawn only OUTSIDE the right-side
+  anchor window. Four identical full-screen layers are clipped around
+  the transparent cutout so the window itself stays true alpha.
+*/
+.body-bg{
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 18% 58%,rgba(239,35,60,.18),transparent 24%),
+    radial-gradient(circle at 82% 36%,rgba(255,255,255,.10),transparent 22%),
+    linear-gradient(135deg,var(--deep) 0%,var(--dark) 38%,#6f2dbd 68%,#4a1f75 100%);
+}
+.body-bg:before{
+  content:'';
+  position:absolute;
+  inset:-15%;
+  pointer-events:none;
+  background:
+    repeating-linear-gradient(
+      128deg,
+      transparent 0 65px,
+      rgba(255,255,255,.055) 65px 98px,
+      transparent 98px 170px
+    );
+  animation:bodyBands 9s linear infinite alternate;
+}
+.body-bg:after{
+  content:'';
+  position:absolute;
+  top:-25%;
+  left:-45%;
+  width:50%;
+  height:155%;
+  pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(239,35,60,.14),rgba(255,255,255,.08),transparent);
+  transform:skewX(-20deg);
+  animation:bodySweep 6.8s ease-in-out infinite;
+}
+
+/* Transparent anchor window rectangle:
+   x ≈ 1045px..1856px, y = 225px..1026px */
+.bg-top{clip-path:inset(0 0 855px 0)}
+.bg-bottom{clip-path:inset(1026px 0 0 0)}
+.bg-left{clip-path:inset(225px 876px 54px 0)}
+.bg-right{clip-path:inset(225px 0 54px 1856px)}
+@keyframes bodyBands{
+  0%{transform:translate3d(-4%,0,0) scale(1.02);opacity:.42}
+  50%{transform:translate3d(3%,-1.5%,0) scale(1.05);opacity:.68}
+  100%{transform:translate3d(7%,1.5%,0) scale(1.03);opacity:.48}
+}
+@keyframes bodySweep{
+  0%{transform:translateX(-20%) skewX(-20deg);opacity:0}
+  18%{opacity:.8}
+  75%{opacity:.5}
+  100%{transform:translateX(330%) skewX(-20deg);opacity:0}
+}
+
+/* Full-screen intro only. Removed after it moves to the top. */
+.intro-stage{position:absolute;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 84% 78%,rgba(239,35,60,.16),transparent 24%),radial-gradient(circle at 18% 24%,rgba(255,255,255,.08),transparent 20%),linear-gradient(135deg,var(--deep) 0%,var(--dark) 42%,#6f2dbd 68%,#4a1f75 100%)}
+.intro-stage:before{content:'';position:absolute;inset:0;opacity:.32;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 14px,transparent 14px 48px);transform:translateX(30%)}
+.intro-stage:after{content:'';position:absolute;left:0;right:0;bottom:0;height:14px;background:var(--red);box-shadow:0 -4px 18px rgba(239,35,60,.30)}
+.big-title-wrap{position:relative;z-index:2;width:1500px;min-height:420px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center}
+.big-kicker{color:#ffffff;font-size:40px;font-weight:800;letter-spacing:.18em;margin-bottom:12px}
+.big-title{font-family:'Orbitron',sans-serif;color:#fff;font-size:148px;font-weight:900;line-height:.88;letter-spacing:.03em;text-shadow:0 10px 0 rgba(0,0,0,.18),0 20px 40px rgba(0,0,0,.34);white-space:nowrap}
+.big-title span{display:block}
+.intro-line{width:760px;height:11px;margin-top:38px;background:var(--red);transform-origin:center;box-shadow:0 0 22px rgba(239,35,60,.48)}
+
+/* Fixed top header after the intro */
+.top-breaking{position:absolute;left:0;right:0;top:0;height:190px;z-index:1200;display:flex;align-items:center;justify-content:center;background:linear-gradient(100deg,var(--deep),var(--dark) 48%,#6f2dbd 74%,var(--red2) 100%);border-bottom:11px solid var(--red);box-shadow:0 18px 34px rgba(0,0,0,.28);transform:translateY(-205px);overflow:hidden}
+.top-breaking:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 22px,rgba(255,255,255,.08) 22px 34px,transparent 34px 72px);transform:translateX(45%)}
+.top-dot{width:34px;height:34px;border-radius:50%;margin-right:32px;background:#ffffff;box-shadow:0 0 0 16px rgba(255,255,255,.10),0 0 28px rgba(255,255,255,.72);position:relative;z-index:2}
+.top-title{position:relative;z-index:2;font-family:'Orbitron',sans-serif;font-size:78px;font-weight:900;letter-spacing:.035em;color:#fff;text-shadow:0 5px 18px rgba(0,0,0,.28)}
+.top-char{display:inline-block;transform-origin:50% 58%}
+
+/* Split layout. Left side stays transparent for the anchor/video. */
+.split-stage{position:absolute;left:64px;right:64px;top:225px;bottom:54px;z-index:400;display:grid;grid-template-columns:54% 46%;gap:28px;align-items:stretch}
+.anchor-frame{
+  position:relative;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  clip-path:none;
+  opacity:0;
+  transform:translateX(-65px);
+  overflow:visible;
+}
+.anchor-frame:before,.anchor-frame:after{content:none}
+.anchor-inner,.anchor-corner{display:none}
+
+.story-card{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:76px 86px;border:3px solid rgba(239,35,60,.78);background:rgba(255,255,255,.08);box-shadow:0 26px 60px rgba(0,0,0,.28),inset 0 0 0 2px rgba(255,255,255,.18);clip-path:polygon(0 0,96.5% 0,100% 100%,3.5% 100%);opacity:0;transform:translateX(65px);overflow:hidden}
+.story-card:before{content:'';position:absolute;left:0;top:0;bottom:0;width:22px;background:linear-gradient(#ffffff,#f2eaff,#ffffff)}
+.story-card:after{content:'';position:absolute;right:0;top:0;bottom:0;width:24px;background:linear-gradient(var(--red),var(--dark))}
+.story-accent{position:absolute;width:250px;height:14px;background:var(--red);top:40px;left:50%;transform:translateX(-50%)}
+.story-accent:after{content:'';position:absolute;left:50%;top:0;width:78px;height:14px;transform:translateX(-50%);background:#ffffff}
+#headline{position:relative;z-index:2;width:100%;max-width:100%;text-align:center;color:#ffffff;font-family:'Suvadin','Mukta',sans-serif;font-size:92px;line-height:1.18;font-weight:700;white-space:normal;overflow:visible;word-break:normal;text-wrap:balance;text-shadow:none;will-change:transform,opacity,filter}
+
+
+.bg-motion{
+  position:absolute;
+  inset:-12%;
+  z-index:0;
+  pointer-events:none;
+  opacity:.58;
+  background:
+    radial-gradient(circle at 18% 35%,rgba(239,35,60,.18),transparent 18%),
+    radial-gradient(circle at 78% 66%,rgba(255,255,255,.10),transparent 22%),
+    repeating-linear-gradient(
+      128deg,
+      transparent 0 70px,
+      rgba(255,255,255,.055) 70px 105px,
+      transparent 105px 180px
+    );
+  will-change:transform,opacity;
+  animation:bgDrift 10s linear infinite alternate;
+}
+.bg-sweep{
+  position:absolute;
+  left:-35%;
+  top:-20%;
+  width:55%;
+  height:150%;
+  z-index:0;
+  pointer-events:none;
+  transform:skewX(-20deg);
+  background:linear-gradient(
+    90deg,
+    transparent,
+    rgba(239,35,60,.10),
+    rgba(255,255,255,.075),
+    transparent
+  );
+  filter:blur(2px);
+  animation:bgSweep 7s ease-in-out infinite;
+}
+@keyframes bgDrift{
+  0%{transform:translate3d(-3%,0,0) scale(1.02);opacity:.42}
+  50%{transform:translate3d(3%,-1.5%,0) scale(1.05);opacity:.62}
+  100%{transform:translate3d(6%,1.5%,0) scale(1.03);opacity:.50}
+}
+@keyframes bgSweep{
+  0%{transform:translateX(-25%) skewX(-20deg);opacity:0}
+  18%{opacity:.85}
+  72%{opacity:.5}
+  100%{transform:translateX(280%) skewX(-20deg);opacity:0}
+}
+
+.story-char{display:inline-block;transform-origin:50% 58%;will-change:transform,opacity;min-width:.02em}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="body-bg bg-top" aria-hidden="true"></div>
+<div class="body-bg bg-bottom" aria-hidden="true"></div>
+<div class="body-bg bg-left" aria-hidden="true"></div>
+<div class="body-bg bg-right" aria-hidden="true"></div>
+<div class="top-breaking" id="topBreaking">
+  <div class="top-dot"></div>
+  <div class="top-title" id="topTitle">BREAKING NEWS</div>
+</div>
+
+<div class="split-stage">
+  <div class="story-card" id="storyCard">
+    <div class="story-accent"></div>
+    <div id="headline"></div>
+  </div>
+  <div class="anchor-frame" id="anchorFrame">
+    <div class="anchor-inner"></div>
+    <div class="anchor-corner"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const API_URL = params.get('api') || '/nrcs/api_data/data.php?content=breaking&token=jPkHwW2E7sr23YWuZpYz5tibnQI08C&company=13';
+  const ROTATE_MS = Number(params.get('rotate')) || 7000;
+  const REFRESH_MS = Number(params.get('refresh')) || 8000;
+
+  const topBreaking = document.getElementById('topBreaking');
+  const topTitle = document.getElementById('topTitle');
+  const anchorFrame = document.getElementById('anchorFrame');
+  const storyCard = document.getElementById('storyCard');
+  const headline = document.getElementById('headline');
+
+  let items = [];
+  let pendingItems = null;
+  let index = 0;
+  let refreshing = false;
+  let playing = false;
+  let topWave = null;
+
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  function extractItems(payload){
+    return Array.isArray(payload)
+      ? payload.map(row => row && typeof row.brk_text === 'string' ? row.brk_text.trim() : '').filter(Boolean)
+      : [];
+  }
+
+  function prepareTopChars(){
+    const text = topTitle.textContent;
+    topTitle.textContent = '';
+    [...text].forEach(ch => {
+      const span = document.createElement('span');
+      span.className = 'top-char';
+      span.textContent = ch === ' ' ? '\u00A0' : ch;
+      topTitle.appendChild(span);
+    });
+  }
+
+  function startTopWave(){
+    if(topWave) topWave.kill();
+    const chars = Array.from(topTitle.querySelectorAll('.top-char'));
+    gsap.killTweensOf(chars);
+    gsap.set(chars,{scale:1});
+    topWave = gsap.timeline({repeat:-1,repeatDelay:.65});
+    chars.forEach(char => {
+      topWave.to(char,{scale:1.18,duration:.055,ease:'power2.out'})
+             .to(char,{scale:1,duration:.055,ease:'power2.in'});
+    });
+  }
+
+  function stopTopWave(){
+    if(topWave){topWave.kill();topWave=null;}
+    gsap.set(topTitle.querySelectorAll('.top-char'),{scale:1});
+  }
+
+  function fitHeadline(){
+    let size = 92;
+    headline.style.fontSize = size + 'px';
+    const maxW = storyCard.clientWidth - 172;
+    const maxH = storyCard.clientHeight - 155;
+    while((headline.scrollWidth > maxW || headline.scrollHeight > maxH) && size > 54){
+      size -= 2;
+      headline.style.fontSize = size + 'px';
+    }
+  }
+
+  function setHeadlineChars(text){
+    headline.textContent = '';
+    const frag = document.createDocumentFragment();
+    [...(text || '')].forEach(ch => {
+      const span = document.createElement('span');
+      span.className = 'story-char';
+      span.textContent = ch === ' ' ? '\u00A0' : ch;
+      frag.appendChild(span);
+    });
+    headline.appendChild(frag);
+  }
+
+  function makeIntro(){
+    const intro = document.createElement('div');
+    intro.className = 'intro-stage';
+    intro.innerHTML = '<div class="big-title-wrap"><div class="big-kicker">LATEST UPDATE</div><div class="big-title"><span>BREAKING</span><span>NEWS</span></div><div class="intro-line"></div></div>';
+    document.body.appendChild(intro);
+    return intro;
+  }
+
+  async function playIntroToTop(){
+    playing = true;
+    stopTopWave();
+    gsap.set(topBreaking,{y:-205});
+    gsap.set(anchorFrame,{opacity:0,x:65});
+    gsap.set(storyCard,{opacity:0,x:-65});
+
+    const intro = makeIntro();
+    const wrap = intro.querySelector('.big-title-wrap');
+    const kicker = intro.querySelector('.big-kicker');
+    const titleLines = intro.querySelectorAll('.big-title span');
+    const line = intro.querySelector('.intro-line');
+
+    await new Promise(resolve => {
+      const tl = gsap.timeline({onComplete:resolve});
+      tl.fromTo(wrap,{scale:.82,opacity:0,filter:'blur(18px)'},{scale:1,opacity:1,filter:'blur(0px)',duration:.62,ease:'back.out(1.35)'})
+        .fromTo(titleLines,{x:-150,opacity:0,skewX:-12},{x:0,opacity:1,skewX:0,duration:.48,stagger:.11,ease:'power4.out'},.08)
+        .fromTo(kicker,{y:-20,opacity:0},{y:0,opacity:1,duration:.34,ease:'power2.out'},.20)
+        .fromTo(line,{scaleX:0,opacity:0},{scaleX:1,opacity:1,duration:.40,ease:'power3.out'},.30)
+        .to({}, {duration:.85})
+        .to(wrap,{y:-360,scale:.52,opacity:0,duration:.58,ease:'power3.inOut'})
+        .to(topBreaking,{y:0,duration:.58,ease:'power4.out'},'<+.05');
+    });
+
+    intro.remove();
+    startTopWave();
+    playing = false;
+  }
+
+  async function showSplitStory(text){
+    playing = true;
+    headline.style.fontFamily = "'Suvadin','Mukta',sans-serif";
+    setHeadlineChars(text || '');
+    fitHeadline();
+
+    const chars = Array.from(headline.querySelectorAll('.story-char'));
+    gsap.killTweensOf(chars);
+
+    await new Promise(resolve => {
+      const tl = gsap.timeline({onComplete:resolve});
+      tl.fromTo(anchorFrame,{x:-65,opacity:0},{x:0,opacity:1,duration:.52,ease:'power3.out'})
+        .fromTo(storyCard,{x:65,opacity:0},{x:0,opacity:1,duration:.52,ease:'power3.out'},.05)
+        .fromTo(
+          chars,
+          {scale:1.42,opacity:0},
+          {scale:1,opacity:1,duration:.18,stagger:.022,ease:'power2.out'},
+          .18
+        );
+    });
+
+    playing = false;
+  }
+
+  async function changeStory(text){
+    playing = true;
+
+    let chars = Array.from(headline.querySelectorAll('.story-char'));
+    gsap.killTweensOf(chars);
+
+    await new Promise(resolve => {
+      if(!chars.length){
+        resolve();
+        return;
+      }
+      gsap.to(
+        chars,
+        {
+          scale:.68,
+          opacity:0,
+          duration:.12,
+          stagger:.015,
+          ease:'power2.in',
+          onComplete:resolve
+        }
+      );
+    });
+
+    setHeadlineChars(text || '');
+    fitHeadline();
+
+    chars = Array.from(headline.querySelectorAll('.story-char'));
+    gsap.killTweensOf(chars);
+
+    await new Promise(resolve => {
+      gsap.fromTo(
+        chars,
+        {scale:1.42,opacity:0},
+        {
+          scale:1,
+          opacity:1,
+          duration:.18,
+          stagger:.022,
+          ease:'power2.out',
+          onComplete:resolve
+        }
+      );
+    });
+
+    playing = false;
+  }
+
+  async function fetchItems(){
+    const res = await fetch(API_URL,{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const raw = (await res.text()).replace(/^\uFEFF/,'');
+    return extractItems(JSON.parse(raw));
+  }
+
+  async function refreshData(initial=false){
+    if(refreshing) return;
+    refreshing = true;
+    try{
+      const next = await fetchItems();
+      if(!next.length) return;
+      if(initial || !items.length){
+        items = next;
+        index = 0;
+        pendingItems = null;
+      }else if(JSON.stringify(next) !== JSON.stringify(items)){
+        pendingItems = next;
+      }
+    }catch(err){
+      console.error('[Split Screen Breaking] API error:',err);
+    }finally{
+      refreshing = false;
+    }
+  }
+
+  async function start(){
+    prepareTopChars();
+    await refreshData(true);
+
+    if(!items.length){
+      items = ['ब्रेकिङ समाचार उपलब्ध छैन'];
+      headline.style.fontFamily = "'Mukta',sans-serif";
+    }
+
+    await playIntroToTop();
+    await showSplitStory(items[index]);
+
+    while(true){
+      await sleep(ROTATE_MS);
+      if(playing) continue;
+
+      index += 1;
+
+      if(index >= items.length){
+        if(pendingItems && pendingItems.length){
+          items = pendingItems;
+          pendingItems = null;
+        }
+        index = 0;
+        await playIntroToTop();
+        await showSplitStory(items[index]);
+      }else{
+        await changeStory(items[index]);
+      }
+    }
+  }
+
+  window.addEventListener('resize',fitHeadline);
+  setInterval(() => refreshData(false),REFRESH_MS);
+  start();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, initial-scale=1.0" />
+<title>Breaking News</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mukta:wght@500;600;700;800&family=Orbitron:wght@700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@font-face{font-family:'Suvadin';src:url('suvadin.ttf') format('truetype'),url('fonts/suvadin.ttf') format('truetype');font-display:swap}
+:root{--r1:#873b27;--r2:#800818;--r3:#7e0919;--accent:#ffffff;--paper:#e0e0e0;--ink:#111111}
+html,body{width:1920px;height:1080px;overflow:hidden;background:transparent}
+body{position:relative;font-family:'Mukta',sans-serif;transform:translateZ(0);backface-visibility:hidden;perspective:1200px}
+.footer-news{position:absolute;left:0;right:0;bottom:100px;height:115px;display:flex;background:#fff;overflow:hidden;filter:drop-shadow(0 13px 22px rgba(0,0,0,.24))}
+.compact-title{width:400px;flex:0 0 400px;display:none;align-items:center;position:relative;z-index:500;overflow:hidden;isolation:isolate;padding:0 56px 0 48px;color:#fff;background:linear-gradient(105deg,var(--r3),var(--r2) 58%,var(--r1));clip-path:polygon(0 0,100% 0,calc(100% - 34px) 100%,0 100%)}
+.compact-title:before{content:'';position:absolute;top:0;left:0;right:20px;height:8px;background:var(--accent);box-shadow:0 0 14px rgba(255,255,255,.62);z-index:5}
+.compact-title:after{content:'';position:absolute;right:30px;top:0;width:70px;height:100%;background:repeating-linear-gradient(135deg,transparent 0 9px,rgba(255,255,255,.11) 9px 14px);z-index:2}
+.compact-yellow-edge{position:absolute;right:0;top:0;bottom:0;width:48px;background:var(--accent);clip-path:polygon(58% 0,100% 0,30% 100%,0 100%);z-index:1;pointer-events:none}
+.compact-copy{position:relative;z-index:4;font-family:'Orbitron',sans-serif;font-weight:900;font-size:31px;line-height:.98;letter-spacing:.035em;transform-origin:left center}
+.compact-copy .compact-line{display:block;white-space:nowrap}
+.compact-char{display:inline-block;transform-origin:50% 58%;will-change:transform}
+.alert-dot{width:15px;height:15px;border-radius:50%;background:var(--accent);margin-right:17px;position:relative;z-index:4;box-shadow:0 0 0 0 rgba(255,255,255,.72)}
+.alert-dot.live{animation:pulse 1.2s ease-out infinite}@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.72)}100%{box-shadow:0 0 0 18px rgba(255,255,255,0)}}
+.headline-wrap{position:absolute;left:400px;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 64px;overflow:hidden;background:linear-gradient(90deg,#ffffff 0%,var(--paper) 70%,#d8d8d8);border-top:1px solid rgba(126,9,25,.18);border-bottom:1px solid rgba(126,9,25,.22);transform-origin:left center;transform:scaleX(0);opacity:0;z-index:300}
+.headline-wrap:before{content:none}
+.headline-wrap:after{content:'';position:absolute;right:0;top:0;bottom:0;width:16px;background:linear-gradient(var(--r1),var(--r3))}
+#headline{position:relative;z-index:2;width:100%;height:100%;display:flex;align-items:center;justify-content:center;max-width:100%;white-space:nowrap;overflow:visible;text-align:center;color:var(--ink);font-family:'Suvadin','Mukta',sans-serif;font-size:54px;line-height:1.18;font-weight:700;will-change:transform,opacity,filter,clip-path}
+.intro-overlay{position:absolute;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(100deg,#600612 0%,var(--r3) 48%,var(--r1) 100%);transform-origin:left center;clip-path:inset(0 100% 0 0)}
+.intro-overlay:before,.intro-overlay:after{content:'';position:absolute;left:0;width:100%;height:8px;background:var(--accent);box-shadow:0 0 18px rgba(255,255,255,.52)}
+.intro-overlay:before{top:0}.intro-overlay:after{bottom:0}
+.intro-overlay .slash{position:absolute;top:-90px;width:90px;height:300px;background:rgba(255,255,255,.10);transform:skewX(-24deg)}
+.intro-overlay .s1{left:9%}.intro-overlay .s2{left:25%;opacity:.65}.intro-overlay .s3{right:18%;opacity:.5}
+.intro-title{font-family:'Orbitron',sans-serif;color:#fff;font-size:72px;font-weight:900;letter-spacing:.12em;white-space:nowrap;text-shadow:0 4px 14px rgba(0,0,0,.2);will-change:transform,opacity,filter,letter-spacing}
+.word{display:inline-block;will-change:transform,opacity,filter}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<footer class="footer-news">
+  <div class="compact-title" id="compactTitle">
+    <i class="compact-yellow-edge" aria-hidden="true"></i>
+    <div class="alert-dot" id="alertDot"></div>
+    <div class="compact-copy" id="compactCopy"><span class="compact-line">BREAKING</span><span class="compact-line">NEWS</span></div>
+  </div>
+  <div class="headline-wrap" id="headlineWrap"><div id="headline">ब्रेकिङ समाचार लोड हुँदैछ...</div></div>
+</footer>
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const API_URL = params.get('api') || '/nrcs/api_data/data.php?content=breaking&token=jPkHwW2E7sr23YWuZpYz5tibnQI08C&company=13';
+  const ROTATE_MS = Number(params.get('rotate')) || 6500;
+  const REFRESH_MS = Number(params.get('refresh')) || 7000;
+  const COMPACT_WIDTH = 400;
+  const STORIES_PER_INTRO = 2;
+  const footer = document.querySelector('.footer-news');
+  const compactTitle = document.getElementById('compactTitle');
+  const compactCopy = document.getElementById('compactCopy');
+  const alertDot = document.getElementById('alertDot');
+  const headlineWrap = document.getElementById('headlineWrap');
+  const headline = document.getElementById('headline');
+
+  let items = [];
+  let pendingItems = [];
+  let index = 0;
+  let storiesSinceIntro = 0;
+  let animating = false;
+  let refreshing = false;
+  let started = false;
+  let compactLoop = null;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function extractItems(payload) {
+    return Array.isArray(payload)
+      ? payload.map(row => row && typeof row.brk_text === 'string' ? row.brk_text.trim() : '').filter(Boolean)
+      : [];
+  }
+
+  function fitText() {
+    let size = 54;
+    headline.style.fontSize = size + 'px';
+    const max = headlineWrap.clientWidth - 128;
+    while (headline.scrollWidth > max && size > 38) {
+      size -= 2;
+      headline.style.fontSize = size + 'px';
+    }
+  }
+
+  function makeIntro() {
+    const overlay = document.createElement('div');
+    overlay.className = 'intro-overlay';
+    overlay.innerHTML = '<i class="slash s1"></i><i class="slash s2"></i><i class="slash s3"></i><div class="intro-title"><span class="word">BREAKING</span> <span class="word">NEWS</span></div>';
+    footer.appendChild(overlay);
+    return overlay;
+  }
+
+  function prepareCompactChars() {
+    compactCopy.querySelectorAll('.compact-line').forEach(line => {
+      const text = line.textContent;
+      line.textContent = '';
+      [...text].forEach(ch => {
+        const span = document.createElement('span');
+        span.className = 'compact-char';
+        span.textContent = ch === ' ' ? '\u00A0' : ch;
+        line.appendChild(span);
+      });
+    });
+  }
+
+  function startCompactLoop() {
+    if (compactLoop) compactLoop.kill();
+    const chars = Array.from(compactCopy.querySelectorAll('.compact-char'));
+    gsap.killTweensOf(chars);
+    gsap.set(chars, {scale:1});
+
+    // Fast one-character-at-a-time scale wave. A letter completes its
+    // scale-up / scale-down before the next letter starts, so the whole
+    // BREAKING NEWS label never pulses as one block.
+    compactLoop = gsap.timeline({repeat:-1, repeatDelay:.5});
+    chars.forEach(char => {
+      compactLoop
+        .to(char, {scale:1.30, duration:.065, ease:'power2.out'})
+        .to(char, {scale:1.00, duration:.065, ease:'power2.in'});
+    });
+  }
+
+  function showCompact() {
+    compactTitle.style.display = 'flex';
+    alertDot.classList.add('live');
+    gsap.fromTo(compactTitle, {x:-50, opacity:0}, {x:0, opacity:1, duration:.38, ease:'power3.out'});
+    gsap.fromTo(compactCopy, {x:-18, skewX:-8, opacity:0}, {x:0, skewX:0, opacity:1, duration:.45, ease:'power3.out', onComplete:startCompactLoop});
+  }
+
+  function hideCompact() {
+    if (compactLoop) { compactLoop.kill(); compactLoop = null; }
+    gsap.killTweensOf(compactCopy);
+    const chars = compactCopy.querySelectorAll('.compact-char');
+    gsap.killTweensOf(chars);
+    gsap.set(chars, {scale:1});
+    gsap.set(compactCopy, {x:0, skewX:0, opacity:1});
+    alertDot.classList.remove('live');
+    compactTitle.style.display = 'none';
+  }
+
+  function introCycle() {
+    return new Promise(resolve => {
+      animating = true;
+      hideCompact();
+      gsap.set(headlineWrap, {scaleX:0, opacity:0});
+      gsap.set(headline, {opacity:0, x:0, filter:'blur(0px)', clipPath:'inset(0 0 0 0)'});
+      const overlay = makeIntro();
+      const words = overlay.querySelectorAll('.word');
+      const slashes = overlay.querySelectorAll('.slash');
+      const tl = gsap.timeline({onComplete:() => {animating=false; resolve();}});
+      tl.to(overlay, {clipPath:'inset(0 0% 0 0)', duration:.5, ease:'power4.out'}, 0)
+        .fromTo(slashes, {x:-180, opacity:0}, {x:240, opacity:1, duration:.8, stagger:.07, ease:'power2.out'}, .05)
+        .fromTo(words, {x:90, skewX:-18, opacity:0, filter:'blur(9px)'}, {x:0, skewX:0, opacity:1, filter:'blur(0px)', duration:.52, stagger:.12, ease:'power4.out'}, .14)
+        .to({}, {duration:.72})
+        .to(overlay, {width:COMPACT_WIDTH, duration:.58, ease:'power3.inOut'})
+        .to(overlay.querySelector('.intro-title'), {fontSize:'28px', letterSpacing:'.02em', x:-12, duration:.5, ease:'power3.inOut'}, '<')
+        .add(() => {showCompact(); gsap.to(headlineWrap, {scaleX:1, opacity:1, duration:.48, ease:'power3.out'});}, '<+.32')
+        .to(overlay, {opacity:0, duration:.18, onComplete:() => overlay.remove()}, '>-.05');
+    });
+  }
+
+  function animateHeadline(newText, first=false) {
+    return new Promise(resolve => {
+      animating = true;
+      const tl = gsap.timeline({onComplete:() => {animating=false; resolve();}});
+      if (!first) tl.to(headline, {x:-60, opacity:0, filter:'blur(5px)', clipPath:'inset(0 0 0 100%)', duration:.32, ease:'power2.in'});
+      tl.add(() => {
+          headline.style.fontFamily = "'Suvadin','Mukta',sans-serif";
+          headline.textContent = newText || 'डेटा उपलब्ध छैन';
+          fitText();
+          gsap.set(headline, {x:85, opacity:0, filter:'blur(8px)', clipPath:'inset(0 100% 0 0)'});
+        })
+        .to(headline, {x:0, opacity:1, filter:'blur(0px)', clipPath:'inset(0 0% 0 0)', duration:.48, ease:'power4.out'});
+    });
+  }
+
+  async function fetchItems() {
+    const res = await fetch(API_URL, {cache:'no-store'});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const raw = (await res.text()).replace(/^\uFEFF/, '');
+    return extractItems(JSON.parse(raw));
+  }
+
+  async function loadData(initial=false) {
+    if (refreshing) return;
+    refreshing = true;
+    try {
+      const next = await fetchItems();
+      if (!next.length) return;
+      pendingItems = next.slice();
+      if (initial && !started) {
+        items = pendingItems.slice();
+        index = 0;
+        storiesSinceIntro = 0;
+        started = true;
+        headline.textContent = '';
+        await introCycle();
+        await animateHeadline(items[0], true);
+        storiesSinceIntro = 1;
+      }
+    } catch (err) {
+      console.error('[Breaking News] API error:', err);
+      if (!started) {
+        started = true;
+        items = ['ब्रेकिङ समाचार उपलब्ध छैन'];
+        pendingItems = items.slice();
+        index = 0;
+        storiesSinceIntro = 0;
+        headline.style.fontFamily = "'Mukta',sans-serif";
+        headline.textContent = '';
+        await introCycle();
+        await animateHeadline(items[0], true);
+        storiesSinceIntro = 1;
+      }
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  async function showIntroThenStory(nextIndex) {
+    if (pendingItems.length && nextIndex === 0) {
+      items = pendingItems.slice();
+    }
+    if (!items.length) return;
+
+    await gsap.to(headline, {
+      x:-70,
+      opacity:0,
+      filter:'blur(5px)',
+      duration:.28,
+      ease:'power2.in'
+    });
+
+    await introCycle();
+    index = Math.min(nextIndex, items.length - 1);
+    await animateHeadline(items[index], true);
+    storiesSinceIntro = 1;
+  }
+
+  async function rotateLoop() {
+    while (true) {
+      await sleep(ROTATE_MS);
+      if (!items.length || animating) continue;
+
+      let nextIndex = index + 1;
+      const reachedEnd = nextIndex >= items.length;
+      if (reachedEnd) nextIndex = 0;
+
+      // Re-show the full BREAKING overlay after every two JSON stories.
+      if (storiesSinceIntro >= STORIES_PER_INTRO) {
+        await showIntroThenStory(nextIndex);
+        continue;
+      }
+
+      // If the feed itself ends before two items, start a new overlay cycle.
+      if (reachedEnd) {
+        await showIntroThenStory(0);
+        continue;
+      }
+
+      index = nextIndex;
+      await animateHeadline(items[index]);
+      storiesSinceIntro += 1;
+    }
+  }
+
+  prepareCompactChars();
+  window.addEventListener('resize', fitText);
+  loadData(true).then(rotateLoop);
+  setInterval(() => loadData(false), REFRESH_MS);
+})();
+</script>
+</body>
+</html>

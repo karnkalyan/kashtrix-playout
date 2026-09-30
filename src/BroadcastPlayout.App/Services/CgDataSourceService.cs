@@ -13,6 +13,7 @@ namespace BroadcastPlayout.Services;
 public static class CgDataSourceService
 {
     public const double CategoryIntroSeconds = 0.55;
+    public const double CategoryOutroSeconds = 0.45;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (string Signature, CategoryFeedSchedule Schedule)> CategoryScheduleCache = new();
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) };
 
@@ -151,10 +152,13 @@ public static class CgDataSourceService
             var min = temp.ValueKind == JsonValueKind.Object && temp.TryGetProperty("min", out var tmin) ? tmin.GetDouble() : double.NaN;
             var max = temp.ValueKind == JsonValueKind.Object && temp.TryGetProperty("max", out var tmax) ? tmax.GetDouble() : double.NaN;
             var dayTemp = temp.ValueKind == JsonValueKind.Object && temp.TryGetProperty("day", out var tday) ? tday.GetDouble() : (double.IsNaN(max) || double.IsNaN(min) ? double.NaN : (min + max) / 2);
+            var feels = day.TryGetProperty("feels_like", out var fl) && fl.ValueKind == JsonValueKind.Object && fl.TryGetProperty("day", out var fld) ? fld.GetDouble() : dayTemp;
             var humidity = day.TryGetProperty("humidity", out var hum) ? hum.GetInt32() : 0;
+            var pressure = day.TryGetProperty("pressure", out var pr) ? pr.GetDouble() : 1013.0;
+            var clouds = day.TryGetProperty("clouds", out var cl) ? cl.GetDouble() : 0.0;
             var wind = day.TryGetProperty("wind_speed", out var ws) ? ws.GetDouble() : 0;
             var pop = day.TryGetProperty("pop", out var popNode) ? popNode.GetDouble() * 100.0 : 0;
-            rows.Add(WeatherRow(city, local, units, dayTemp, min, max, humidity, wind, pop,
+            rows.Add(WeatherRow(city, local, units, dayTemp, min, max, feels, humidity, pressure, clouds, wind, pop,
                 weather.ValueKind == JsonValueKind.Object ? TryJsonString(weather, "main") : null,
                 weather.ValueKind == JsonValueKind.Object ? TryJsonString(weather, "description") : null,
                 weather.ValueKind == JsonValueKind.Object ? TryJsonString(weather, "icon") : null));
@@ -179,12 +183,16 @@ public static class CgDataSourceService
             var temp = mainNode.ValueKind == JsonValueKind.Object && mainNode.TryGetProperty("temp", out var tn) ? tn.GetDouble() : double.NaN;
             var min = mainNode.ValueKind == JsonValueKind.Object && mainNode.TryGetProperty("temp_min", out var minNode) ? minNode.GetDouble() : temp;
             var max = mainNode.ValueKind == JsonValueKind.Object && mainNode.TryGetProperty("temp_max", out var maxNode) ? maxNode.GetDouble() : temp;
+            var feels = mainNode.ValueKind == JsonValueKind.Object && mainNode.TryGetProperty("feels_like", out var fln) ? fln.GetDouble() : temp;
             var humidity = mainNode.ValueKind == JsonValueKind.Object && mainNode.TryGetProperty("humidity", out var hn) ? hn.GetInt32() : 0;
+            var pressure = mainNode.ValueKind == JsonValueKind.Object && mainNode.TryGetProperty("pressure", out var prn) ? prn.GetDouble() : 1013.0;
+            var cloudsNode = item.TryGetProperty("clouds", out var cln) ? cln : default;
+            var clouds = cloudsNode.ValueKind == JsonValueKind.Object && cloudsNode.TryGetProperty("all", out var can) ? can.GetDouble() : 0.0;
             var windNode = item.TryGetProperty("wind", out var wn) ? wn : default;
             var wind = windNode.ValueKind == JsonValueKind.Object && windNode.TryGetProperty("speed", out var sn) ? sn.GetDouble() : 0;
             var pop = item.TryGetProperty("pop", out var pn) ? pn.GetDouble() * 100.0 : 0;
             var weather = item.TryGetProperty("weather", out var wa) && wa.ValueKind == JsonValueKind.Array && wa.GetArrayLength() > 0 ? wa[0] : default;
-            samples.Add(new WeatherSample(local, temp, min, max, humidity, wind, pop,
+            samples.Add(new WeatherSample(local, temp, min, max, feels, humidity, pressure, clouds, wind, pop,
                 weather.ValueKind == JsonValueKind.Object ? TryJsonString(weather, "main") ?? string.Empty : string.Empty,
                 weather.ValueKind == JsonValueKind.Object ? TryJsonString(weather, "description") ?? string.Empty : string.Empty,
                 weather.ValueKind == JsonValueKind.Object ? TryJsonString(weather, "icon") ?? "na" : "na"));
@@ -199,7 +207,10 @@ public static class CgDataSourceService
                 all.Where(x => !double.IsNaN(x.Temp)).Select(x => x.Temp).DefaultIfEmpty(double.NaN).Average(),
                 all.Where(x => !double.IsNaN(x.Min)).Select(x => x.Min).DefaultIfEmpty(double.NaN).Min(),
                 all.Where(x => !double.IsNaN(x.Max)).Select(x => x.Max).DefaultIfEmpty(double.NaN).Max(),
+                all.Where(x => !double.IsNaN(x.FeelsLike)).Select(x => x.FeelsLike).DefaultIfEmpty(double.NaN).Average(),
                 (int)Math.Round(all.Select(x => x.Humidity).DefaultIfEmpty(0).Average()),
+                all.Select(x => x.Pressure).DefaultIfEmpty(1013.0).Average(),
+                all.Select(x => x.Clouds).DefaultIfEmpty(0.0).Average(),
                 all.Select(x => x.Wind).DefaultIfEmpty(0).Average(),
                 all.Select(x => x.Pop).DefaultIfEmpty(0).Max(), representative.Main, representative.Description, representative.Icon));
         }
@@ -208,34 +219,67 @@ public static class CgDataSourceService
             var date = (rows.Count == 0 ? DateTimeOffset.Now : DateTimeOffset.Now.AddDays(rows.Count));
             rows.Add(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                ["city"] = city, ["day"] = date.ToString("ddd").ToUpperInvariant(), ["date"] = date.ToString("dd MMM"),
-                ["temp"] = "--", ["tempMin"] = "--", ["tempMax"] = "--", ["humidity"] = "--", ["wind"] = "--",
-                ["pop"] = "--", ["condition"] = "Unavailable", ["description"] = "One Call 3.0 required for day 6/7", ["icon"] = "na"
+                ["city"] = city, ["cityName"] = city, ["day"] = date.ToString("ddd").ToUpperInvariant(), ["date"] = date.ToString("dd MMM"),
+                ["temp"] = "--", ["temperature"] = "--", ["tempMin"] = "--", ["min"] = "--", ["tempMax"] = "--", ["max"] = "--",
+                ["feelsLike"] = "--", ["feels_like"] = "--", ["humidity"] = "--", ["pressure"] = "1013 hPa", ["clouds"] = "0%",
+                ["wind"] = "--", ["windSpeed"] = "--", ["pop"] = "--", ["condition"] = "Unavailable",
+                ["description"] = "Forecast unavailable", ["icon"] = "01d",
+                ["weatherImage"] = "https://openweathermap.org/img/wn/01d@2x.png",
+                ["weather_image"] = "https://openweathermap.org/img/wn/01d@2x.png"
             });
         }
         return rows.Take(7).ToArray();
     }
 
-    private static Dictionary<string, string> WeatherRow(string city, DateTimeOffset local, string units, double temp, double min, double max, int humidity, double wind, double pop, string? condition, string? description, string? icon)
+    private static Dictionary<string, string> WeatherRow(
+        string city,
+        DateTimeOffset local,
+        string units,
+        double temp,
+        double min,
+        double max,
+        double feelsLike,
+        int humidity,
+        double pressure,
+        double clouds,
+        double wind,
+        double pop,
+        string? condition,
+        string? description,
+        string? icon)
     {
         var degree = units == "imperial" ? "°F" : units == "standard" ? "K" : "°C";
         var windValue = units == "imperial" ? wind * 2.2369362920544 : wind * 3.6;
         var windUnit = units == "imperial" ? "mph" : "km/h";
         string F(double value) => double.IsNaN(value) ? "--" : $"{Math.Round(value):0}{degree}";
+        var iconCode = string.IsNullOrWhiteSpace(icon) || icon == "na" ? "01d" : icon;
+        var iconUrl = $"https://openweathermap.org/img/wn/{iconCode}@2x.png";
+
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["city"] = city,
+            ["cityName"] = city,
             ["day"] = local.ToString("ddd").ToUpperInvariant(),
             ["date"] = local.ToString("dd MMM"),
             ["temp"] = F(temp),
+            ["temperature"] = F(temp),
             ["tempMin"] = F(min),
+            ["min"] = F(min),
             ["tempMax"] = F(max),
+            ["max"] = F(max),
+            ["feelsLike"] = F(double.IsNaN(feelsLike) ? temp : feelsLike),
+            ["feels_like"] = F(double.IsNaN(feelsLike) ? temp : feelsLike),
             ["humidity"] = $"{humidity}%",
+            ["pressure"] = double.IsNaN(pressure) || pressure <= 0 ? "1013 hPa" : $"{Math.Round(pressure):0} hPa",
+            ["clouds"] = $"{Math.Clamp(clouds, 0, 100):0}%",
             ["wind"] = $"{windValue:0.#} {windUnit}",
+            ["windSpeed"] = $"{windValue:0.#} {windUnit}",
             ["pop"] = $"{Math.Clamp(pop, 0, 100):0}%",
             ["condition"] = string.IsNullOrWhiteSpace(condition) ? "Weather" : condition,
             ["description"] = string.IsNullOrWhiteSpace(description) ? "Forecast" : description,
-            ["icon"] = string.IsNullOrWhiteSpace(icon) ? "na" : icon
+            ["icon"] = iconCode,
+            ["weatherImage"] = iconUrl,
+            ["weather_image"] = iconUrl
         };
     }
 
@@ -245,7 +289,7 @@ public static class CgDataSourceService
         return node.ValueKind == JsonValueKind.String ? node.GetString() : node.ToString();
     }
 
-    private sealed record WeatherSample(DateTimeOffset Local, double Temp, double Min, double Max, int Humidity, double Wind, double Pop, string Main, string Description, string Icon);
+    private sealed record WeatherSample(DateTimeOffset Local, double Temp, double Min, double Max, double FeelsLike, int Humidity, double Pressure, double Clouds, double Wind, double Pop, string Main, string Description, string Icon);
 
     public static string SerializeRows(IReadOnlyList<Dictionary<string, string>> rows) => JsonSerializer.Serialize(rows);
 
@@ -603,8 +647,8 @@ public static class CgDataSourceService
             if (result.Count > 0) return result;
         }
 
-        // 4. Check standard single fields: item, text, headline, title
-        foreach (var key in new[] { "item", "text", "headline", "title", "description", "summary", "body" })
+        // 4. Check standard single fields: brk_text, top, item, text, headline, title
+        foreach (var key in new[] { "brk_text", "top", "item", "text", "headline", "title", "description", "summary", "body", "story", "breaking" })
         {
             if (row.TryGetValue(key, out var fVal) && !string.IsNullOrWhiteSpace(fVal))
             {
@@ -1164,7 +1208,8 @@ public static class CgDataSourceService
                 // Give the category badge a clean entrance before the first headline.
                 // This lead is part of the schedule so category changes remain perfectly
                 // aligned across the badge, crawl and push renderers.
-                var effectiveDur = CategoryIntroSeconds + (isPush ? pushDuration : scrollDuration);
+                var crawlDuration = isPush ? pushDuration : scrollDuration;
+                var effectiveDur = CategoryIntroSeconds + crawlDuration + CategoryOutroSeconds;
 
                 var feedItem = new CategoryFeedItem
                 {
@@ -1176,8 +1221,8 @@ public static class CgDataSourceService
                     ScrollDuration = scrollDuration,
                     PushDuration = pushDuration,
                     IntroDuration = CategoryIntroSeconds,
-                    CrawlDuration = isPush ? pushDuration : scrollDuration,
-                    OutroDuration = 0,
+                    CrawlDuration = crawlDuration,
+                    OutroDuration = CategoryOutroSeconds,
                     PushGapDuration = pushGapSeconds,
                     EffectiveDuration = effectiveDur,
                     StartTime = cumulativeTime
@@ -1390,9 +1435,11 @@ public static class CgDataSourceService
 
         var isTickerOrBadge = string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase) ||
                               string.Equals(layer.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(layer.Role, "Badge", StringComparison.OrdinalIgnoreCase) ||
+                              ((layer.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false) &&
+                               (string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase) || string.Equals(layer.Type, "Shape", StringComparison.OrdinalIgnoreCase))) ||
                               (string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase) &&
-                               ((layer.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false) ||
-                                (layer.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false))) ||
+                               (layer.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false)) ||
                               layer.TickerCategoriesEnabled;
 
         // A category-capable feed does not make every shape in the ticker group a
@@ -1409,6 +1456,43 @@ public static class CgDataSourceService
         categoryDuration = activeCat.EffectiveDuration;
         categoryIndex = idx;
         return true;
+    }
+
+    public static void GetCategoryAnimationProgress(
+        double localElapsed,
+        double categoryDuration,
+        double introDuration,
+        double outroDuration,
+        out bool isIntro,
+        out bool isOutro,
+        out double inProgress,
+        out double outProgress)
+    {
+        introDuration = Math.Max(0.05, introDuration);
+        outroDuration = Math.Max(0.05, outroDuration);
+        var outroStart = Math.Max(introDuration, categoryDuration - outroDuration);
+
+        if (localElapsed < introDuration)
+        {
+            isIntro = true;
+            isOutro = false;
+            inProgress = Math.Clamp(localElapsed / introDuration, 0, 1);
+            outProgress = 1.0;
+        }
+        else if (localElapsed >= outroStart)
+        {
+            isIntro = false;
+            isOutro = true;
+            inProgress = 1.0;
+            outProgress = Math.Clamp((categoryDuration - localElapsed) / outroDuration, 0, 1);
+        }
+        else
+        {
+            isIntro = false;
+            isOutro = false;
+            inProgress = 1.0;
+            outProgress = 1.0;
+        }
     }
 
     public static double ResolveTickerRequiredDuration(CgProject project, CgLayer layer)

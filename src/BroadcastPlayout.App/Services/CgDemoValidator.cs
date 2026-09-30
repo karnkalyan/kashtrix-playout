@@ -13,7 +13,8 @@ public static class CgDemoValidator
         if (string.IsNullOrWhiteSpace(project.Category))
         {
             var n = (project.Name ?? string.Empty).ToUpperInvariant();
-            if (n.Contains("PRIME")) project.Category = "PRIME HD";
+            if (n.Contains("AP1") || n.Contains("AP 1")) project.Category = "AP1 HD";
+            else if (n.Contains("PRIME")) project.Category = "PRIME HD";
             else if (n.Contains("SPACE")) project.Category = "SPACE 4K";
             else if (n.Contains("AAJ") || n.Contains("TAK")) project.Category = "AAJ TAK";
             else if (n.Contains("ABP")) project.Category = "ABP NEWS";

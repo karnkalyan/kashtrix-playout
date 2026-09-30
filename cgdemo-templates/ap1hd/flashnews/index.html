@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ne">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, initial-scale=1.0" />
+  <title>Flash News</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Mukta:wght@500;600;700;800&family=Orbitron:wght@700;800;900&display=swap"
+    rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    @font-face {
+      font-family: 'Suvadin';
+      src: url('suvadin.ttf') format('truetype'), url('fonts/suvadin.ttf') format('truetype');
+      font-display: swap
+    }
+
+    :root {
+      --purple: #6e2b87;
+      --violet: #7b3e92;
+      --plum: #90468b;
+      --accent: #ffffff;
+      --paper: #e0e0e0;
+      --ink: #111111
+    }
+
+    html,
+    body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent
+    }
+
+    body {
+      position: relative;
+      font-family: 'Mukta', sans-serif;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+      perspective: 1400px
+    }
+
+    .footer-news {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 100px;
+      height: 115px;
+      display: flex;
+      background: #fff;
+      overflow: hidden;
+      filter: drop-shadow(0 13px 22px rgba(25, 15, 35, .23))
+    }
+
+    .compact-title {
+      width: 410px;
+      flex: 0 0 410px;
+      display: none;
+      align-items: center;
+      position: relative;
+      z-index: 500;
+      overflow: hidden;
+      padding: 0 52px;
+      color: #fff;
+      background: linear-gradient(112deg, var(--purple), var(--violet) 48%, var(--plum));
+      clip-path: polygon(0 0, 100% 0, calc(100% - 34px) 100%, 0 100%)
+    }
+
+    .compact-title:before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 28px;
+      bottom: 0;
+      height: 7px;
+      background: linear-gradient(90deg, var(--accent), #c0a0c8, var(--violet))
+    }
+
+    .compact-title:after {
+      content: '';
+      position: absolute;
+      right: 18px;
+      width: 90px;
+      height: 90px;
+      border: 2px solid rgba(255, 255, 255, .13);
+      border-radius: 50%;
+      box-shadow: 0 0 0 14px rgba(255, 255, 255, .05), 0 0 0 29px rgba(255, 255, 255, .025)
+    }
+
+    .compact-copy {
+      position: relative;
+      z-index: 2;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: 31px;
+      line-height: .98;
+      letter-spacing: .04em
+    }
+
+    .compact-copy span {
+      display: block
+    }
+
+    .spark {
+      position: relative;
+      z-index: 2;
+      width: 16px;
+      height: 16px;
+      margin-right: 18px;
+      transform: rotate(45deg);
+      background: var(--accent);
+      box-shadow: 0 0 14px rgba(255, 255, 255, .85)
+    }
+
+    .spark.live {
+      animation: spark 1.5s ease-in-out infinite
+    }
+
+    @keyframes spark {
+
+      0%,
+      100% {
+        transform: rotate(45deg) scale(.72);
+        opacity: .6
+      }
+
+      50% {
+        transform: rotate(45deg) scale(1.15);
+        opacity: 1
+      }
+    }
+
+    .headline-wrap {
+      position: absolute;
+      left: 375px;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 60px 0 78px;
+      overflow: hidden;
+      background: linear-gradient(90deg, #ffffff 0%, var(--paper) 70%, #d8d8d8);
+      border-top: 1px solid rgba(110, 43, 135, .18);
+      border-bottom: 1px solid rgba(110, 43, 135, .22);
+      transform-origin: left center;
+      transform: scaleX(0);
+      opacity: 0;
+      z-index: 300
+    }
+
+    .headline-wrap:before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 9px;
+      background: linear-gradient(var(--purple), var(--plum))
+    }
+
+    .headline-wrap:after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 13px;
+      background: linear-gradient(var(--purple), var(--plum))
+    }
+
+    #headline {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      overflow: visible;
+      text-align: center;
+      color: var(--ink);
+      font-family: 'Suvadin', 'Mukta', sans-serif;
+      font-size: 65px;
+      line-height: 1.18;
+      font-weight: 700;
+      will-change: transform, opacity, filter
+    }
+
+    .intro-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: linear-gradient(110deg, #4d1560 0%, var(--purple) 36%, var(--violet) 78%, var(--plum));
+      opacity: 0
+    }
+
+    .intro-overlay:before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 78% 50%, rgba(192, 160, 200, .36), transparent 18%), radial-gradient(circle at 18% 50%, rgba(255, 255, 255, .12), transparent 20%)
+    }
+
+    .intro-overlay:after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 7px;
+      background: linear-gradient(90deg, var(--accent), #c0a0c8, var(--violet))
+    }
+
+    .panel {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 26%;
+      background: rgba(255, 255, 255, .07);
+      border-right: 1px solid rgba(255, 255, 255, .07);
+      transform-origin: center center
+    }
+
+    .p1 {
+      left: 0
+    }
+
+    .p2 {
+      left: 25%
+    }
+
+    .p3 {
+      left: 50%
+    }
+
+    .p4 {
+      left: 75%
+    }
+
+    .intro-title {
+      position: relative;
+      z-index: 3;
+      font-family: 'Orbitron', sans-serif;
+      color: #fff;
+      font-size: 72px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      white-space: nowrap;
+      text-shadow: 0 5px 18px rgba(0, 0, 0, .18);
+      will-change: transform, opacity, filter, letter-spacing
+    }
+
+    .repeat-overlay {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      z-index: 1500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: linear-gradient(110deg, #4d1560 0%, var(--purple) 36%, var(--violet) 78%, var(--plum));
+      opacity: 0;
+    }
+
+    .repeat-overlay:before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 78% 50%, rgba(192, 160, 200, .36), transparent 18%),
+        radial-gradient(circle at 18% 50%, rgba(255, 255, 255, .12), transparent 20%);
+    }
+
+    .repeat-overlay:after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 7px;
+      background: linear-gradient(90deg, var(--accent), #c0a0c8, var(--violet));
+    }
+
+    .repeat-title {
+      position: relative;
+      z-index: 3;
+      font-family: 'Orbitron', sans-serif;
+      color: #fff;
+      font-size: 58px;
+      font-weight: 900;
+      letter-spacing: .10em;
+      white-space: nowrap;
+      text-shadow: 0 5px 18px rgba(0, 0, 0, .18);
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      * {
+        animation: none !important
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <footer class="footer-news">
+    <div class="compact-title" id="compactTitle">
+      <div class="spark" id="spark"></div>
+      <div class="compact-copy" id="compactCopy"><span>FLASH</span><span>NEWS</span></div>
+    </div>
+    <div class="headline-wrap" id="headlineWrap">
+      <div id="headline">फ्ल्यास समाचार लोड हुँदैछ...</div>
+    </div>
+  </footer>
+  <script>
+    (() => {
+      const params = new URLSearchParams(location.search);
+      const API_URL = params.get('api') || '/nrcs/api_data/data.php?content=flash&token=jPkHwW2E7sr23YWuZpYz5tibnQI08C&company=13';
+      const ROTATE_MS = Number(params.get('rotate')) || 6500;
+      const REFRESH_MS = Number(params.get('refresh')) || 7000;
+      const COMPACT_WIDTH = 410;
+
+      const footer = document.querySelector('.footer-news');
+      const compactTitle = document.getElementById('compactTitle');
+      const compactCopy = document.getElementById('compactCopy');
+      const spark = document.getElementById('spark');
+      const headlineWrap = document.getElementById('headlineWrap');
+      const headline = document.getElementById('headline');
+
+      let items = [];
+      let pendingItems = null;
+      let index = 0;
+      let refreshing = false;
+      let running = false;
+
+      const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+      function extractItems(payload) {
+        return Array.isArray(payload)
+          ? payload
+            .map(row => row && typeof row.brk_text === 'string' ? row.brk_text.trim() : '')
+            .filter(Boolean)
+          : [];
+      }
+
+      function fitText() {
+        let size = 54;
+        headline.style.fontSize = size + 'px';
+        const max = headlineWrap.clientWidth - 118;
+        while (headline.scrollWidth > max && size > 38) {
+          size -= 2;
+          headline.style.fontSize = size + 'px';
+        }
+      }
+
+      function makeIntro() {
+        const o = document.createElement('div');
+        o.className = 'intro-overlay';
+        o.innerHTML =
+          '<i class="panel p1"></i>' +
+          '<i class="panel p2"></i>' +
+          '<i class="panel p3"></i>' +
+          '<i class="panel p4"></i>' +
+          '<div class="intro-title">FLASH NEWS</div>';
+        footer.appendChild(o);
+        return o;
+      }
+
+      function makeRepeatOverlay() {
+        const o = document.createElement('div');
+        o.className = 'repeat-overlay';
+        o.innerHTML =
+          '<i class="panel p1"></i>' +
+          '<i class="panel p2"></i>' +
+          '<i class="panel p3"></i>' +
+          '<i class="panel p4"></i>' +
+          '<div class="repeat-title">FLASH NEWS</div>';
+        footer.appendChild(o);
+        return o;
+      }
+
+      function hideCompact() {
+        spark.classList.remove('live');
+        compactTitle.style.display = 'none';
+      }
+
+      function showCompact() {
+        compactTitle.style.display = 'flex';
+        spark.classList.add('live');
+        gsap.set(compactTitle, { opacity: 1, scale: 1 });
+        gsap.set(compactCopy, { y: 0, opacity: 1 });
+      }
+
+      // ORIGINAL initial overlay effect: unchanged visual behavior.
+      function initialOverlay() {
+        return new Promise(resolve => {
+          running = true;
+          hideCompact();
+          gsap.set(headlineWrap, { scaleX: 0, opacity: 0 });
+
+          const overlay = makeIntro();
+          const panels = overlay.querySelectorAll('.panel');
+          const title = overlay.querySelector('.intro-title');
+
+          const tl = gsap.timeline({
+            onComplete: () => {
+              running = false;
+              resolve();
+            }
+          });
+
+          tl.to(overlay, { opacity: 1, duration: .28, ease: 'power1.out' }, 0)
+            .fromTo(
+              panels,
+              { scaleY: 0, opacity: 0 },
+              { scaleY: 1, opacity: 1, duration: .52, stagger: .07, ease: 'power3.out' },
+              0
+            )
+            .fromTo(
+              title,
+              { scale: .76, y: 18, opacity: 0, filter: 'blur(14px)' },
+              { scale: 1, y: 0, opacity: 1, filter: 'blur(0px)', duration: .72, ease: 'back.out(1.45)' },
+              .12
+            )
+            .to({}, { duration: .65 })
+            .to(overlay, { width: COMPACT_WIDTH, duration: .65, ease: 'expo.inOut' })
+            .to(title, { fontSize: '28px', letterSpacing: '.025em', duration: .55, ease: 'power3.inOut' }, '<')
+            .to(panels, { opacity: 0, duration: .28 }, '<')
+            .add(() => {
+              showCompact();
+              gsap.to(headlineWrap, { scaleX: 1, opacity: 1, duration: .52, ease: 'power2.out' });
+            }, '<+.38')
+            .to(overlay, {
+              opacity: 0,
+              duration: .2,
+              onComplete: () => overlay.remove()
+            }, '>-.03');
+        });
+      }
+
+      // Repeat overlay uses the SAME reveal language, but stays only in the
+      // headline area. The compact left widget never hides or resets.
+      function repeatOverlay() {
+        return new Promise(resolve => {
+          running = true;
+          showCompact();
+
+          const overlay = makeRepeatOverlay();
+          const panels = overlay.querySelectorAll('.panel');
+          const title = overlay.querySelector('.repeat-title');
+
+          const tl = gsap.timeline({
+            onComplete: () => {
+              overlay.remove();
+              running = false;
+              resolve();
+            }
+          });
+
+          tl.to(overlay, { opacity: 1, duration: .24, ease: 'power1.out' }, 0)
+            .fromTo(
+              panels,
+              { scaleY: 0, opacity: 0 },
+              { scaleY: 1, opacity: 1, duration: .48, stagger: .06, ease: 'power3.out' },
+              0
+            )
+            .fromTo(
+              title,
+              { scale: .76, y: 18, opacity: 0, filter: 'blur(14px)' },
+              { scale: 1, y: 0, opacity: 1, filter: 'blur(0px)', duration: .66, ease: 'back.out(1.45)' },
+              .10
+            )
+            .to({}, { duration: .50 })
+            .to(title, { scale: .90, opacity: 0, filter: 'blur(5px)', duration: .28, ease: 'power2.in' })
+            .to(panels, { opacity: 0, duration: .22 }, '<')
+            .to(overlay, { opacity: 0, duration: .20 }, '<+.05');
+        });
+      }
+
+      // JSON ONLY: enter from LEFT, hold centered, exit to RIGHT.
+      function showHeadline(text) {
+        return new Promise(resolve => {
+          running = true;
+          headline.style.fontFamily = "'Suvadin','Mukta',sans-serif";
+          headline.textContent = text || '';
+          fitText();
+
+          gsap.fromTo(
+            headline,
+            { x: -110, opacity: 0, filter: 'blur(8px)' },
+            {
+              x: 0,
+              opacity: 1,
+              filter: 'blur(0px)',
+              duration: .58,
+              ease: 'power3.out',
+              onComplete: () => {
+                running = false;
+                resolve();
+              }
+            }
+          );
+        });
+      }
+
+      function hideHeadline() {
+        return new Promise(resolve => {
+          running = true;
+          gsap.to(headline, {
+            x: 110,
+            opacity: 0,
+            filter: 'blur(7px)',
+            duration: .48,
+            ease: 'power2.in',
+            onComplete: () => {
+              running = false;
+              resolve();
+            }
+          });
+        });
+      }
+
+      async function loadData(initial = false) {
+        if (refreshing) return;
+        refreshing = true;
+
+        try {
+          const res = await fetch(API_URL, { cache: 'no-store' });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+
+          const next = extractItems(await res.json());
+          if (!next.length) return;
+
+          if (initial || !items.length) {
+            items = next;
+            pendingItems = null;
+            index = 0;
+          } else if (JSON.stringify(next) !== JSON.stringify(items)) {
+            // Queue updates; never reset the currently playing item.
+            pendingItems = next;
+          }
+        } catch (err) {
+          console.error('[Flash News] API error:', err);
+        } finally {
+          refreshing = false;
+        }
+      }
+
+      async function start() {
+        // Clean first frame.
+        headline.textContent = '';
+        gsap.set(headline, { opacity: 0, x: 0 });
+        hideCompact();
+        gsap.set(headlineWrap, { scaleX: 0, opacity: 0 });
+
+        await loadData(true);
+        if (!items.length) return;
+
+        // Only the very first startup uses the full original overlay.
+        await initialOverlay();
+        await showHeadline(items[index]);
+
+        while (true) {
+          await sleep(ROTATE_MS);
+          if (running) continue;
+
+          // Current JSON exits to the RIGHT.
+          await hideHeadline();
+
+          // Compact left widget remains visible from here onward.
+          showCompact();
+
+          // Same Flash overlay between every JSON item, but no full reset.
+          await repeatOverlay();
+
+          // Move to next JSON item.
+          let nextIndex = index + 1;
+          if (nextIndex >= items.length) {
+            if (pendingItems && pendingItems.length) {
+              items = pendingItems;
+              pendingItems = null;
+            }
+            nextIndex = 0;
+          }
+          index = nextIndex;
+
+          // Next JSON enters from the LEFT and stops centered.
+          await showHeadline(items[index]);
+        }
+      }
+
+      window.addEventListener('resize', fitText);
+      setInterval(() => loadData(false), REFRESH_MS);
+      start();
+    })();
+  </script>
+</body>
+
+</html>

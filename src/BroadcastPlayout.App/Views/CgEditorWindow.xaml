@@ -220,7 +220,7 @@
                                 <ListBox ItemsSource="{Binding DataSources}" SelectedItem="{Binding SelectedDataSource, Mode=TwoWay}" Height="120" DisplayMemberPath="Name"/>
                                 <WrapPanel Margin="0,5,0,0">
                                     <Button Content="URL JSON" Click="AddUrlJsonData_Click" Width="82"/><Button Content="JSON" Click="AddJsonData_Click" Width="62"/><Button Content="XML/RSS" Click="AddXmlRssData_Click" Width="78"/>
-                                    <Button Content="EXCEL" Click="AddExcelData_Click" Width="68"/><Button Content="TXT" Click="AddTxtData_Click" Width="58"/><Button Content="WEATHER" Click="AddWeatherData_Click" Width="78"/><Button Content="REFRESH" Click="RefreshData_Click" Width="78"/><Button Content="DELETE" Click="DeleteData_Click" Width="68"/>
+                                    <Button Content="EXCEL" Click="AddExcelData_Click" Width="68"/><Button Content="TXT" Click="AddTxtData_Click" Width="58"/><Button Content="WEATHER" Click="AddWeatherData_Click" Width="78"/><Button Content="FIELDS..." Click="OpenWeatherFields_Click" Width="68" Background="#162736" BorderBrush="#00E5FF" Foreground="#00E5FF" ToolTip="Broadcast Weather Fields (temperature, min/max, feels like, pressure, humidity, clouds, image, multi-day)"/><Button Content="REFRESH" Click="RefreshData_Click" Width="78"/><Button Content="DELETE" Click="DeleteData_Click" Width="68"/>
                                 </WrapPanel>
                                 <TextBlock Text="Name" Style="{StaticResource SectionCaption}" Margin="0,7,0,2"/><TextBox Text="{Binding SelectedDataSource.Name, UpdateSourceTrigger=LostFocus}" LostFocus="DataInspector_LostFocus"/>
                                 <TextBlock Text="Source type" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/><ComboBox ItemsSource="{Binding DataSourceTypes}" SelectedItem="{Binding SelectedDataSource.SourceType}" SelectionChanged="DataInspector_SelectionChanged"/>
@@ -471,6 +471,7 @@
                                                 <StackPanel>
                                                     <TextBlock Text="BROADCAST COLOR STYLES · PREDEFINED LOOKS · QUICK PALETTE" Foreground="#E5A93C" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
                                                     <WrapPanel>
+                                                        <Button Content="AP1 HD RUBY" Tag="Ap1Hd" Click="ChannelBrandStyle_Click" Background="#2E0A12" BorderBrush="#FFEF233C" Foreground="#FFF" Margin="2" Padding="6,4" FontSize="9"/>
                                                         <Button Content="RUBY RED" Tag="RedAlert" Click="ChannelBrandStyle_Click" Background="#2B0505" BorderBrush="#FFAF0303" Margin="2" Padding="6,4" FontSize="9"/>
                                                         <Button Content="CYAN ELECTRIC" Tag="Space4k" Click="ChannelBrandStyle_Click" Background="#05182B" BorderBrush="#FF00E5FF" Margin="2" Padding="6,4" FontSize="9"/>
                                                         <Button Content="GOLD AMBER" Tag="SportsPro" Click="ChannelBrandStyle_Click" Background="#2B1D05" BorderBrush="#FFF59E0B" Margin="2" Padding="6,4" FontSize="9"/>

@@ -93,6 +93,23 @@ public sealed class ProfessionalBroadcastSettings
     public bool NextItemPoster { get; set; }
     public bool NextItemVideo { get; set; }
 
+    // Weather Field Selection
+    public bool WeatherTemperature { get; set; } = true;
+    public bool WeatherTempMin { get; set; }
+    public bool WeatherTempMax { get; set; }
+    public bool WeatherFeelsLike { get; set; }
+    public bool WeatherWindSpeed { get; set; }
+    public bool WeatherCityName { get; set; }
+    public bool WeatherCondition { get; set; } = true;
+    public bool WeatherPressure { get; set; }
+    public bool WeatherHumidity { get; set; }
+    public bool WeatherClouds { get; set; }
+    public bool WeatherImage { get; set; }
+    public bool WeatherDate { get; set; }
+    public bool WeatherDay { get; set; }
+    public bool WeatherAddMultipleDays { get; set; } = true;
+    public int WeatherMultipleDaysCount { get; set; } = 3;
+
     // Captions / subtitles.
     public bool EnableCea608 { get; set; } = true;
     public bool EnableCea708 { get; set; } = true;

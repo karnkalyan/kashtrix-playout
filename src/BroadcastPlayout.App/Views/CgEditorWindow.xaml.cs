@@ -359,7 +359,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     public ObservableCollection<CgProject> Projects { get; }
     public ICollectionView ProjectView { get; }
-    public IReadOnlyList<string> TemplateCategories { get; } = ["ALL", "PRIME HD", "SPACE 4K", "AAJ TAK", "ABP NEWS", "INDIA TV", "GRAPHICS PACK", "BREAKING NEWS", "NEWS", "LOWER THIRDS", "WEATHER", "SPORTS", "FINANCE", "ELECTION", "ENTERTAINMENT", "MUSIC", "TICKERS", "IMPORTED"];
+    public IReadOnlyList<string> TemplateCategories { get; } = ["ALL", "AP1 HD", "PRIME HD", "SPACE 4K", "AAJ TAK", "ABP NEWS", "INDIA TV", "GRAPHICS PACK", "BREAKING NEWS", "NEWS", "LOWER THIRDS", "WEATHER", "SPORTS", "FINANCE", "ELECTION", "ENTERTAINMENT", "MUSIC", "TICKERS", "IMPORTED"];
     public string TemplateCategory
     {
         get => _templateCategory;
@@ -575,6 +575,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         return TemplateCategory switch
         {
             "ALL" => true,
+            "AP1 HD" => n.Contains("AP1") || n.Contains("AP 1"),
             "PRIME HD" => n.Contains("PRIME HD"),
             "SPACE 4K" => n.Contains("SPACE 4K"),
             "AAJ TAK" => n.Contains("AAJ TAK"),
@@ -1558,6 +1559,13 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         });
     }
 
+    private void OpenWeatherFields_Click(object sender, RoutedEventArgs e)
+    {
+        var vm = Application.Current?.MainWindow?.DataContext as MainViewModel;
+        var dlg = new WeatherFieldsDialog(vm) { Owner = this };
+        dlg.ShowDialog();
+    }
+
     private void AddTxtData_Click(object sender, RoutedEventArgs e)
     {
         var d = new OpenFileDialog { Filter="Text|*.txt;*.log|All files|*.*" };
@@ -1981,6 +1989,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         var (primary, secondary, plate, border, font) = style switch
         {
+            "Ap1Hd" => ("#FF800818", "#FFFFFFFF", "#FF2D124D", "#FFEF233C", "Mukta"),
             "PrimeHd" => ("#FFAF0303", "#FFE5A93C", "#E609101D", "#FFFFD166", "Segoe UI"),
             "Space4k" => ("#FF0066FF", "#FF00E5FF", "#E609101E", "#FF00E5FF", "Segoe UI"),
             "RedAlert" => ("#FFD31027", "#FFFFD200", "#F0121721", "#FFFF3B30", "Arial"),
@@ -3839,12 +3848,97 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             ds = SelectedProject.DataSources.FirstOrDefault(x => x.Id == layer.DataSourceId);
         var rows = ds != null ? CgDataRuntime.Shared.GetRows(ds) : null;
 
+        var speedVal = Math.Max(20.0, layer.TickerSpeed > 0 ? layer.TickerSpeed : layer.Speed);
+        var speedPx = speedVal * sx;
+
         if (rows != null && rows.Count > 0)
         {
             var hasDedicatedCategory = SelectedProject?.Layers?.Any(x => x.Visible && x.Id != layer.Id &&
                 (string.Equals(x.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
                  (x.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false))) == true;
             var showInlineBadge = layer.TickerCategoriesEnabled && !hasDedicatedCategory;
+
+            var schedule = CgDataSourceService.BuildCategoryFeedSchedule(SelectedProject ?? new CgProject(), layer, rows, layerW, speedPx);
+            if (schedule.Categories.Count > 0)
+            {
+                var (activeCat, categoryElapsed, _) = schedule.Evaluate(Math.Max(0, ContinuousPlaybackSeconds));
+                var newsElapsed = Math.Max(0, categoryElapsed - CgDataSourceService.CategoryIntroSeconds);
+                var segments = activeCat.Items
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => new CgTickerSegment(activeCat.Category, x, false))
+                    .ToList();
+                if (segments.Count == 0 && !string.IsNullOrWhiteSpace(activeCat.CombinedItemsText))
+                    segments.Add(new CgTickerSegment(activeCat.Category, activeCat.CombinedItemsText, false));
+
+                p.Children.Clear();
+                if (showInlineBadge && !string.IsNullOrWhiteSpace(activeCat.Category))
+                {
+                    var badge = new Border
+                    {
+                        Background = badgeBg,
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(10 * sx, 2 * sy, 10 * sx, 2 * sy),
+                        Margin = new Thickness(0, 0, 14 * sx, 0),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Child = new TextBlock
+                        {
+                            Text = activeCat.Category,
+                            Foreground = Brushes.White,
+                            FontFamily = fontFamily,
+                            FontSize = badgeFontSize,
+                            FontWeight = FontWeights.Bold,
+                            VerticalAlignment = VerticalAlignment.Center
+                        }
+                    };
+                    p.Children.Add(badge);
+                }
+
+                for (var i = 0; i < segments.Count; i++)
+                {
+                    var tb = new TextBlock
+                    {
+                        Text = segments[i].Text,
+                        Foreground = fill,
+                        FontFamily = fontFamily,
+                        FontSize = fontSize,
+                        FontWeight = fontWeight,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    p.Children.Add(tb);
+                    if (i < segments.Count - 1 || layer.TickerRepeat)
+                    {
+                        var sepTb = new TextBlock
+                        {
+                            Text = separatorText,
+                            Foreground = fill,
+                            FontFamily = fontFamily,
+                            FontSize = fontSize,
+                            FontWeight = FontWeights.Bold,
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                        p.Children.Add(sepTb);
+                    }
+                }
+
+                p.Measure(new Size(double.PositiveInfinity, layerH));
+                var catContentW = Math.Max(20.0, p.DesiredSize.Width);
+                var totalTravelSpan = Math.Max(1.0, layerW + catContentW);
+                var catTravelled = Math.Min(totalTravelSpan, newsElapsed * speedPx);
+                var catStartX = isRight ? (-catContentW + catTravelled) : (layerW - catTravelled);
+
+                var catCanvas = new Canvas
+                {
+                    Width = layerW,
+                    Height = layerH,
+                    ClipToBounds = true
+                };
+                Canvas.SetLeft(p, catStartX);
+                var catTop = Math.Max(0, (layerH - (p.DesiredSize.Height > 0 ? p.DesiredSize.Height : fontSize * 1.2)) / 2.0);
+                Canvas.SetTop(p, catTop);
+                catCanvas.Children.Add(p);
+                return catCanvas;
+            }
+
             var allRawSegments = CgDataSourceService.BuildAllTickerSegments(SelectedProject ?? new CgProject(), layer, rows, showInlineBadge);
             if (allRawSegments.Count > 0)
             {
@@ -3903,8 +3997,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
         p.Measure(new Size(double.PositiveInfinity, layerH));
         var totalW = Math.Max(20.0, p.DesiredSize.Width);
-        var speedVal = Math.Max(20.0, layer.TickerSpeed > 0 ? layer.TickerSpeed : layer.Speed);
-        var speedPx = speedVal * sx;
 
         var elapsed = Math.Max(0, ContinuousPlaybackSeconds - layer.StartSeconds);
         var travelled = (elapsed * speedPx) % Math.Max(1.0, totalW);
@@ -4303,11 +4395,13 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 b = 1.0;
             }
         }
-        else if (isTickerLayer && project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, ContinuousPlaybackSeconds, out _, out var catElapsed, out var catDur, out _))
+        else if (project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, ContinuousPlaybackSeconds, out _, out var catElapsed, out var catDur, out _))
         {
-            if (catElapsed < delay) { el.Opacity = 0; return; }
-            a = Math.Clamp((catElapsed - delay) / Math.Max(.05, layer.AnimationInSeconds), 0, 1);
-            b = 1;
+            var inSec = layer.AnimationInSeconds > 0.05 ? layer.AnimationInSeconds : CgDataSourceService.CategoryIntroSeconds;
+            var outSec = layer.AnimationOutSeconds > 0.05 ? layer.AnimationOutSeconds : CgDataSourceService.CategoryOutroSeconds;
+            CgDataSourceService.GetCategoryAnimationProgress(catElapsed, catDur, inSec, outSec, out _, out _, out var inProg, out var outProg);
+            a = inProg;
+            b = outProg;
         }
         else if (isDataItem && !isTickerLayer)
         {

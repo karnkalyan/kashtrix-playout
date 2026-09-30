@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, initial-scale=1.0" />
+<title>Top</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mukta:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+@font-face{
+  font-family:'Suvadin';
+  src:url('suvadin.ttf') format('truetype'),url('fonts/suvadin.ttf') format('truetype');
+  font-display:swap;
+}
+:root{
+  --purple:#672578;
+  --violet:#7d2c8f;
+  --blue:#26398d;
+  --pink:#e41f75;
+}
+html,body{
+  width:1920px;
+  height:1080px;
+  overflow:hidden;
+  background:transparent;
+}
+body{
+  position:relative;
+  font-family:'Mukta',sans-serif;
+  transform:translateZ(0);
+  backface-visibility:hidden;
+}
+.bar{
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:100px;
+  height:92px;
+  display:flex;
+  align-items:center;
+  overflow:hidden;
+  background:linear-gradient(105deg,var(--purple) 0%,var(--violet) 36%,var(--blue) 100%);
+  box-shadow:0 12px 22px rgba(20,15,35,.22);
+}
+.bar::before{
+  content:'';
+  position:absolute;
+  left:0;
+  right:0;
+  top:0;
+  height:2px;
+  background:linear-gradient(90deg,rgba(36,15,48,.28),rgba(228,31,117,.62),rgba(36,15,48,.20));
+}
+.bar::after{
+  content:'';
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height:4px;
+  background:linear-gradient(90deg,var(--pink),#9d3fa6,var(--blue));
+  opacity:.92;
+}
+.text-wrap{
+  position:relative;
+  width:100%;
+  height:100%;
+  padding:0 74px;
+  overflow:hidden;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+#topText{
+  width:auto;
+  max-width:100%;
+  white-space:nowrap;
+  overflow:visible;
+  text-align:center;
+  color:#fff;
+  font-family:'Suvadin','Mukta',sans-serif;
+  font-size:51px;
+  line-height:1.08;
+  font-weight:700;
+  text-shadow:0 2px 4px rgba(0,0,0,.22);
+}
+.char{
+  display:inline-block;
+  opacity:0;
+  filter:blur(2px);
+  will-change:opacity,filter;
+}
+.char.space{width:.34em}
+.char.enter{
+  animation:charIn 430ms cubic-bezier(.22,.75,.28,1) forwards;
+  animation-delay:var(--delay);
+}
+.char.exit{
+  opacity:1;
+  filter:blur(0);
+  animation:charOut 330ms ease-in forwards;
+  animation-delay:var(--delay);
+}
+@keyframes charIn{
+  0%{opacity:0;filter:blur(2px)}
+  55%{opacity:.82;filter:blur(.6px)}
+  100%{opacity:1;filter:blur(0)}
+}
+@keyframes charOut{
+  0%{opacity:1;filter:blur(0)}
+  100%{opacity:0;filter:blur(2px)}
+}
+</style>
+</head>
+<body>
+<section class="bar">
+  <div class="text-wrap">
+    <div id="topText"></div>
+  </div>
+</section>
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const API_URL = params.get('api') || '/nrcs/api_data/data.php?content=top&token=jPkHwW2E7sr23YWuZpYz5tibnQI08C&company=13';
+  const ROTATE_MS = Math.max(2500, Number(params.get('rotate')) || 6500);
+  const REFRESH_MS = Math.max(5000, Number(params.get('refresh')) || 9000);
+  const textEl = document.getElementById('topText');
+
+  let items = [];
+  let pendingItems = [];
+  let index = 0;
+  let started = false;
+  let transitioning = false;
+  let refreshing = false;
+
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  function pickText(row) {
+    if (!row) return '';
+    if (typeof row === 'string') return row.trim();
+
+    if (typeof row.Top === 'string' && row.Top.trim()) return row.Top.trim();
+
+    const caseInsensitiveTop = Object.keys(row).find(key => key.toLowerCase() === 'top');
+    if (caseInsensitiveTop && typeof row[caseInsensitiveTop] === 'string') {
+      return row[caseInsensitiveTop].trim();
+    }
+
+    return '';
+  }
+
+  function extractItems(payload) {
+    if (!Array.isArray(payload)) return [];
+    return payload.map(pickText).filter(Boolean);
+  }
+
+  function fitText() {
+    let size = 51;
+    textEl.style.fontSize = size + 'px';
+    const maxWidth = textEl.parentElement.clientWidth - 6;
+    while (textEl.scrollWidth > maxWidth && size > 31) {
+      size -= 1;
+      textEl.style.fontSize = size + 'px';
+    }
+  }
+
+  function makeCharacters(text) {
+    textEl.innerHTML = '';
+    const chars = Array.from(text);
+    const step = Math.min(28, Math.max(8, Math.floor(1050 / Math.max(chars.length, 1))));
+
+    chars.forEach((char, i) => {
+      const span = document.createElement('span');
+      span.className = char === ' ' ? 'char space' : 'char';
+      span.textContent = char === ' ' ? '\u00A0' : char;
+      span.style.setProperty('--delay', `${i * step}ms`);
+      textEl.appendChild(span);
+    });
+
+    fitText();
+    return {chars:[...textEl.children], step};
+  }
+
+  async function animateIn(text) {
+    const {chars, step} = makeCharacters(text);
+    void textEl.offsetWidth;
+    chars.forEach(span => span.classList.add('enter'));
+    await sleep((Math.max(chars.length - 1, 0) * step) + 460);
+    chars.forEach(span => {
+      span.classList.remove('enter');
+      span.style.opacity = '1';
+      span.style.filter = 'blur(0)';
+    });
+  }
+
+  async function animateOut() {
+    const chars = [...textEl.children];
+    if (!chars.length) return;
+    const step = Math.min(22, Math.max(6, Math.floor(760 / Math.max(chars.length, 1))));
+
+    chars.forEach((span, i) => {
+      span.style.removeProperty('opacity');
+      span.style.removeProperty('filter');
+      span.style.setProperty('--delay', `${i * step}ms`);
+      span.classList.remove('enter');
+      span.classList.add('exit');
+    });
+
+    await sleep((Math.max(chars.length - 1, 0) * step) + 360);
+  }
+
+  async function showItem(text, immediate = false) {
+    if (transitioning || !text) return;
+    transitioning = true;
+
+    if (!immediate) await animateOut();
+    await animateIn(text);
+
+    transitioning = false;
+  }
+
+  async function fetchItems() {
+    const response = await fetch(API_URL, {cache:'no-store'});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const raw = (await response.text()).replace(/^\uFEFF/, '');
+    const payload = JSON.parse(raw);
+    return extractItems(payload);
+  }
+
+  async function refreshData(initial = false) {
+    if (refreshing) return;
+    refreshing = true;
+
+    try {
+      const next = await fetchItems();
+      if (!next.length) throw new Error('No Top rows found');
+
+      pendingItems = next.slice();
+
+      if (initial && !started) {
+        items = pendingItems.slice();
+        index = 0;
+        started = true;
+        await showItem(items[0], true);
+      }
+    } catch (error) {
+      console.error('[Top] API error:', error);
+      // Keep the overlay clean: no visible fallback text.
+    } finally {
+      refreshing = false;
+    }
+  }
+
+  async function rotateLoop() {
+    while (true) {
+      await sleep(ROTATE_MS);
+      if (!started || !items.length || transitioning) continue;
+
+      const nextIndex = index + 1;
+      if (nextIndex >= items.length) {
+        if (pendingItems.length) items = pendingItems.slice();
+        index = 0;
+      } else {
+        index = nextIndex;
+      }
+
+      await showItem(items[index]);
+    }
+  }
+
+  window.addEventListener('resize', fitText);
+  refreshData(true).then(rotateLoop);
+  setInterval(() => refreshData(false), REFRESH_MS);
+})();
+</script>
+</body>
+</html>

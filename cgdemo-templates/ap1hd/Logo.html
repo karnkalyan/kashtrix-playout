@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG Sequence Player with Animated Ticker</title>
+    <link rel="stylesheet" href="assets/css/quantum.css">
+    <link rel="stylesheet" href="assets/css/logo.css">
+
+</head>
+<body >
+    <div class="container">
+        <canvas id="animationCanvas" class="logo"></canvas>
+    </div>
+    
+
+
+    <script src="assets/js/sequenceImages.js"></script>
+    <script src="assets/js/quantum.js"></script>
+
+    <script>
+       const canvas = document.getElementById('animationCanvas');
+   
+       playImageSequenceAnimation(
+  canvas, 
+  'assets/logo/', 
+  194, 
+  25, 
+  'LOGO ID{index}', 
+  '.png', 
+  3, 
+  0, 
+  true,            // Main sequence loops
+  false,           // Do not hold the last frame
+ null,
+  null,            // No trigger frame (ignores ticker logic)
+  null,            // No onTrigger callback (ignores ticker logic)
+  null,            // No subrange defined
+  true             // completeMainSequence true so that it plays fully
+);
+
+
+    </script>
+</body>
+</html>

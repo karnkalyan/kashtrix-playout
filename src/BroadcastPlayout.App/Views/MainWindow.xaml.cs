@@ -768,6 +768,12 @@ public partial class MainWindow : Window
         win.ShowDialog();
     }
 
+    private void WeatherFields_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new WeatherFieldsDialog(_vm) { Owner = this };
+        win.ShowDialog();
+    }
+
     private void ProgramMonitor_Click(object sender, RoutedEventArgs e)
     {
         if (_programMonitor is { IsVisible: true })
