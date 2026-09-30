@@ -750,6 +750,24 @@ public partial class MainWindow : Window
         window.Show();
     }
 
+    private void ScteTriggerManager_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new ScteTriggerManagerWindow(_vm) { Owner = this };
+        win.ShowDialog();
+    }
+
+    private void FrameComparison_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new FrameComparisonWindow(_vm) { Owner = this };
+        win.ShowDialog();
+    }
+
+    private void NowNextFields_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new NowNextFieldsDialog(_vm) { Owner = this };
+        win.ShowDialog();
+    }
+
     private void ProgramMonitor_Click(object sender, RoutedEventArgs e)
     {
         if (_programMonitor is { IsVisible: true })

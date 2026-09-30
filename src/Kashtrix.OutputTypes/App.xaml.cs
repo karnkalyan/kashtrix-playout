@@ -8,7 +8,7 @@ namespace Kashtrix.OutputTypes;
 
 public partial class App : Application
 {
-    private const string AppName = "Kashtrix.OutputTypes";
+    private const string AppName = "Kashtrix Output Engine";
 
     protected override void OnStartup(StartupEventArgs e)
     {

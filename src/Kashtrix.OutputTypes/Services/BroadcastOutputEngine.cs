@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Threading;
@@ -43,8 +43,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 4.2,
             LatencyMs = 1.8,
             BufferPercent = 98,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             ServiceId = 101,
             PmtPid = 256,
             VideoPid = 257,
@@ -66,8 +66,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 6.8,
             LatencyMs = 8.5,
             BufferPercent = 96,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             ServiceName = "Prime HD NDI Studio"
         });
 
@@ -83,8 +83,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 5.1,
             LatencyMs = 2.0,
             BufferPercent = 97,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             ServiceName = "Prime HD Matrox Master"
         });
 
@@ -100,8 +100,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 3.9,
             LatencyMs = 1.5,
             BufferPercent = 99,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             ServiceName = "Space 4K UHD Master"
         });
 
@@ -117,8 +117,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 14.2,
             LatencyMs = 18.0,
             BufferPercent = 94,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             DvbStandardEnabled = true,
             Scte35Enabled = true,
             ServiceId = 101,
@@ -137,8 +137,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 16.5,
             LatencyMs = 122.4,
             BufferPercent = 91,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             ServiceName = "Prime HD Cloud SRT"
         });
 
@@ -154,8 +154,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 22.0,
             LatencyMs = 850.0,
             BufferPercent = 93,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             ServiceName = "Prime HD Social RTMP"
         });
 
@@ -171,8 +171,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 18.1,
             LatencyMs = 2100.0,
             BufferPercent = 95,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             ServiceName = "Prime HD OTT HLS"
         });
 
@@ -188,8 +188,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 19.4,
             LatencyMs = 2200.0,
             BufferPercent = 95,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             GpuEncoder = "NVENC H.264 (CUDA)",
             ServiceName = "Prime HD DASH MPD"
         });
@@ -206,8 +206,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 20.1,
             LatencyMs = 1200.0,
             BufferPercent = 94,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             GpuEncoder = "NVENC H.264 (CUDA)",
             StreamPreset = "YouTube Live",
             ServiceName = "Prime HD YouTube"
@@ -225,8 +225,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 24.3,
             LatencyMs = 1500.0,
             BufferPercent = 92,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             GpuEncoder = "NVENC H.264 (CUDA)",
             StreamPreset = "Facebook Live",
             ServiceName = "Prime HD Facebook"
@@ -244,8 +244,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 18.9,
             LatencyMs = 900.0,
             BufferPercent = 95,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             GpuEncoder = "NVENC H.264 (CUDA)",
             StreamPreset = "Twitch Live",
             ServiceName = "Prime HD Twitch"
@@ -263,8 +263,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 26.1,
             LatencyMs = 1800.0,
             BufferPercent = 91,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             GpuEncoder = "NVENC H.264 (CUDA)",
             StreamPreset = "TikTok Live",
             ServiceName = "Prime HD TikTok"
@@ -282,8 +282,8 @@ public class BroadcastOutputEngine
             PcrJitterNs = 11.2,
             LatencyMs = 12.0,
             BufferPercent = 96,
-            Status = OutputStatus.Online,
-            IsEnabled = true,
+            Status = OutputStatus.Standby,
+            IsEnabled = false,
             DvbStandardEnabled = true,
             Scte35Enabled = true,
             GpuEncoder = "NVENC H.265/HEVC (CUDA)",
@@ -306,9 +306,9 @@ public class BroadcastOutputEngine
             PcrJitterNs = 44.8,
             LatencyMs = 38.0,
             BufferPercent = 74,
-            Status = OutputStatus.Warning,
+            Status = OutputStatus.Standby,
             AlertMessage = "Minor PCR jitter variance (>40ns) detected on secondary interface; packets recovered via SMPTE 2022-1 FEC.",
-            IsEnabled = true,
+            IsEnabled = false,
             GpuEncoder = "NVENC H.264 (CUDA)",
             ServiceName = "Prime HD Backup DVB"
         });
@@ -320,7 +320,7 @@ public class BroadcastOutputEngine
 
         foreach (var ch in Outputs)
         {
-            if (!ch.IsEnabled || ch.Status == OutputStatus.Standby) continue;
+            if (!ch.IsEnabled || ch.Status == OutputStatus.Standby) { ch.RunningFps = 0.0; ch.BitrateMbps = 0.0; continue; }
 
             // Increment frame counts based on target FPS (200ms tick = ~10 frames @ 50fps, ~5 frames @ 25fps)
             var framesThisTick = (long)Math.Round(ch.TargetFps * 0.2);

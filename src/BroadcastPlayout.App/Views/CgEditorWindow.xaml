@@ -841,14 +841,66 @@
                                 <StackPanel><TextBlock Text="Browser FPS" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.BrowserFps, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
                                 <StackPanel Grid.Column="2"><TextBlock Text="Opacity 0-1" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.Opacity, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
                             </Grid>
-                            <CheckBox Content="VISIBLE" IsChecked="{Binding SelectedHtml.Visible}" Style="{StaticResource ToggleSwitch}" Margin="0,10,0,0"/>
-                            <CheckBox Content="TRANSPARENT BACKGROUND" IsChecked="{Binding SelectedHtml.Transparent}" Style="{StaticResource ToggleSwitch}"/>
-                            <CheckBox Content="JAVASCRIPT ENABLED" IsChecked="{Binding SelectedHtml.JavaScriptEnabled}" Style="{StaticResource ToggleSwitch}"/>
-                            <CheckBox Content="KEEP BROWSER ALIVE" IsChecked="{Binding SelectedHtml.KeepAlive}" Style="{StaticResource ToggleSwitch}"/>
-                            <TextBlock Text="Dynamic data JSON" Style="{StaticResource SectionCaption}" Margin="0,10,0,3"/>
-                            <TextBox Text="{Binding SelectedHtml.DataJson, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" Height="92" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                            <TextBlock Text="BROWSER CAPABILITIES &amp; INTEGRATION" FontWeight="SemiBold" FontSize="11" Margin="0,12,0,4" Foreground="{StaticResource AccentBrush}"/>
+                            <CheckBox Content="Adobe Flash" IsChecked="{Binding SelectedHtml.AdobeFlash}" Style="{StaticResource ToggleSwitch}" Margin="0,3,0,0"/>
+                            <CheckBox Content="Media Stream" IsChecked="{Binding SelectedHtml.MediaStream}" Style="{StaticResource ToggleSwitch}"/>
+                            <CheckBox Content="JavaScript Dialogs" IsChecked="{Binding SelectedHtml.JavaScriptDialogs}" Style="{StaticResource ToggleSwitch}"/>
+                            <CheckBox Content="Web GL" IsChecked="{Binding SelectedHtml.WebGL}" Style="{StaticResource ToggleSwitch}"/>
+                            <CheckBox Content="Web Security" IsChecked="{Binding SelectedHtml.WebSecurity}" Style="{StaticResource ToggleSwitch}"/>
+                            <CheckBox Content="Interlacing" IsChecked="{Binding SelectedHtml.Interlacing}" Style="{StaticResource ToggleSwitch}"/>
+                            <CheckBox Content="External Process" IsChecked="{Binding SelectedHtml.ExternalProcess}" Style="{StaticResource ToggleSwitch}"/>
+                            <CheckBox Content="Mute Audio" IsChecked="{Binding SelectedHtml.MuteAudio}" Style="{StaticResource ToggleSwitch}"/>
+
+                            <TextBlock Text="PAGE DISPLAY &amp; SCROLLING" FontWeight="SemiBold" FontSize="11" Margin="0,12,0,4" Foreground="{StaticResource AccentBrush}"/>
+                            <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Transparency" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.TransparencyMode, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Min Page Width" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.MinPageWidth, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Max Page Width" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.MaxPageWidth, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Bottom"><CheckBox Content="Scrollbars" IsChecked="{Binding SelectedHtml.Scrollbars}" Style="{StaticResource ToggleSwitch}"/></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Scroll Speed Vert." Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.ScrollSpeedVert, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Scroll Speed Horiz." Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.ScrollSpeedHoriz, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="CROP &amp; SCALING" FontWeight="SemiBold" FontSize="11" Margin="0,12,0,4" Foreground="{StaticResource AccentBrush}"/>
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/><ColumnDefinition Width="4"/>
+                                    <ColumnDefinition/><ColumnDefinition Width="4"/>
+                                    <ColumnDefinition/><ColumnDefinition Width="4"/>
+                                    <ColumnDefinition/><ColumnDefinition Width="4"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Top" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.CropTop, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Btm" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.CropBottom, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock Text="Left" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.CropLeft, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="6"><TextBlock Text="Right" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.CropRight, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <Button Grid.Column="8" Content="SET" VerticalAlignment="Bottom" Height="26" Width="40" Click="HtmlInspector_LostFocus"/>
+                            </Grid>
+                            <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Zoom in %" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.ZoomPercent, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Alpha in %" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.AlphaPercent, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Border Width" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.BorderWidth, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Border Color" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.BorderColor, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Position X in %" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.PositionXPercent, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Position Y in %" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.PositionYPercent, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                            </Grid>
+                            <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock Text="Width in %" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.WidthPercent, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock Text="Height in %" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedHtml.HeightPercent, UpdateSourceTrigger=LostFocus}" LostFocus="HtmlInspector_LostFocus"/></StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="DYNAMIC DATA JSON" FontWeight="SemiBold" FontSize="11" Margin="0,12,0,4" Foreground="{StaticResource AccentBrush}"/>
+                            <TextBox Text="{Binding SelectedHtml.DataJson, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" Height="75" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
                             <StackPanel Orientation="Horizontal" Margin="0,7,0,0"><Button Content="UPDATE DATA" Click="UpdateHtmlData_Click" Width="118"/><Button Content="RELOAD" Click="ReloadHtml_Click" Width="90"/></StackPanel>
-                            <TextBlock Text="HTML may listen for window.Kashtrix.update(data) or the 'kashtrix-data' CustomEvent. Local assets, CSS, JS, SVG, canvas and WebGL are handled by the Kashtrix web graphics engine." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="9.5" Margin="0,12,0,0"/>
+                            <TextBlock Text="HTML may listen for window.Kashtrix.update(data) or the 'kashtrix-data' CustomEvent. Local assets, CSS, JS, SVG, canvas, WebGL and MediaStream are handled by the Kashtrix web graphics engine." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="9.5" Margin="0,10,0,0"/>
                         </StackPanel></ScrollViewer>
                     </TabItem>
                     <TabItem Header="COMPOSITION">

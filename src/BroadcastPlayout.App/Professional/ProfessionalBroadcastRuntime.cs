@@ -1,4 +1,4 @@
-﻿using BroadcastPlayout.Models;
+using BroadcastPlayout.Models;
 
 namespace BroadcastPlayout.Professional;
 
@@ -10,6 +10,7 @@ public sealed class ProfessionalBroadcastRuntime : IDisposable
 {
     private readonly St2110Runtime _st2110=new();
     private readonly Scte35TsSender _scte35=new();
+    private readonly Scte104IpSender _scte104Ip=new();
     private readonly PtpMonitor _ptp=new();
     private readonly NmosSenderServer _nmos=new();
     private readonly HighAvailabilityService _ha=new();
@@ -37,6 +38,7 @@ public sealed class ProfessionalBroadcastRuntime : IDisposable
         Stop();_settings=settings??new();_manualArm=_settings.OutputArmed;_st2110.Enabled=_settings.EnableSt2110;_ptp.Start(_settings);_nmos.Start(_settings,channelName);_ha.TakeoverChanged+=(armed,status)=>ArmStateChanged?.Invoke(OutputArmed,status);_ha.SyncStateReceived+=(itemId,position)=>StandbySyncReceived?.Invoke(itemId,position);_ha.Start(_settings,channelId,state);_snmp.Start(_settings,()=>CapabilityStatus());_dolby.Configure(_settings);
         if(_settings.EnableGpio)_gpio.Open(_settings.GpioComPort);
         if(_settings.EnableRs422 || _settings.EnableVdcp)_rs422.Open(_settings.Rs422ComPort,_settings.Rs422Baud,_settings.EnableVdcp);
+        ScteReceiverService.Instance.Start(_settings);
         ArmStateChanged?.Invoke(OutputArmed,_ha.Status);
     }
     public void SetManualArm(bool armed){_manualArm=armed;_settings.OutputArmed=armed;ArmStateChanged?.Invoke(OutputArmed,_ha.Status);}
@@ -55,12 +57,24 @@ public sealed class ProfessionalBroadcastRuntime : IDisposable
     public uint SendScte104(PlaylistItem item)
     {
         var id=item.ScteEventId!=0?item.ScteEventId:unchecked(_scteEventId++);
-        if(OutputArmed && _settings.EnableScte104Anc)
+        if(OutputArmed)
         {
-            _ancillary.Enqueue(AncillaryDataBuilder.BuildScte104(_settings,item,id,_scte104MessageNumber++));
+            if(_settings.EnableScte104Anc)
+                _ancillary.Enqueue(AncillaryDataBuilder.BuildScte104(_settings,item,id,_scte104MessageNumber++));
+            if(_settings.EnableScte104Ip)
+                _scte104Ip.SendCue(_settings,item,id);
             _ = _snmp.SendTrapAsync($"SCTE-104 {item.ScteSpliceType} event={id}");
         }
         return id;
+    }
+    public void SendManualScte(ScteSpliceCue cue)
+    {
+        if(OutputArmed)
+        {
+            if(_settings.EnableScte35Ts) _scte35.SendManualCue(_settings, cue);
+            if(_settings.EnableScte104Ip) _scte104Ip.SendManualCue(_settings, cue);
+            _ = _snmp.SendTrapAsync($"SCTE MANUAL {cue.SpliceType} event={cue.EventId} dur={cue.DurationSeconds}s");
+        }
     }
     public void SendCaption608(PlaylistItem item){if(OutputArmed && _settings.EnableCea608)_ancillary.Enqueue(AncillaryDataBuilder.BuildCea608(_settings,item));}
     public void SendCaption708(PlaylistItem item,double fps){if(OutputArmed && _settings.EnableCea708)_ancillary.Enqueue(AncillaryDataBuilder.BuildCea708Cdp(_settings,item,fps));}
@@ -85,6 +99,6 @@ public sealed class ProfessionalBroadcastRuntime : IDisposable
     public Task SendSnmpTrapAsync(PlaylistItem item,CancellationToken ct=default)=>OutputArmed&&_settings.EnableSnmp?_snmp.SendTrapAsync(item.SnmpHost,item.SnmpPort,item.SnmpCommunity,item.SnmpTrapOid,item.SnmpVarbindOid,item.SnmpValueType,item.SnmpValue,ct):Task.CompletedTask;
     public string CapabilityStatus()=>$"ARM={(OutputArmed?"ON":"INHIBIT")}; HA={_ha.Status}; 2110={St2110Status}; PTP={PtpStatus}; NMOS={NmosStatus}; Dolby={DolbyStatus}; SCTE35={(_settings.EnableScte35Ts?"ON":"OFF")}; 2022-7={(_settings.EnableSt2022_7?"ON":"OFF")}";
     public ProfessionalBroadcastSettings Settings=>_settings;
-    public void Stop(){try{_ptp.Stop();}catch{}try{_nmos.Stop();}catch{}try{_ha.Stop();}catch{}try{_rs422.Close();}catch{}try{_gpio.Close();}catch{}try{_snmp.Stop();}catch{}}
-    public void Dispose(){Stop();_st2110.Dispose();_scte35.Dispose();_ptp.Dispose();_nmos.Dispose();_ha.Dispose();_rs422.Dispose();_gpio.Dispose();_snmp.Dispose();_dolby.Dispose();}
+    public void Stop(){try{_ptp.Stop();}catch{}try{_nmos.Stop();}catch{}try{_ha.Stop();}catch{}try{_rs422.Close();}catch{}try{_gpio.Close();}catch{}try{_snmp.Stop();}catch{}try{ScteReceiverService.Instance.Stop();}catch{}}
+    public void Dispose(){Stop();_st2110.Dispose();_scte35.Dispose();_scte104Ip.Dispose();_ptp.Dispose();_nmos.Dispose();_ha.Dispose();_rs422.Dispose();_gpio.Dispose();_snmp.Dispose();_dolby.Dispose();ScteReceiverService.Instance.Dispose();}
 }

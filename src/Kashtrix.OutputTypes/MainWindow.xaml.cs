@@ -29,6 +29,7 @@ namespace Kashtrix.OutputTypes
         public MainWindow()
         {
             InitializeComponent();
+            BroadcastPlayout.Views.WindowChromeActions.ApplyCleanBorder(this);
             Loaded += MainWindow_Loaded;
         }
 
@@ -215,14 +216,10 @@ namespace Kashtrix.OutputTypes
                 _engine.DeleteOutput(channel);
         }
 
-        private void TriggerScte35_Click(object sender, RoutedEventArgs e)
-        {
-            var splice = _dvbService.TriggerScte35Splice(30.0, "splice_insert");
-            MessageBox.Show($"Injected SCTE-35 Digital Program Insertion Cue:\n\nEvent ID: {splice.EventId}\nCommand: {splice.CommandType}\nDuration: {splice.DurationSeconds}s\nPTS Hex: {splice.PtsTimestampHex}\nState: {splice.State}\nProgram Splice Flag: 1\nOut-Of-Network: TRUE",
-                            "SCTE-35 Splice Trigger Inserted",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-        }
+        private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => BroadcastPlayout.Views.WindowChromeActions.Drag(this, e);
+        private void Minimize_Click(object sender, RoutedEventArgs e) => BroadcastPlayout.Views.WindowChromeActions.Minimize(this);
+        private void Maximize_Click(object sender, RoutedEventArgs e) => BroadcastPlayout.Views.WindowChromeActions.ToggleMaximize(this);
+        private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
         private void StartAll_Click(object sender, RoutedEventArgs e)
         {

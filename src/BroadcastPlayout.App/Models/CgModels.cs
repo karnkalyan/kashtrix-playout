@@ -547,6 +547,34 @@ public sealed class CgHtmlSource : INotifyPropertyChanged
     private string _dataJson = "{}";
     private string _status = "Not loaded";
 
+    // Attachment 3 extended web layer configuration
+    private bool _adobeFlash;
+    private bool _mediaStream = true;
+    private bool _javaScriptDialogs;
+    private bool _webGL = true;
+    private bool _webSecurity;
+    private bool _interlacing;
+    private bool _externalProcess = true;
+    private bool _muteAudio = true;
+    private string _transparencyMode = "Auto";
+    private int _minPageWidth = 320;
+    private int _maxPageWidth = 1920;
+    private bool _scrollbars = true;
+    private double _scrollSpeedVert;
+    private double _scrollSpeedHoriz;
+    private int _cropTop;
+    private int _cropBottom;
+    private int _cropLeft;
+    private int _cropRight;
+    private int _zoomPercent = 100;
+    private int _alphaPercent = 100;
+    private int _borderWidth;
+    private string _borderColor = "white";
+    private double _positionXPercent;
+    private double _positionYPercent;
+    private double _widthPercent = 100;
+    private double _heightPercent;
+
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get => _name; set => Set(ref _name, value); }
     public string Source { get => _source; set => Set(ref _source, value); }
@@ -566,6 +594,33 @@ public sealed class CgHtmlSource : INotifyPropertyChanged
     public double Opacity { get => _opacity; set => Set(ref _opacity, double.IsFinite(value) ? Math.Clamp(value, 0, 1) : 1); }
     public string DataJson { get => _dataJson; set => Set(ref _dataJson, value); }
     public string Status { get => _status; set => Set(ref _status, value); }
+
+    public bool AdobeFlash { get => _adobeFlash; set => Set(ref _adobeFlash, value); }
+    public bool MediaStream { get => _mediaStream; set => Set(ref _mediaStream, value); }
+    public bool JavaScriptDialogs { get => _javaScriptDialogs; set => Set(ref _javaScriptDialogs, value); }
+    public bool WebGL { get => _webGL; set => Set(ref _webGL, value); }
+    public bool WebSecurity { get => _webSecurity; set => Set(ref _webSecurity, value); }
+    public bool Interlacing { get => _interlacing; set => Set(ref _interlacing, value); }
+    public bool ExternalProcess { get => _externalProcess; set => Set(ref _externalProcess, value); }
+    public bool MuteAudio { get => _muteAudio; set => Set(ref _muteAudio, value); }
+    public string TransparencyMode { get => _transparencyMode; set => Set(ref _transparencyMode, value); }
+    public int MinPageWidth { get => _minPageWidth; set => Set(ref _minPageWidth, value); }
+    public int MaxPageWidth { get => _maxPageWidth; set => Set(ref _maxPageWidth, value); }
+    public bool Scrollbars { get => _scrollbars; set => Set(ref _scrollbars, value); }
+    public double ScrollSpeedVert { get => _scrollSpeedVert; set => Set(ref _scrollSpeedVert, value); }
+    public double ScrollSpeedHoriz { get => _scrollSpeedHoriz; set => Set(ref _scrollSpeedHoriz, value); }
+    public int CropTop { get => _cropTop; set => Set(ref _cropTop, value); }
+    public int CropBottom { get => _cropBottom; set => Set(ref _cropBottom, value); }
+    public int CropLeft { get => _cropLeft; set => Set(ref _cropLeft, value); }
+    public int CropRight { get => _cropRight; set => Set(ref _cropRight, value); }
+    public int ZoomPercent { get => _zoomPercent; set => Set(ref _zoomPercent, value); }
+    public int AlphaPercent { get => _alphaPercent; set => Set(ref _alphaPercent, value); }
+    public int BorderWidth { get => _borderWidth; set => Set(ref _borderWidth, value); }
+    public string BorderColor { get => _borderColor; set => Set(ref _borderColor, value); }
+    public double PositionXPercent { get => _positionXPercent; set => Set(ref _positionXPercent, value); }
+    public double PositionYPercent { get => _positionYPercent; set => Set(ref _positionYPercent, value); }
+    public double WidthPercent { get => _widthPercent; set => Set(ref _widthPercent, value); }
+    public double HeightPercent { get => _heightPercent; set => Set(ref _heightPercent, value); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private bool Set<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

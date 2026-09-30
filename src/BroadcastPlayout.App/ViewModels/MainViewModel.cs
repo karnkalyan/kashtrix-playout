@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
 using BroadcastPlayout.Engine;
@@ -450,6 +450,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         });
         _professional.StandbySyncReceived += (itemId, positionSeconds) => Ui(() => SynchronizeWarmStandby(itemId, positionSeconds));
         _professional.Start(_settings.ProfessionalBroadcast, ChannelId, ChannelName, () => (CurrentItem?.Id.ToString(), _currentElapsedSeconds));
+
+        ScteReceiverService.Instance.SpliceReceived += OnScteSpliceReceived;
+        FrameComparisonService.Instance.CueFrameDetected += OnCueFrameDetected;
+        FrameComparisonService.Instance.EmergencyReturnTriggered += OnEmergencyReturnTriggered;
 
         // FIX32 real live-debug telemetry. This is deliberately low-frequency and append-only so
         // an operator can reproduce a fault while LIVE-DEBUG.cmd captures the exact playout state.
@@ -1726,6 +1730,168 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RenumberPlaylist();
     }
 
+    public void InsertPlaylistItem(PlaylistItem item)
+    {
+        var targetIndex = SelectedItem is not null ? Math.Max(0, Playlist.IndexOf(SelectedItem) + 1) : Playlist.Count;
+        InsertPlaylistItemAt(item, targetIndex);
+        SelectedItem = item;
+        RaisePlaylistSummary();
+        PersistPlaylist();
+        AddRecentEvent($"INSERT ITEM · {item.EventType} · {item.Title}");
+    }
+
+    public void ExecuteManualScteCue(ScteSpliceCue cue, string onBreakMode = "Current File in Playlist")
+    {
+        _professional.SendManualScte(cue);
+        AddRecentEvent($"SCTE TRANSMIT · {cue.SpliceType} · Event={cue.EventId} · Dur={cue.DurationSeconds:0}s · {cue.Source}");
+
+        if (cue.IsCueIn || cue.OutOfNetworkIndicator)
+        {
+            HandleScteCueIn(cue, onBreakMode);
+        }
+        else if (cue.IsCueOut || !cue.OutOfNetworkIndicator)
+        {
+            HandleScteCueOut(cue);
+        }
+    }
+
+    public void HandleScteCueIn(ScteSpliceCue cue, string onBreakMode)
+    {
+        AddRecentEvent($"AD BREAK START · SCTE Event={cue.EventId} · Mode={onBreakMode} · Duration={cue.DurationSeconds:0}s");
+
+        switch (onBreakMode)
+        {
+            case "Current File in Playlist":
+                if (Playlist.Count > 0 && !_engine.IsPlaying)
+                {
+                    PlayOrResume();
+                }
+                break;
+            case "Black Image":
+                _engine.Pause();
+                break;
+            case "Custom Video":
+            case "Custom Image":
+                if (!string.IsNullOrWhiteSpace(_settings.ProfessionalBroadcast.ScteOnBreakMediaFile) &&
+                    File.Exists(_settings.ProfessionalBroadcast.ScteOnBreakMediaFile))
+                {
+                    var dur = cue.DurationSeconds > 0 ? TimeSpan.FromSeconds(cue.DurationSeconds) : TimeSpan.FromSeconds(30);
+                    var breakItem = new PlaylistItem
+                    {
+                        Title = $"AD BREAK [{cue.EventId}]",
+                        FilePath = _settings.ProfessionalBroadcast.ScteOnBreakMediaFile,
+                        InPoint = TimeSpan.Zero,
+                        OutPoint = dur,
+                        SourceDuration = dur,
+                        Category = "Commercial",
+                        BlockName = "COMMERCIAL BREAK"
+                    };
+                    InsertPlaylistItem(breakItem);
+                    SelectedItem = breakItem;
+                    TakeSelected();
+                }
+                break;
+        }
+
+        if (cue.AutoReturn && cue.DurationSeconds > 0)
+        {
+            var returnTimer = new System.Threading.Timer(_ =>
+            {
+                Ui(() =>
+                {
+                    var returnCue = new ScteSpliceCue
+                    {
+                        EventId = cue.EventId,
+                        SpliceType = "End Immediate",
+                        IsCueOut = true,
+                        OutOfNetworkIndicator = false,
+                        Source = "Auto Return Timer"
+                    };
+                    HandleScteCueOut(returnCue);
+                });
+            }, null, (int)(cue.DurationSeconds * 1000), System.Threading.Timeout.Infinite);
+        }
+    }
+
+    public void HandleScteCueOut(ScteSpliceCue cue)
+    {
+        AddRecentEvent($"AD BREAK END · RETURN TO PROGRAM · SCTE Event={cue.EventId}");
+        if (_engine.IsPaused)
+        {
+            _engine.Resume();
+        }
+    }
+
+    private void OnScteSpliceReceived(object? sender, ScteSpliceCue cue)
+    {
+        Ui(() =>
+        {
+            AddRecentEvent($"SCTE RECEIVER · {cue.SpliceType} · Event={cue.EventId} · Dur={cue.DurationSeconds:0}s · {cue.Source}");
+            if (_settings.ProfessionalBroadcast.ScteAutoAdBreak)
+            {
+                if (cue.IsCueIn || cue.OutOfNetworkIndicator)
+                {
+                    HandleScteCueIn(cue, _settings.ProfessionalBroadcast.ScteOnBreakPlayMode);
+                }
+                else if (cue.IsCueOut || !cue.OutOfNetworkIndicator)
+                {
+                    HandleScteCueOut(cue);
+                }
+            }
+        });
+    }
+
+    private void OnCueFrameDetected(string matchType, double score)
+    {
+        Ui(() =>
+        {
+            AddRecentEvent($"OPTICAL CUE DETECTED · {matchType} · Score: {score:0.0}%");
+            if (matchType.Equals("OUT", StringComparison.OrdinalIgnoreCase))
+            {
+                var cue = new ScteSpliceCue
+                {
+                    EventId = (uint)new Random().Next(10000, 99999),
+                    SpliceType = "Start Immediate",
+                    IsCueIn = true,
+                    OutOfNetworkIndicator = true,
+                    DurationSeconds = _settings.ProfessionalBroadcast.ScteDefaultBreakDuration,
+                    AutoReturn = true,
+                    Source = "Optical Cue Tone Frame Detection"
+                };
+                HandleScteCueIn(cue, _settings.ProfessionalBroadcast.ScteOnBreakPlayMode);
+            }
+            else if (matchType.Equals("IN", StringComparison.OrdinalIgnoreCase))
+            {
+                var cue = new ScteSpliceCue
+                {
+                    EventId = 0,
+                    SpliceType = "End Immediate",
+                    IsCueOut = true,
+                    OutOfNetworkIndicator = false,
+                    Source = "Optical Cue Tone (IN Frame)"
+                };
+                HandleScteCueOut(cue);
+            }
+        });
+    }
+
+    private void OnEmergencyReturnTriggered(string reason)
+    {
+        Ui(() =>
+        {
+            AddRecentEvent($"EMERGENCY RETURN · {reason}");
+            var cue = new ScteSpliceCue
+            {
+                EventId = 0,
+                SpliceType = "End Immediate",
+                IsCueOut = true,
+                OutOfNetworkIndicator = false,
+                Source = "Emergency Return"
+            };
+            HandleScteCueOut(cue);
+        });
+    }
+
     public void NotifySelectedItemEdited()
     {
         Raise(nameof(PreviewSeekMaximum));
@@ -2275,6 +2441,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Volatile.Write(ref _lastProgramSourceElapsedSeconds, elapsed);
         Volatile.Write(ref _lastProgramSourceStamp, System.Diagnostics.Stopwatch.GetTimestamp());
         Interlocked.Exchange(ref _latestProgramCadenceSourceFrame, frame);
+
+        if (_settings.ProfessionalBroadcast.EnableFrameComparison && frame.Width > 0 && frame.Height > 0)
+        {
+            FrameComparisonService.Instance.ProcessFrame(_settings.ProfessionalBroadcast, frame);
+        }
 
         if ((DateTime.UtcNow - _lastProgressUi).TotalMilliseconds >= 70)
         {
@@ -4316,7 +4487,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex) { _databaseStatus = "DB ERROR · " + ex.Message; Raise(nameof(DatabaseStatus)); }
     }
 
-    private void PersistState()
+    public void PersistSettings() => PersistState();
+
+    public void PersistState()
     {
         try
         {
@@ -4618,5 +4791,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         try { _cgCompositor.Dispose(); } catch { }
         try { _programChannelScaler.Dispose(); } catch { }
         try { _previewPauseGate.Dispose(); } catch { }
+        try
+        {
+            ScteReceiverService.Instance.SpliceReceived -= OnScteSpliceReceived;
+            FrameComparisonService.Instance.CueFrameDetected -= OnCueFrameDetected;
+            FrameComparisonService.Instance.EmergencyReturnTriggered -= OnEmergencyReturnTriggered;
+        }
+        catch { }
     }
 }

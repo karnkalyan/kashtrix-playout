@@ -1,4 +1,4 @@
-﻿namespace BroadcastPlayout.Models;
+namespace BroadcastPlayout.Models;
 
 /// <summary>
 /// FIX42 professional transmission/control settings. New network transmitters, GPIO and HA takeover
@@ -37,8 +37,8 @@ public sealed class ProfessionalBroadcastSettings
     public int NmosHttpPort { get; set; } = 3210;
     public string NmosRegistrationUrl { get; set; } = string.Empty;
 
-    // SCTE / TS / ANC.
-    public bool EnableScte35Ts { get; set; }
+    // SCTE-35 / SCTE-104 Transmission & Reception
+    public bool EnableScte35Ts { get; set; } = true;
     public string Scte35TsDestination { get; set; } = "239.100.35.1";
     public int Scte35TsPort { get; set; } = 50350;
     public int Scte35Pid { get; set; } = 0x1F00;
@@ -46,6 +46,52 @@ public sealed class ProfessionalBroadcastSettings
     public int Scte35ProgramNumber { get; set; } = 1;
     public bool EnableScte104Anc { get; set; } = true;
     public int Scte104VancLine { get; set; } = 11;
+    public bool EnableScte104Ip { get; set; } = true;
+    public string Scte104IpDestination { get; set; } = "127.0.0.1";
+    public int Scte104IpPort { get; set; } = 5167;
+
+    // SCTE Receiver & Ad Break Automation
+    public bool EnableScte35Receiver { get; set; } = true;
+    public int Scte35ReceiverPort { get; set; } = 50350;
+    public bool EnableScte104Receiver { get; set; } = true;
+    public int Scte104ReceiverPort { get; set; } = 5167;
+    public bool ScteAutoAdBreak { get; set; } = true;
+    public string ScteOnBreakPlayMode { get; set; } = "Current File in Playlist"; // Current File in Playlist | Black Image | Custom Image | Custom Video
+    public string ScteOnBreakMediaFile { get; set; } = string.Empty;
+    public double ScteDefaultBreakDuration { get; set; } = 60.0;
+    public bool ScteUseSameEventIdForCueOut { get; set; } = true;
+    public double ScteScheduleSpliceInSeconds { get; set; } = 4.0;
+    public double SctePtsAdjustmentSeconds { get; set; } = 0.0;
+
+    // Frame Comparison / Optical Cue Tone Ad Detection
+    public bool EnableFrameComparison { get; set; }
+    public bool CompareFramesOnLive { get; set; } = true;
+    public bool CompareFramesOnUrl { get; set; } = true;
+    public string FrameCompareType { get; set; } = "Recognize Both OUT and IN Frames"; // Recognize Both OUT and IN Frames | Recognize Only OUT Frame
+    public string FrameCompareMethod { get; set; } = "CcoeffNormed"; // CcoeffNormed | SqdiffNormed
+    public double FrameComparePrecisionOut { get; set; } = 82.0;
+    public double FrameComparePrecisionIn { get; set; } = 88.0;
+    public double FrameCompareTimeoutOutFoundSeconds { get; set; } = 20.0;
+    public bool FrameCompareWaitSecondAfterFirst { get; set; } = true;
+    public double FrameCompareEmergencyTimeMinutes { get; set; } = 5.0;
+    public bool FrameCompareEmergencyReturn { get; set; } = true;
+    public string FrameCompareOutImagePath { get; set; } = string.Empty;
+    public string FrameCompareInImagePath { get; set; } = string.Empty;
+
+    // Now / Next Field Selection
+    public bool NowPlayingItem { get; set; } = true;
+    public bool NowItemDescription { get; set; }
+    public bool NowItemGenre { get; set; }
+    public bool NowItemYear { get; set; }
+    public bool NowItemPoster { get; set; }
+    public bool NowItemVideo { get; set; }
+    public bool NextItem { get; set; } = true;
+    public bool NextItemStartTime { get; set; } = true;
+    public bool NextItemDescription { get; set; }
+    public bool NextItemGenre { get; set; }
+    public bool NextItemYear { get; set; }
+    public bool NextItemPoster { get; set; }
+    public bool NextItemVideo { get; set; }
 
     // Captions / subtitles.
     public bool EnableCea608 { get; set; } = true;

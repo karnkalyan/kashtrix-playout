@@ -153,7 +153,6 @@
                     <!-- Action Controls for this Output -->
                     <Border Grid.Row="1" Background="#1B2432" BorderBrush="#2B394E" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,0,0,10">
                         <WrapPanel>
-                            <Button Content="TRIGGER SCTE-35 SPLICE (30s)" Click="TriggerScte35_Click" Background="#38BDF8" Foreground="#0F172A" FontWeight="Bold" Height="26" Padding="10,0" Margin="0,0,8,0"/>
                             <Button Content="SEND MOS CUE" Click="SendMos_Click" Background="#222F3E" Foreground="#F1F5F9" Height="26" Padding="10,0" Margin="0,0,8,0"/>
                             <Button Content="CLEAR ALERTS" Click="ClearAlert_Click" Background="#222F3E" Foreground="#F1F5F9" Height="26" Padding="10,0"/>
                         </WrapPanel>

@@ -15,15 +15,6 @@ namespace Kashtrix.OutputTypes
             DataContext = channel;
         }
 
-        private void TriggerScte35_Click(object sender, RoutedEventArgs e)
-        {
-            var splice = Scte35DvbService.Instance.TriggerScte35Splice(30.0, "splice_insert");
-            MessageBox.Show($"Triggered SCTE-35 DPI Cue for channel {_channel.Name}:\n\nEvent ID: {splice.EventId}\nPTS: {splice.PtsTimestampHex}\nCommand: {splice.CommandType}\nDuration: {splice.DurationSeconds}s",
-                            "SCTE-35 Cue Inserted",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-        }
-
         private void SendMos_Click(object sender, RoutedEventArgs e)
         {
             Scte35DvbService.Instance.Log("MOS", $"[MOS 2.8.4 MANUAL PING] Sent status check to NRCS server for channel: {_channel.Name} | ACK Received (0ms latency)", "INFO");
