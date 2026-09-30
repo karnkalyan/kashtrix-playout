@@ -32,11 +32,12 @@ public static class CgDemoFactory
     public static List<CgProject> CreateDefaults(bool forceRefresh = false)
     {
         var dir = GetCgDemoDirectory();
+        var canonicalProjects = CgUniqueDemoFactory.Create();
+        var loaded = new List<CgProject>();
+        var loadedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         if (!forceRefresh)
         {
-            var loaded = new List<CgProject>();
-            var loadedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
             var candidateDirs = new List<string>();
             if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir)) candidateDirs.Add(dir);
             var wsDemos = Path.Combine(Directory.GetCurrentDirectory(), "demos");
@@ -61,10 +62,28 @@ public static class CgDemoFactory
                     catch { }
                 }
             }
-            if (loaded.Count > 0) return loaded;
         }
 
-        var projects = CgUniqueDemoFactory.Create();
+        // Ensure every canonical template from CgUniqueDemoFactory (including AP1 HD, Prime HD, Space 4K)
+        // is present in the collection. If any are missing or if forceRefresh is true, merge them.
+        var toPersist = new List<CgProject>();
+        foreach (var canonical in canonicalProjects)
+        {
+            if (forceRefresh)
+            {
+                var idx = loaded.FindIndex(x => string.Equals(x.Name, canonical.Name, StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0) loaded[idx] = canonical;
+                else { loaded.Add(canonical); loadedNames.Add(canonical.Name); }
+                toPersist.Add(canonical);
+            }
+            else if (!loadedNames.Contains(canonical.Name))
+            {
+                loaded.Add(canonical);
+                loadedNames.Add(canonical.Name);
+                toPersist.Add(canonical);
+            }
+        }
+
         try
         {
             var targetDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -72,14 +91,15 @@ public static class CgDemoFactory
             var wsDemos = Path.Combine(Directory.GetCurrentDirectory(), "demos");
             if (Directory.Exists(wsDemos)) targetDirs.Add(wsDemos);
 
+            var projectsToSave = forceRefresh ? canonicalProjects : toPersist;
             foreach (var targetDir in targetDirs)
             {
                 Directory.CreateDirectory(targetDir);
-                foreach (var p in projects)
+                foreach (var p in projectsToSave)
                 {
                     var safeName = SanitizeFileName(p.Name) + ".kcg";
                     var filePath = Path.Combine(targetDir, safeName);
-                    if (!File.Exists(filePath))
+                    if (forceRefresh || !File.Exists(filePath))
                     {
                         KashtrixCgFileService.SaveComposition(filePath, p);
                     }
@@ -88,7 +108,8 @@ public static class CgDemoFactory
             }
         }
         catch { }
-        return projects;
+
+        return loaded.Count > 0 ? loaded : canonicalProjects;
     }
 
     public static CgLayer CloneLayer(CgLayer l)

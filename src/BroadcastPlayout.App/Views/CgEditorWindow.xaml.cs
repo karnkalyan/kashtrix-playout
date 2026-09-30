@@ -1043,10 +1043,15 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         SyncLayersToProject();
         Projects.Clear();
-        foreach (var project in CgDemoFactory.CreateDefaults(forceRefresh: false)) Projects.Add(project);
-        SelectedProject = Projects.FirstOrDefault(x => x.Name.Contains("Prime HD", StringComparison.OrdinalIgnoreCase) && x.Name.Contains("Breaking", StringComparison.OrdinalIgnoreCase)) ?? Projects.FirstOrDefault();
+        foreach (var project in CgDemoFactory.CreateDefaults(forceRefresh: true)) Projects.Add(project);
+        SelectedProject = Projects.FirstOrDefault(x => x.Name.Contains("AP1 HD", StringComparison.OrdinalIgnoreCase))
+            ?? Projects.FirstOrDefault(x => x.Name.Contains("Prime HD", StringComparison.OrdinalIgnoreCase) && x.Name.Contains("Breaking", StringComparison.OrdinalIgnoreCase))
+            ?? Projects.FirstOrDefault();
         _main.ActiveCgProject = SelectedProject;
         _main.SaveCgProjects();
+        ProjectView.Refresh();
+        Raise(nameof(TemplateCountText));
+        RenderAll();
     }
 
     private void NewProject_Click(object sender, RoutedEventArgs e)

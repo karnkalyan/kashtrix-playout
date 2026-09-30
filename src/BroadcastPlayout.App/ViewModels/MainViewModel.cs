@@ -4389,7 +4389,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public void RebuildCgDemoPack()
     {
-        var defaults = CgDemoFactory.CreateDefaults(forceRefresh: false);
+        var defaults = CgDemoFactory.CreateDefaults(forceRefresh: true);
         var canonicalNames = defaults.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var activeName = ActiveCgProject?.Name ?? string.Empty;
         var activeWasGenerated = canonicalNames.Contains(activeName) || activeName.StartsWith("Demo ", StringComparison.OrdinalIgnoreCase);
@@ -4465,7 +4465,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _scheduler.SetEntries(Schedules);
 
         CgProjects.Clear();
-        foreach (var project in CgDemoFactory.CreateDefaults(forceRefresh: false))
+        foreach (var project in CgDemoFactory.CreateDefaults(forceRefresh: true))
         {
             project.OnAir = false;
             CgProjects.Add(project);
