@@ -1,0 +1,49 @@
+@font-face {
+    font-family: 'Arab';
+    src: url('../fonts/suvadin.ttf') format('truetype');
+}
+
+
+body, html {
+    -webkit-font-smoothing: antialiased; /* Smooth text on WebKit-based browsers */
+    -moz-osx-font-smoothing: grayscale; /* Smooth text on Firefox on macOS */
+    text-rendering: optimizeLegibility; /* Enhance readability for larger text */
+  }
+  
+
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+
+
+
+
+
+
+.scroll-text {
+    font-family: 'Arab', sans-serif;
+    font-size: 2rem; /* Use the size you prefer */
+    color: rgb(0, 0, 0);
+    display: inline-flex; /* Combines inline-block and flex */
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+    text-align: center;
+}
+
+
+
+
+
+
+
+
+
+
+

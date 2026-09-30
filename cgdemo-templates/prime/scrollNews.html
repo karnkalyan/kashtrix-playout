@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG Sequence Player with Animated Ticker</title>
+    <link rel="stylesheet" href="assets/css/quantum.css">
+    <link rel="stylesheet" href="assets/css/scroll.css">
+    
+    <style>
+
+   
+
+    </style>
+</head>
+<body>
+
+    <div class="Maincontainer">
+       
+        <div class="scroll-container">
+            <div class="ticker-items">
+            </div>
+        </div>
+        <div class="scrollContent">
+        <img src="assets/scrolling/Scroll_Plate_00000.png" class="scroll">
+
+      
+        <div class="container-time">
+            <div class="slider">
+                <div class="slide nepali-font-Arab" id="time"></div>
+                <div class="slide " id="date"></div>
+                <div class="slide " id="day"></div>
+              </div>
+        </div>
+            </div>
+
+
+
+   
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.10.4/gsap.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="assets/js/nepali_function.js"></script>
+    <script src="assets/js/unicode_converter.js"></script>
+    <script src="assets/js/nepaliDateTimeScript.js"></script>
+    <script>
+  
+  function initTicker(speed) {
+    const tickerContainer = document.querySelector('.ticker-items');
+    const containerWidth = document.querySelector('.scroll-container').offsetWidth;
+
+    // Calculate the total width of the ticker content
+    const tickerWidth = tickerContainer.scrollWidth;
+
+    // Calculate duration based on speed (in pixels per second)
+    const duration = (tickerWidth + containerWidth) / speed;
+
+    // Enable hardware acceleration for smoother animation
+    gsap.set(tickerContainer, { willChange: 'transform' });
+
+    // Set up smooth scrolling with GSAP
+    gsap.fromTo(
+        tickerContainer,
+        { x: containerWidth }, // Start from the right edge of the container
+        {
+            x: -tickerWidth, // Scroll to the left edge of the content
+            duration: duration,
+            ease: 'none', // Linear scrolling for constant speed
+            repeat: -1, // Infinite loop
+            modifiers: {
+                x: gsap.utils.unitize(x => parseFloat(x) % (tickerWidth + containerWidth)), // Seamless looping
+            },
+            force3D: true, // Force hardware acceleration
+        }
+    );
+}
+
+// Fetch data and initialize the ticker
+fetch('https://quantumcg.simulcast.com.np/api_data/data.php?content=top&token=asfhoasfajefaskdfhlashflkhauwehfwui32423kshdafaheaf&company=3')
+    .then(response => response.json())
+    .then(data => {
+        const tickerItemsContainer = document.querySelector('.ticker-items');
+
+        // Clear existing items to prevent duplicates
+        tickerItemsContainer.innerHTML = '';
+
+        // Add fetched data to the ticker
+        data.forEach(element => {
+            const tickerItem = document.createElement('div');
+            tickerItem.className = 'ticker-item scroll-text';
+            tickerItem.textContent = element.Top; // Use the "Top" field from the JSON data
+            tickerItemsContainer.appendChild(tickerItem);
+        });
+
+        // Clone items for seamless scrolling
+        tickerItemsContainer.innerHTML += tickerItemsContainer.innerHTML;
+
+        // Initialize the ticker with a desired speed
+        initTicker(80); // Adjust speed value as needed
+    })
+    .catch(error => console.error('Error fetching data:', error));
+
+    
+// Slider animation (unchanged)
+const slides = document.querySelectorAll('.slide');
+const slider = document.querySelector('.slider');
+const slideHeight = 50; // Height of each slide
+const totalSlides = slides.length;
+
+// GSAP Timeline for looping animation
+const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.2 }); // Infinite loop with delay between loops
+
+slides.forEach((slide, index) => {
+    // Animate each slide's fade-in and slide-up from bottom
+    tl.fromTo(
+        slide,
+        { opacity: 0, y: slideHeight }, // Start below the container
+        {
+            opacity: 1, // Fade in
+            y: 0, // Slide to its position
+            duration: 0.3, // Duration of fade-in
+            ease: "power2.out", // Smooth easing
+        }
+    )
+    .to(slide, {
+        opacity: 0, // Fade out
+        y: -slideHeight, // Slide upwards out of view
+        duration: 0.3, // Duration of fade-out
+        ease: "power2.in", // Smooth easing
+        delay: 3, // Hold the slide in place for 3 seconds
+    });
+});
+
+// Ensure smooth reset to the top after the last slide
+tl.set(slides, { opacity: 0, y: slideHeight }); // Reset all slides below the view
+
+    </script>
+</body>
+</html>

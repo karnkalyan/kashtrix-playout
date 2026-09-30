@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG Sequence Player with Animated Ticker</title>
+    <link rel="stylesheet" href="assets/css/quantum.css">
+    <link rel="stylesheet" href="assets/css/namePlate.css">
+    <style>
+        #flashNews{
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="name-container">
+        <canvas id="animationCanvas"></canvas>
+        <canvas id="flashNews"></canvas>
+        <div class="nameplate-container">
+            <p class="namePlate nepali-font-Arab"></p>
+        </div>
+    </div>
+    
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="assets/js/sequenceImages.js"></script>
+    <script src="assets/js/gsapAnimation.js"></script>
+    <script src="assets/js/quantum.js"></script>
+
+    <script>
+        
+
+    const canvas = document.getElementById('animationCanvas');
+    const flashCanvas = document.getElementById('flashNews');
+
+    
+
+
+
+    playImageSequenceAnimation(
+    flashCanvas, 
+    'assets/Name_Plate_New/', 
+    200, 
+    30, 
+    'Name_Plate_New_{index}', 
+    '.png', 
+    5, 
+    0, 
+    false,  // No loop
+    false,   // Do not hold last frame
+    () => { 
+        // console.log("Animation completed!"); 
+    },
+    25, // Call function at frame 10
+    () => {
+        // console.log("Triggered at frame 25!");
+        fetchCustomData();
+    }
+);
+
+
+
+
+                async function fetchCustomData() {
+    const url = "https://quantumcg.simulcast.com.np/api_data/data.php?content=customData&token=asfhoasfajefaskdfhlashflkhauwehfwui32423kshdafaheaf&company=3&collection=name_plate&value=namePlate";
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        // console.log("API Response:", data);
+
+        if (Array.isArray(data) && data.length > 0) {
+            const elements = document.getElementsByClassName("namePlate");
+
+            for (let i = 0; i < elements.length; i++) {
+    let text = data[0]; // Assuming the text is something like "John Doe KB"
+    
+    let parts = text.split(","); // Splitting at " KB"
+    
+    if (parts.length > 1) {
+        elements[i].innerHTML = `<span class="Person">${parts[0]}</span> <span class="Post">${parts[1]}</span>`;
+    } else {
+        elements[i].textContent = text; // Fallback if KB is not present
+    }
+}
+
+
+      // Ensure animation starts after text is set
+animateTextContent('.Person', 'animation-26', {
+    loop: false,
+    delay: 3000, // 2 seconds fixed delay between in and out animations
+    onComplete: () => {
+        // console.log("Text animation completed!");
+    }
+});
+
+animateTextContent('.Post', 'animation-26a', {
+    loop: false,
+    delay: 3000, // 2 seconds fixed delay between in and out animations
+    onComplete: () => {
+        // console.log("Text animation completed!");
+    }
+});
+
+        } else {
+            // console.warn("No data found in API response.");
+        }
+    } catch (error) {
+        // console.error("Error fetching data:", error);
+    }
+}
+
+
+
+
+
+
+
+    </script>
+</body>
+</html>

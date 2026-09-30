@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG Sequence Player with Animated Ticker</title>
+    <link rel="stylesheet" href="assets/css/quantum.css">
+    <link rel="stylesheet" href="assets/css/flash.css">
+
+</head>
+<body >
+    <div class="container">
+        <canvas id="animationCanvas"></canvas>
+        <canvas id="flashNews"></canvas>
+        <div class="flash-news-center">
+            <p class="animated-text nepali-font-Arab" style="color: rgb(117, 3, 3);"></p>
+        </div>
+    </div>
+    
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="assets/js/sequenceImages.js"></script>
+    <script src="assets/js/gsapAnimation.js"></script>
+    <script src="assets/js/quantum.js"></script>
+
+    <script>
+       const canvas = document.getElementById('animationCanvas');
+   
+       playImageSequenceAnimation(
+  canvas, 
+  'assets/FlashNews/', 
+  502, 
+  50, 
+  'Flash_News_{index}', 
+  '.png', 
+  3, 
+  0, 
+  false,           // Main sequence initially does not loop (but our code forces restart)
+  false,           // Do not hold the last frame
+  () => { 
+      console.log("Main animation completed!");
+  },
+  50,              // Trigger onTrigger at frame 50
+  () => {
+      // Start ticker when animation reaches trigger frame.
+      createTicker({
+          apiUrl: 'https://quantumcg.simulcast.com.np/api_data/data.php?content=flash&token=tFlk7jvWFeQIqGZqnJBBlCVa0HnUxq&company=14',
+          textSelector: '.animated-text',
+          animationConfig: {
+              scaleStart: 4,
+              scaleEnd: 1,
+              opacityStart: 0,
+              opacityEnd: 1,
+              duration: 1200,
+              delayMultiplier: 10
+          },
+          textAnimationName: 'animation-35',
+          dataSourceKey: 'brk_text',
+          playImageSequence: (onComplete) => {
+              onComplete();
+          },
+          animationDelay: 2000,
+          onTickerComplete: () => {
+              console.log("Ticker completed, restarting sequence...");
+              // Resume the main sequence from the frame after the subrange.
+              canvas.resumeMainSequence();
+          },
+          loop: false,
+      });
+  },
+  [58, 430],       // Subrange: loop between frames 58 and 430 while ticker is active.
+  false            // Do not complete the main sequence; jump to subrange immediately at trigger frame.
+);
+
+
+    </script>
+</body>
+</html>

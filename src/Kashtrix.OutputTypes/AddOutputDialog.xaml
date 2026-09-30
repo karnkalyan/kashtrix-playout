@@ -1,0 +1,180 @@
+<Window x:Class="Kashtrix.OutputTypes.AddOutputDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add Master Broadcast Output Destination"
+        Width="540" Height="580"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource BackgroundBrush}"
+        Foreground="{DynamicResource ForegroundBrush}"
+        WindowStyle="SingleBorderWindow"
+        ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="NEW BROADCAST OUTPUT STREAM / HARDWARE" FontSize="16" FontWeight="Bold" Foreground="#38BDF8"/>
+            <TextBlock Text="Provision DeckLink, NDI, Matrox, AJA, DVB-TS UDP, SRT, RTMP, HLS or MPD" FontSize="11" Foreground="#94A3B8" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Form Fields -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,0,0">
+                <!-- Name -->
+                <StackPanel Margin="0,0,0,12">
+                    <TextBlock Text="Channel / Feed Name:" Foreground="#E2E8F0" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                    <TextBox x:Name="NameTextBox" Background="#0F172A" Foreground="#FFFFFF" BorderBrush="#334155" Padding="6" Text="AUX-Output-Stream"/>
+                </StackPanel>
+
+                <!-- Protocol -->
+                <StackPanel Margin="0,0,0,12">
+                    <TextBlock Text="Output Type / Protocol:" Foreground="#E2E8F0" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                    <ComboBox x:Name="ProtocolComboBox" Background="#0F172A" Foreground="#FFFFFF" BorderBrush="#334155" Padding="6" SelectionChanged="ProtocolComboBox_SelectionChanged">
+                        <ComboBoxItem Content="Blackmagic DeckLink (SDI / HDMI)" Tag="DeckLink" IsSelected="True"/>
+                        <ComboBoxItem Content="NDI Network Video (NDI HX / Full)" Tag="NDI"/>
+                        <ComboBoxItem Content="Matrox DSX Video Hardware" Tag="Matrox"/>
+                        <ComboBoxItem Content="AJA Kona / Corvid SDI" Tag="AJA"/>
+                        <ComboBoxItem Content="DVB-TS UDP Multicast (DVB-C/S2/T2 Compliant)" Tag="UDP_DVB"/>
+                        <ComboBoxItem Content="UDP Unicast (IP Transport)" Tag="UDP_UNICAST"/>
+                        <ComboBoxItem Content="SRT Secure Reliable Transport (Caller/Listener)" Tag="SRT"/>
+                        <ComboBoxItem Content="RTMP → YouTube Live" Tag="RTMP_YouTube"/>
+                        <ComboBoxItem Content="RTMP → Facebook Live" Tag="RTMP_Facebook"/>
+                        <ComboBoxItem Content="RTMP → Twitch Live" Tag="RTMP_Twitch"/>
+                        <ComboBoxItem Content="RTMP → TikTok Live" Tag="RTMP_TikTok"/>
+                        <ComboBoxItem Content="RTMP Custom CDN / Server" Tag="RTMP"/>
+                        <ComboBoxItem Content="DVB-Compliant HLS OTT Stream" Tag="HLS"/>
+                        <ComboBoxItem Content="MPEG-DASH / MPD Broadcast Profile" Tag="MPD"/>
+                        <ComboBoxItem Content="RTSP Surveillance / Master Ingest" Tag="RTSP"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Destination / Device URI -->
+                <StackPanel Margin="0,0,0,12">
+                    <TextBlock x:Name="DestinationLabel" Text="Destination Device / URL / Multicast IP:" Foreground="#E2E8F0" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                    <TextBox x:Name="DestinationTextBox" Background="#0F172A" Foreground="#FFFFFF" BorderBrush="#334155" Padding="6" Text="DeckLink Duo (2) [Subdevice 1]"/>
+                </StackPanel>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Resolution -->
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Format / Resolution:" Foreground="#E2E8F0" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="ResolutionComboBox" Background="#0F172A" Foreground="#FFFFFF" BorderBrush="#334155" Padding="6">
+                            <ComboBoxItem Content="1080p50 (1920x1080)" IsSelected="True"/>
+                            <ComboBoxItem Content="1080i50 (Broadcast standard)"/>
+                            <ComboBoxItem Content="1080p59.94"/>
+                            <ComboBoxItem Content="1080p60"/>
+                            <ComboBoxItem Content="2160p50 (4K UHD)"/>
+                            <ComboBoxItem Content="2160p60 (4K UHD)"/>
+                            <ComboBoxItem Content="720p50 (HD)"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Target FPS -->
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Target FPS:" Foreground="#E2E8F0" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="FpsComboBox" Background="#0F172A" Foreground="#FFFFFF" BorderBrush="#334155" Padding="6">
+                            <ComboBoxItem Content="50.00" IsSelected="True"/>
+                            <ComboBoxItem Content="59.94"/>
+                            <ComboBoxItem Content="60.00"/>
+                            <ComboBoxItem Content="25.00"/>
+                            <ComboBoxItem Content="29.97"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Target Bitrate -->
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Bitrate (Mbps):" Foreground="#E2E8F0" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBox x:Name="BitrateTextBox" Background="#0F172A" Foreground="#FFFFFF" BorderBrush="#334155" Padding="6" Text="12.0"/>
+                    </StackPanel>
+
+                    <!-- GPU Encoder -->
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="GPU Encoder:" Foreground="#E2E8F0" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="GpuEncoderComboBox" Background="#0F172A" Foreground="#FFFFFF" BorderBrush="#334155" Padding="6">
+                            <ComboBoxItem Content="NVENC H.264 (CUDA)" IsSelected="True"/>
+                            <ComboBoxItem Content="NVENC H.265/HEVC (CUDA)"/>
+                            <ComboBoxItem Content="Intel QSV H.264"/>
+                            <ComboBoxItem Content="Intel QSV H.265/HEVC"/>
+                            <ComboBoxItem Content="AMD AMF H.264 (VCE)"/>
+                            <ComboBoxItem Content="AMD AMF H.265/HEVC"/>
+                            <ComboBoxItem Content="Software x264 (CPU)"/>
+                            <ComboBoxItem Content="Software x265 (CPU)"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <!-- DVB / SCTE & Custom PIDs -->
+                <Border Background="#121820" BorderBrush="#20272E" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="DVB SI/PSI &amp; SCTE-35 TS PARAMETERS" Foreground="#B78BE7" FontWeight="Bold" FontSize="11" Margin="0,0,0,6"/>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox x:Name="DvbCompliantCheckBox" Content="Enforce DVB SI/PSI Specs" IsChecked="True" Foreground="#55C878" VerticalAlignment="Center"/>
+                            <CheckBox Grid.Column="1" x:Name="Scte35CheckBox" Content="Inject SCTE-35 Splices" IsChecked="True" Foreground="#B78BE7" VerticalAlignment="Center"/>
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="SERVICE ID" Foreground="#8D969E" FontSize="9"/>
+                                <TextBox x:Name="ServiceIdTextBox" Background="#18202A" Foreground="#FFFFFF" BorderBrush="#2C333A" Padding="3" Text="101" FontSize="10"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="PMT PID" Foreground="#8D969E" FontSize="9"/>
+                                <TextBox x:Name="PmtPidTextBox" Background="#18202A" Foreground="#FFFFFF" BorderBrush="#2C333A" Padding="3" Text="256" FontSize="10"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="VIDEO PID" Foreground="#8D969E" FontSize="9"/>
+                                <TextBox x:Name="VideoPidTextBox" Background="#18202A" Foreground="#FFFFFF" BorderBrush="#2C333A" Padding="3" Text="257" FontSize="10"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="6">
+                                <TextBlock Text="AUDIO PID" Foreground="#8D969E" FontSize="9"/>
+                                <TextBox x:Name="AudioPidTextBox" Background="#18202A" Foreground="#FFFFFF" BorderBrush="#2C333A" Padding="3" Text="258" FontSize="10"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="8">
+                                <TextBlock Text="PCR PID" Foreground="#8D969E" FontSize="9"/>
+                                <TextBox x:Name="PcrPidTextBox" Background="#18202A" Foreground="#FFFFFF" BorderBrush="#2C333A" Padding="3" Text="257" FontSize="10"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Actions -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Cancel" Click="Cancel_Click" Background="#20272E" Foreground="#C7CDD4" BorderBrush="#2C333A" Padding="16,8" Margin="0,0,8,0" Cursor="Hand"/>
+            <Button Content="Create Output Channel" Click="Create_Click" Background="#522B70" BorderBrush="#8055B3" Foreground="#FFFFFF" FontWeight="Bold" Padding="20,8" Cursor="Hand"/>
+        </StackPanel>
+    </Grid>
+</Window>

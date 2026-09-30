@@ -1,0 +1,50 @@
+
+canvas {
+    display: block;
+    position: absolute;
+}
+
+.container {
+    right:8%;
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    top: 150px;
+}
+
+.flash-news-center {
+    margin-bottom: 10px;
+    position: absolute;
+    width: 80vw; /* Full viewport width */
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: transparent;
+    overflow: hidden; /* Prevents text from being visible outside */
+}
+
+.animated-text {
+    width: 100%;
+    width: 100vw; /* Full viewport width */
+    font-family: 'Arab', sans-serif;
+    font-size: 3.9rem;
+    white-space: nowrap;
+    text-align: center;
+    margin: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: absolute;
+}
+
+.animated-text span {
+    display: inline-block;
+    will-change: transform, opacity; /* Optimized for animation */
+  }
+  
+  
+  
