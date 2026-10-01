@@ -1010,6 +1010,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             while (!ct.IsCancellationRequested && Volatile.Read(ref _disposed) == 0)
             {
+                if (_isPreviewPlaying && !_isPreviewPaused)
+                {
+                    await Task.Delay(intervalMs, ct).ConfigureAwait(false);
+                    continue;
+                }
+
                 var project = PreviewCgProject;
                 if (project is null) break;
 
@@ -2109,7 +2115,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                         pausedSeconds += WaitPreviewWhilePaused(ct);
                         Thread.Sleep(3);
                     }
-                    PreviewFrameReady?.Invoke(frame);
+                    _lastPreviewBaseFrame = frame;
+                    var outFrame = PreviewCgProject is null
+                        ? frame
+                        : _previewCgCompositor.Composite(frame, PreviewCgProject, GetCgBusElapsed(preview: true));
+                    PreviewFrameReady?.Invoke(outFrame);
                 }
                 return;
             }
@@ -2142,7 +2152,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                         Thread.Sleep(3);
                     }
                     if (ct.IsCancellationRequested) break;
-                    PreviewFrameReady?.Invoke(frame);
+                    _lastPreviewBaseFrame = frame;
+                    var outFrame = PreviewCgProject is null
+                        ? frame
+                        : _previewCgCompositor.Composite(frame, PreviewCgProject, GetCgBusElapsed(preview: true));
+                    PreviewFrameReady?.Invoke(outFrame);
                     var eventSeconds = Math.Clamp(logicalBase + due, 0, item.Duration.TotalSeconds);
                     Ui(() =>
                     {

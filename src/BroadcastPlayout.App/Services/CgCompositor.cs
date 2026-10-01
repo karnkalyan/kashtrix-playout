@@ -1511,7 +1511,20 @@ public sealed class CgCompositor : IDisposable
                  (x.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false))) == true;
             var showInlineBadge = layer.TickerCategoriesEnabled && !hasDedicatedCategory;
 
-            var schedule = CgDataSourceService.BuildCategoryFeedSchedule(project ?? new CgProject(), layer, rows, rect.Width, speed);
+            float badgeWidthEstimate = 0f;
+            if (showInlineBadge)
+            {
+                var sampleCat = rows.Select(r => CgDataSourceService.ResolveField(r, "category"))
+                    .Concat(rows.Select(r => CgDataSourceService.ResolveField(r, "badge")))
+                    .Where(c => !string.IsNullOrWhiteSpace(c))
+                    .OrderByDescending(c => c.Length)
+                    .FirstOrDefault() ?? "NEWS";
+                var catSize = g.MeasureString(sampleCat, badgeFont);
+                var badgeW = Math.Min(rect.Width * .42f, catSize.Width + 24f);
+                badgeWidthEstimate = badgeW + badgeGap + 6f;
+            }
+            var crawlWindowWidth = Math.Max(100f, rect.Width - badgeWidthEstimate);
+            var schedule = CgDataSourceService.BuildCategoryFeedSchedule(project ?? new CgProject(), layer, rows, crawlWindowWidth, speed);
             var (activeCategory, categoryElapsed, _) = schedule.Evaluate(elapsed);
             var newsElapsed = Math.Max(0, categoryElapsed - CgDataSourceService.CategoryIntroSeconds);
             var segments = activeCategory.Items

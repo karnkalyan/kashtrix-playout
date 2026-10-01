@@ -844,7 +844,7 @@ public static class CgDataSourceService
         return long.TryParse(digits, out var n) ? n : long.MaxValue;
     }
 
-    private static string ResolveField(Dictionary<string, string> row, string? field)
+    public static string ResolveField(Dictionary<string, string> row, string? field)
     {
         if (string.IsNullOrWhiteSpace(field))
         {
@@ -1155,7 +1155,7 @@ public static class CgDataSourceService
             return cached.Schedule;
 
         var effectiveSpeed = Math.Max(20.0, tickerLayer.Speed > 0 ? tickerLayer.Speed : (tickerLayer.TickerSpeed > 0 ? tickerLayer.TickerSpeed : speed));
-        var effectiveWidth = tickerLayer.Width > 10 ? tickerLayer.Width : windowWidth;
+        var effectiveWidth = windowWidth > 10 ? windowWidth : (tickerLayer.Width > 10 ? tickerLayer.Width : 1620);
         var sep = string.IsNullOrWhiteSpace(tickerLayer.TickerSeparator) ? "  ★  " : (tickerLayer.TickerSeparator.Contains(' ') ? tickerLayer.TickerSeparator : $"  {tickerLayer.TickerSeparator.Trim()}  ");
 
         var distinctCategories = rows.Select(r => ResolveField(r, "category"))
@@ -1388,15 +1388,40 @@ public static class CgDataSourceService
     public static double ResolveEffectiveTickerCycleDuration(CgProject? project)
     {
         if (project?.Layers is null) return 0;
-        var tickerLayer = project.Layers.FirstOrDefault(x => x.Visible && string.Equals(x.Type, "Ticker", StringComparison.OrdinalIgnoreCase) && x.DataSourceId != Guid.Empty);
+        var tickerLayer = project.Layers.FirstOrDefault(x => x.Visible && string.Equals(x.Type, "Ticker", StringComparison.OrdinalIgnoreCase));
         if (tickerLayer is null) return 0;
-        var ds = project.DataSources?.FirstOrDefault(x => x.Id == tickerLayer.DataSourceId);
-        if (ds is null) return 0;
-        var rows = CgDataRuntime.Shared.GetRows(ds);
-        if (rows.Count == 0) return 0;
 
-        var schedule = BuildCategoryFeedSchedule(project, tickerLayer, rows);
-        return schedule.TotalCycleDuration;
+        // 1. Dynamic data source ticker
+        if (tickerLayer.DataSourceId != Guid.Empty && project.DataSources is not null)
+        {
+            var ds = project.DataSources.FirstOrDefault(x => x.Id == tickerLayer.DataSourceId);
+            if (ds is not null)
+            {
+                var rows = CgDataRuntime.Shared.GetRows(ds);
+                if (rows.Count > 0)
+                {
+                    var windowW = tickerLayer.Width > 10 ? tickerLayer.Width : (project.Width > 10 ? project.Width : 1920);
+                    var spd = tickerLayer.Speed > 0 ? tickerLayer.Speed : (tickerLayer.TickerSpeed > 0 ? tickerLayer.TickerSpeed : 160.0);
+                    var schedule = BuildCategoryFeedSchedule(project, tickerLayer, rows, windowW, spd);
+                    if (schedule.TotalCycleDuration > 0.5) return schedule.TotalCycleDuration;
+                }
+            }
+        }
+
+        // 2. Static / embedded text ticker
+        var text = tickerLayer.Text;
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            var fontSize = tickerLayer.FontSize > 8 ? tickerLayer.FontSize : 32.0;
+            var windowW = tickerLayer.Width > 10 ? tickerLayer.Width : (project.Width > 10 ? project.Width : 1920);
+            var spd = Math.Max(20.0, tickerLayer.Speed > 0 ? tickerLayer.Speed : (tickerLayer.TickerSpeed > 0 ? tickerLayer.TickerSpeed : 160.0));
+            var textWidth = MeasureTickerTextWidth(text, tickerLayer.FontFamily, fontSize, tickerLayer.Bold, tickerLayer.Italic);
+            var gap = Math.Max(30.0, tickerLayer.TickerGap);
+            var travelDist = windowW + textWidth + gap;
+            return Math.Max(1.0, travelDist / spd);
+        }
+
+        return 0;
     }
 
     public static double ResolveEffectiveHoldPoint(CgProject? project)

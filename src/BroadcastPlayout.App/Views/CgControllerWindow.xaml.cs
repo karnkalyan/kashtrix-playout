@@ -288,6 +288,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         ReloadProjects();
         _vm.CgProjectsChanged += OnCgProjectsChanged;
         _vm.PreviewFrameReady += OnPlayoutPreviewFrame;
+        _vm.PreviewCleared += () => Interlocked.Exchange(ref _latestPlayoutPreviewFrame, null);
         _vm.VideoFrameReady += OnPlayoutProgramFrame;
         LoadRegistryChannels();
         LoadSchedules();
@@ -308,7 +309,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
 
     private void RenderClock_Tick(object? sender, EventArgs e)
     {
-        var playoutPreview = Interlocked.Exchange(ref _latestPlayoutPreviewFrame, null);
+        var playoutPreview = Volatile.Read(ref _latestPlayoutPreviewFrame);
         if (playoutPreview is not null)
         {
             _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, playoutPreview);
@@ -319,7 +320,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, frame);
         }
 
-        var playoutProgram = Interlocked.Exchange(ref _latestPlayoutProgramFrame, null);
+        var playoutProgram = Volatile.Read(ref _latestPlayoutProgramFrame);
         if (playoutProgram is not null)
         {
             _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, playoutProgram);
@@ -839,10 +840,9 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         // auto-compute a compact value. The compositor manages ticker content via
         // 3-phase lifecycle (in-animation → hold/ticker-cycle → out-animation); the
         // project DurationSeconds only needs to cover the non-ticker layer animations.
-        var hasTickerDs = snapshot.Layers.Any(l => l.Visible &&
-            string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase) &&
-            l.DataSourceId != Guid.Empty);
-        if (hasTickerDs)
+        var hasTicker = snapshot.Layers.Any(l => l.Visible &&
+            string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase));
+        if (hasTicker)
         {
             var tickerCycleDuration = CgDataSourceService.ResolveEffectiveTickerCycleDuration(snapshot);
             if (tickerCycleDuration > 0.5)
@@ -906,6 +906,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         if (await RouteAsync("CLEAR", "PREVIEW"))
         {
             _previewSnapshot = null;
+            Interlocked.Exchange(ref _latestPlayoutPreviewFrame, null);
             PreviewCgImage.Source = null;
             _previewMonitorBitmap = null;
             PreviewProjectName = "No CG in preview";

@@ -5173,8 +5173,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         // layers.  A bloated value causes the editor playback to "freeze"
         // for minutes while the playhead slowly advances.
         var hasTickerWithData = (project.Layers ?? []).Any(l => l.Visible &&
-            string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase) &&
-            l.DataSourceId != Guid.Empty);
+            string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase));
         if (hasTickerWithData)
         {
             var tickerDuration = CgDataSourceService.ResolveEffectiveTickerCycleDuration(project);
