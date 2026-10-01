@@ -3903,15 +3903,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             var isInstantClear = command.Action.Equals("CLEAR", StringComparison.OrdinalIgnoreCase);
             lock (_controllerCgStackGate)
             {
-                var targets = command.Project is not null
-                    ? _controllerProgramStack.Where(x => x.Id == command.Project.Id || string.Equals(x.Name, command.Project.Name, StringComparison.OrdinalIgnoreCase)).ToArray()
-                    : command.Layer >= 0
-                    ? _controllerProgramStack.Where(x => x.ExternalLayer == command.Layer).ToArray()
-                    : _controllerProgramStack.ToArray();
-
-                if (targets.Length == 0 && command.Layer >= 0)
+                CgProject[] targets;
+                if (command.Layer >= 0)
                 {
                     targets = _controllerProgramStack.Where(x => x.ExternalLayer == command.Layer).ToArray();
+                    if (targets.Length == 0 && command.Project is not null)
+                    {
+                        targets = _controllerProgramStack.Where(x => x.Id == command.Project.Id || string.Equals(x.Name, command.Project.Name, StringComparison.OrdinalIgnoreCase)).ToArray();
+                    }
+                }
+                else if (command.Project is not null)
+                {
+                    targets = _controllerProgramStack.Where(x => x.Id == command.Project.Id || string.Equals(x.Name, command.Project.Name, StringComparison.OrdinalIgnoreCase)).ToArray();
+                }
+                else
+                {
+                    targets = _controllerProgramStack.ToArray();
                 }
 
                 foreach (var project in targets)

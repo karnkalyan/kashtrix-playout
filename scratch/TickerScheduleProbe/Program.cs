@@ -140,6 +140,38 @@ using (var compositor = new CgCompositor())
     Console.WriteLine($"PUSH_RENDER_OK=Up enterY:{enteringY:F1}>holdY:{heldY:F1}>leaveY:{leavingY:F1}");
 }
 
+var ap1Breaking = CgUniqueDemoFactory.Create().Single(x => x.Name == CgUniqueDemoFactory.Ap1hdBreakingDemoName);
+var ap1BreakingSequence = ap1Breaking.Layers.Single(x => x.Type == "ImageSequence");
+if (!ap1BreakingSequence.Source.Replace('\\', '/').Contains("/ap1hd/", StringComparison.OrdinalIgnoreCase))
+    throw new Exception($"AP1 breaking resolved outside the AP1 asset family: {ap1BreakingSequence.Source}");
+var staleAp1Breaking = CgDemoFactory.CloneProject(ap1Breaking);
+staleAp1Breaking.Layers.Single(x => x.Type == "ImageSequence").Source = Path.Combine("Z:\\stale-build", "space4k", "assets", "BreakingNews");
+CgProjectSanitizer.Sanitize(staleAp1Breaking);
+var repairedAp1Path = staleAp1Breaking.Layers.Single(x => x.Type == "ImageSequence").Source.Replace('\\', '/');
+if (!repairedAp1Path.Contains("/ap1hd/", StringComparison.OrdinalIgnoreCase))
+    throw new Exception($"Persisted AP1 breaking path was not repaired: {repairedAp1Path}");
+Console.WriteLine($"AP1_SEQUENCE_OK={Path.GetFileName(ap1BreakingSequence.Source)}; family=ap1hd");
+
+var ap1Weather = CgUniqueDemoFactory.Create().Single(x => x.Name == CgUniqueDemoFactory.Ap1hdWeatherDemoName);
+var weatherIcons = ap1Weather.Layers.Where(x => x.Type == "WeatherIcon").ToList();
+var weatherSource = ap1Weather.DataSources.Single();
+var weatherRows = CgDataSourceService.ReadCachedRows(weatherSource);
+if (weatherIcons.Count != 8 || weatherRows.Count != 8)
+    throw new Exception($"AP1 weather icon/card mismatch: icons={weatherIcons.Count}, rows={weatherRows.Count}.");
+var resolvedWeatherCodes = weatherIcons.Select(x => CgDataSourceService.ResolveLayerText(ap1Weather, x, 0)).ToList();
+if (resolvedWeatherCodes.Any(string.IsNullOrWhiteSpace) || resolvedWeatherCodes.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 8)
+    throw new Exception("AP1 weather did not bind a distinct animated icon to every city card.");
+Console.WriteLine($"AP1_WEATHER_OK=icons:{weatherIcons.Count}; codes:{string.Join(',', resolvedWeatherCodes)}");
+
+var legacyWeather = CgDemoFactory.CloneProject(ap1Weather);
+legacyWeather.Layers.RemoveAll(x => x.Type == "WeatherIcon");
+legacyWeather.DataSources.Single().CachedItemsJson = "[{\"cityName\":\"Kathmandu\",\"temp\":24}]";
+CgProjectSanitizer.Sanitize(legacyWeather);
+if (legacyWeather.Layers.Count(x => x.Type == "WeatherIcon") != 8 ||
+    !legacyWeather.DataSources.Single().CachedItemsJson.Contains("\"icon\"", StringComparison.OrdinalIgnoreCase))
+    throw new Exception("Legacy AP1 weather demo migration did not restore all animated icons.");
+Console.WriteLine("AP1_WEATHER_MIGRATION_OK=8 icons restored to persisted demo");
+
 if (args.Contains("--write-demo", StringComparer.OrdinalIgnoreCase))
 {
     foreach (var demo in new[] { pushProject, breakingScreen })

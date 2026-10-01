@@ -2,9 +2,9 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Threading;
-using Kashtrix.OutputTypes.Models;
+using Kashtrix.OutputEngine.Models;
 
-namespace Kashtrix.OutputTypes.Services;
+namespace Kashtrix.OutputEngine.Services;
 
 public class BroadcastOutputEngine
 {

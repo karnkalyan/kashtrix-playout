@@ -1562,7 +1562,7 @@ public static class CgUniqueDemoFactory
             Name = "AP1 HD Nepal Weather Feed",
             SourceType = "LocalJson",
             Source = "nepal_weather.sample.json",
-            CachedItemsJson = "[{\"cityName\":\"Kathmandu\",\"temp\":24,\"min\":16,\"max\":27,\"condition\":\"Partly Cloudy\",\"humidity\":\"62%\"},{\"cityName\":\"Pokhara\",\"temp\":26,\"min\":18,\"max\":29,\"condition\":\"Sunny\",\"humidity\":\"55%\"},{\"cityName\":\"Biratnagar\",\"temp\":30,\"min\":22,\"max\":33,\"condition\":\"Warm\",\"humidity\":\"70%\"},{\"cityName\":\"Nepalgunj\",\"temp\":32,\"min\":24,\"max\":35,\"condition\":\"Clear\",\"humidity\":\"48%\"},{\"cityName\":\"Dhangadhi\",\"temp\":31,\"min\":23,\"max\":34,\"condition\":\"Sunny\",\"humidity\":\"52%\"},{\"cityName\":\"Dharan\",\"temp\":28,\"min\":20,\"max\":31,\"condition\":\"Pleasant\",\"humidity\":\"65%\"}]"
+            CachedItemsJson = "[{\"cityName\":\"Kathmandu\",\"temp\":24,\"min\":16,\"max\":27,\"condition\":\"Partly Cloudy\",\"humidity\":\"62%\",\"icon\":\"02d\"},{\"cityName\":\"Pokhara\",\"temp\":26,\"min\":18,\"max\":29,\"condition\":\"Sunny\",\"humidity\":\"55%\",\"icon\":\"01d\"},{\"cityName\":\"Biratnagar\",\"temp\":30,\"min\":22,\"max\":33,\"condition\":\"Cloudy\",\"humidity\":\"70%\",\"icon\":\"04d\"},{\"cityName\":\"Nepalgunj\",\"temp\":32,\"min\":24,\"max\":35,\"condition\":\"Clear Night\",\"humidity\":\"48%\",\"icon\":\"01n\"},{\"cityName\":\"Dhangadhi\",\"temp\":31,\"min\":23,\"max\":34,\"condition\":\"Rain\",\"humidity\":\"72%\",\"icon\":\"10d\"},{\"cityName\":\"Dharan\",\"temp\":28,\"min\":20,\"max\":31,\"condition\":\"Mist\",\"humidity\":\"75%\",\"icon\":\"50d\"},{\"cityName\":\"Chitwan\",\"temp\":29,\"min\":21,\"max\":32,\"condition\":\"Thunderstorm\",\"humidity\":\"78%\",\"icon\":\"11d\"},{\"cityName\":\"Butwal\",\"temp\":30,\"min\":22,\"max\":33,\"condition\":\"Showers\",\"humidity\":\"68%\",\"icon\":\"09d\"}]"
         };
         project.DataSources.Add(weatherDs);
 
@@ -1646,9 +1646,11 @@ public static class CgUniqueDemoFactory
             (City: "चितवन (Chitwan)", Temp: "29°C", MinMax: "21° / 32°C", Cond: "न्यानो (Warm)", X: 160, Y: 790),
             (City: "बुटवल (Butwal)", Temp: "30°C", MinMax: "22° / 33°C", Cond: "सफा (Clear)", X: 980, Y: 790)
         };
+        var iconCodes = new[] { "02d", "01d", "04d", "01n", "10d", "50d", "11d", "09d" };
 
-        foreach (var c in cities)
+        for (var cityIndex = 0; cityIndex < cities.Length; cityIndex++)
         {
+            var c = cities[cityIndex];
             project.Layers.Add(new CgLayer
             {
                 Id = Guid.NewGuid(),
@@ -1676,7 +1678,7 @@ public static class CgUniqueDemoFactory
                 Text = c.City,
                 X = c.X + 24,
                 Y = c.Y + 20,
-                Width = 500,
+                Width = 470,
                 Height = 36,
                 FontSize = 24,
                 FontFamily = "Segoe UI",
@@ -1685,6 +1687,29 @@ public static class CgUniqueDemoFactory
                 StartSeconds = 0.3,
                 EndSeconds = duration,
                 DurationSeconds = duration
+            });
+
+            project.Layers.Add(new CgLayer
+            {
+                Id = Guid.NewGuid(),
+                Name = c.City + " Animated Icon",
+                Type = "WeatherIcon",
+                Text = iconCodes[cityIndex],
+                X = c.X + 500,
+                Y = c.Y + 15,
+                Width = 115,
+                Height = 110,
+                DataSourceId = weatherDs.Id,
+                DataField = "icon",
+                DataItemOffset = cityIndex,
+                DataItemDurationSeconds = 3600,
+                StartSeconds = 0.25,
+                EndSeconds = duration,
+                DurationSeconds = duration,
+                AnimationIn = "Zoom",
+                AnimationInSeconds = 0.45,
+                GlowColor = "#66FFFFFF",
+                GlowRadius = 4
             });
 
             project.Layers.Add(new CgLayer
@@ -1711,9 +1736,9 @@ public static class CgUniqueDemoFactory
                 Name = c.City + " Temp",
                 Type = "Text",
                 Text = c.Temp,
-                X = c.X + 560,
+                X = c.X + 620,
                 Y = c.Y + 25,
-                Width = 190,
+                Width = 130,
                 Height = 80,
                 FontSize = 52,
                 FontFamily = "Segoe UI",

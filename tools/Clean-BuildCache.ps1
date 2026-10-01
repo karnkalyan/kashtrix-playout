@@ -35,7 +35,7 @@ $kashtrixProcessNames = @(
     'Kashtrix.FileManager','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.Multiview',
     'Kashtrix.PlaylistEditor','Kashtrix.QCController','Kashtrix.Scheduler','Kashtrix.Settings',
     'Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway',
-    'Kashtrix.OutputTypes'
+    'Kashtrix.OutputEngine'
 )
 $stopped = 0
 foreach ($name in $kashtrixProcessNames) {

@@ -51,7 +51,7 @@
                           '$(MSBuildProjectName)' == 'Kashtrix.Prompter' or
                           '$(MSBuildProjectName)' == 'Kashtrix.ApiGateway' or
                           '$(MSBuildProjectName)' == 'Kashtrix.NRCS' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.OutputTypes'">
+                          '$(MSBuildProjectName)' == 'Kashtrix.OutputEngine'">
       <_SourceItemsToCopyToOutputDirectory Remove="@(_SourceItemsToCopyToOutputDirectory)"
                                            Condition="'%(_SourceItemsToCopyToOutputDirectory.Filename)' != 'e_sqlite3' and ($([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.TargetPath)').ToLower().StartsWith('native\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\native\ffmpeg\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\native\ndi\')) or '%(_SourceItemsToCopyToOutputDirectory.Filename)' == 'yt-dlp')" />
       <_SourceItemsToCopyToOutputDirectoryAlways Remove="@(_SourceItemsToCopyToOutputDirectoryAlways)"
@@ -79,15 +79,26 @@
                           '$(MSBuildProjectName)' == 'Kashtrix.FileManager' or
                           '$(MSBuildProjectName)' == 'Kashtrix.PlaylistEditor' or
                           '$(MSBuildProjectName)' == 'Kashtrix.CGController' or
+                          '$(MSBuildProjectName)' == 'Kashtrix.CGEditor' or
                           '$(MSBuildProjectName)' == 'Kashtrix.HAController' or
                           '$(MSBuildProjectName)' == 'Kashtrix.Prompter' or
                           '$(MSBuildProjectName)' == 'Kashtrix.ApiGateway' or
                           '$(MSBuildProjectName)' == 'Kashtrix.NRCS' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.OutputTypes'">
+                          '$(MSBuildProjectName)' == 'Kashtrix.QCController' or
+                          '$(MSBuildProjectName)' == 'Kashtrix.MAM' or
+                          '$(MSBuildProjectName)' == 'Kashtrix.OutputEngine'">
       <FilesToDelete Include="$(TargetDir)yt-dlp.exe" />
       <DirectoriesToDelete Include="$(TargetDir)native" />
     </ItemGroup>
     <Delete Files="@(FilesToDelete)" TreatErrorsAsWarnings="true" />
     <RemoveDir Directories="@(DirectoriesToDelete)" />
+
+    <!-- 4. Remove CefSharp browser binaries from all satellite applications (only Playout uses CefSharp HTML5 CG) -->
+    <ItemGroup>
+      <CefSharpFiles Include="$(TargetDir)CefSharp*.dll;$(TargetDir)CefSharp*.pak;$(TargetDir)libcef.dll;$(TargetDir)chrome_elf.dll;$(TargetDir)d3dcompiler_47.dll;$(TargetDir)icudtl.dat;$(TargetDir)snapshot_blob.bin;$(TargetDir)v8_context_snapshot.bin;$(TargetDir)vk_swiftshader*.dll;$(TargetDir)vulkan*.dll;$(TargetDir)*.pak" />
+      <CefSharpDirs Include="$(TargetDir)locales;$(TargetDir)swiftshader" />
+    </ItemGroup>
+    <Delete Files="@(CefSharpFiles)" TreatErrorsAsWarnings="true" />
+    <RemoveDir Directories="@(CefSharpDirs)" />
   </Target>
 </Project>

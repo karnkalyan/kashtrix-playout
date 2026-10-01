@@ -2957,12 +2957,13 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private void SetTimelineZoom(double zoom)
     {
         if (!double.IsFinite(zoom)) zoom = 1.0;
-        var offset = TimelineLayerScroll?.HorizontalOffset ?? 0;
-        if (!double.IsFinite(offset) || offset < 0) offset = 0;
         TimelineZoom = Math.Clamp(zoom, .10, 12.0);
         ApplyTimelineZoom();
-        TimelineLayerScroll?.ScrollToHorizontalOffset(offset);
-        TimelineRulerScroll?.ScrollToHorizontalOffset(offset);
+        // Timeline scale is left-origin based: zooming changes only the right edge.
+        // Retaining an old horizontal offset made zoom-out look like both ends were
+        // being squeezed, especially after the operator had scrolled to the right.
+        TimelineLayerScroll?.ScrollToHorizontalOffset(0);
+        TimelineRulerScroll?.ScrollToHorizontalOffset(0);
     }
     private void FitTimelineToViewport()
     {
@@ -3595,11 +3596,113 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 var nepText = NepaliCalendarService.FormatNepaliDate(DateTime.Now, nepFormat);
                 return TextElement(nepText, layer, fill, bg, sy);
             case "ANALOGCLOCK": return AnalogClock(layer,fill,bg);
+            case "WEATHERICON": return WeatherIconPreview(resolvedText, layer);
             case "TICKER":
                 return TickerPreviewElement(layer, resolvedText, fill, bg, sx, sy);
             case "ROLL": return TextElement(resolvedText,layer,fill,bg,sy);
             default: return TextElement(resolvedText,layer,fill,bg,sy);
         }
+    }
+
+    private FrameworkElement WeatherIconPreview(string? code, CgLayer layer)
+    {
+        code = (code ?? layer.Text ?? "na").Trim().ToLowerInvariant();
+        var prefix = code.Length >= 2 ? code[..2] : code;
+        var local = Math.Max(0, ContinuousPlaybackSeconds - layer.StartSeconds);
+        var bob = Math.Sin(local * 2.2) * 3.5;
+        var canvas = new Canvas { Width = 180, Height = 180, ClipToBounds = false };
+
+        static SolidColorBrush B(string hex) => (SolidColorBrush)new BrushConverter().ConvertFromString(hex)!;
+        void AddEllipse(double x, double y, double w, double h, Brush brush)
+            => canvas.Children.Add(new Ellipse { Width = w, Height = h, Fill = brush, RenderTransform = new TranslateTransform(x, y) });
+        void AddLine(double x1, double y1, double x2, double y2, Brush brush, double thickness)
+            => canvas.Children.Add(new Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, Stroke = brush, StrokeThickness = thickness, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+
+        void Sun(double ox = 0, double oy = 0)
+        {
+            var yellow = B("#FFFFC83D");
+            AddEllipse(60 + ox, 60 + oy, 60, 60, yellow);
+            var rot = local * 28.0 * Math.PI / 180.0;
+            for (var i = 0; i < 8; i++)
+            {
+                var a = rot + i * Math.PI / 4;
+                AddLine(90 + ox + Math.Cos(a) * 44, 90 + oy + Math.Sin(a) * 44,
+                        90 + ox + Math.Cos(a) * 62, 90 + oy + Math.Sin(a) * 62, B("#FFFFD85C"), 4);
+            }
+        }
+
+        void Moon(double ox = 0, double oy = 0)
+        {
+            var moon = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse("M 112,42 A 52,52 0 1 0 130,132 A 43,43 0 1 1 112,42 Z"),
+                Fill = B("#FFFFE8A3"),
+                RenderTransform = new TranslateTransform(ox, oy)
+            };
+            canvas.Children.Add(moon);
+        }
+
+        void Cloud(double ox = 0, double oy = 0)
+        {
+            var white = B("#FFF4F8FB");
+            AddEllipse(32 + ox, 74 + oy, 76, 52, white);
+            AddEllipse(70 + ox, 48 + oy, 72, 74, white);
+            AddEllipse(108 + ox, 78 + oy, 70, 50, white);
+            canvas.Children.Add(new Rectangle { Width = 128, Height = 30, Fill = white, RenderTransform = new TranslateTransform(38 + ox, 94 + oy) });
+        }
+
+        switch (prefix)
+        {
+            case "01":
+                if (code.EndsWith('n')) Moon(0, bob); else Sun(0, bob);
+                break;
+            case "02":
+                if (code.EndsWith('n')) Moon(-34, -24 + bob); else Sun(-34, -24 + bob);
+                Cloud(18, 12 + bob);
+                break;
+            case "03":
+            case "04":
+                Cloud(0, bob);
+                break;
+            case "09":
+            case "10":
+                if (prefix == "10") Sun(-36, -28 + bob);
+                Cloud(12, bob);
+                for (var i = 0; i < 4; i++)
+                {
+                    var phase = (local * 44 + i * 25) % 38;
+                    AddLine(42 + i * 32, 128 + phase, 35 + i * 32, 146 + phase, B("#FF5CCBFF"), 5);
+                }
+                break;
+            case "11":
+                Cloud(0, bob);
+                canvas.Children.Add(new Polygon
+                {
+                    Points = [new Point(92,114), new Point(72,156), new Point(92,150), new Point(82,178), new Point(122,138), new Point(100,142)],
+                    Fill = B(local % .8 < .22 ? "#FFFFFFFF" : "#FFFFD54A")
+                });
+                break;
+            case "13":
+                Cloud(0, bob);
+                for (var i = 0; i < 6; i++)
+                {
+                    var phase = (local * 24 + i * 17) % 48;
+                    AddEllipse(32 + i * 24 + Math.Sin(local * 1.8 + i) * 5, 124 + phase, 7, 7, B("#FFDFF7FF"));
+                }
+                break;
+            case "50":
+                for (var i = 0; i < 4; i++)
+                {
+                    var slide = Math.Sin(local * 1.4 + i) * 10;
+                    AddLine(25 + slide, 54 + i * 25, 155 + slide, 54 + i * 25, B("#FFD7E2EA"), 5);
+                }
+                break;
+            default:
+                canvas.Children.Add(new TextBlock { Text = "?", FontSize = 64, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Width = 180, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 48, 0, 0) });
+                break;
+        }
+
+        return new Viewbox { Stretch = Stretch.Uniform, Child = canvas };
     }
 
     private FrameworkElement TickerPreviewElement(CgLayer layer, string? resolvedText, Brush fill, Brush bg, double sx, double sy)
@@ -4335,13 +4438,15 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var project = SelectedProject;
 
         var hasAnyTicker = project?.Layers?.Any(l => string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase)) == true;
-        var isBadgeText = string.Equals(layer.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
-                          (string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase) &&
-                           ((layer.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false) ||
-                            (layer.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false))) ||
-                          layer.TickerCategoriesEnabled;
+        var isCategoryBadge = string.Equals(layer.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(layer.Role, "Badge", StringComparison.OrdinalIgnoreCase) ||
+                              ((layer.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false) &&
+                               (string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase) || string.Equals(layer.Type, "Shape", StringComparison.OrdinalIgnoreCase))) ||
+                              (string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase) &&
+                               (layer.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false)) ||
+                              layer.TickerCategoriesEnabled;
 
-        if (hasAnyTicker && !isBadgeText && layer.DataSourceId == Guid.Empty)
+        if (hasAnyTicker && !isCategoryBadge && layer.DataSourceId == Guid.Empty)
         {
             var layerName = layer.Name ?? "";
             var isStrip = string.Equals(layer.Type, "Shape", StringComparison.OrdinalIgnoreCase) ||
@@ -4376,7 +4481,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
         double a, b;
         var isTickerLayer = string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase);
-        if (isBadgeText && project != null)
+        if (isCategoryBadge && project != null)
         {
             var pausePoint = CgDataSourceService.ResolveEffectiveHoldPoint(project);
             var maxOutDuration = project.Layers.Where(x => x.Visible).Select(x => x.AnimationOutSeconds).DefaultIfEmpty(0.5).Max();
@@ -4399,14 +4504,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 a = 1.0;
                 b = 1.0;
             }
-        }
-        else if (project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, ContinuousPlaybackSeconds, out _, out var catElapsed, out var catDur, out _))
-        {
-            var inSec = layer.AnimationInSeconds > 0.05 ? layer.AnimationInSeconds : CgDataSourceService.CategoryIntroSeconds;
-            var outSec = layer.AnimationOutSeconds > 0.05 ? layer.AnimationOutSeconds : CgDataSourceService.CategoryOutroSeconds;
-            CgDataSourceService.GetCategoryAnimationProgress(catElapsed, catDur, inSec, outSec, out _, out _, out var inProg, out var outProg);
-            a = inProg;
-            b = outProg;
         }
         else if (isDataItem && !isTickerLayer)
         {

@@ -1,9 +1,10 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using Kashtrix.OutputTypes.Models;
+using Kashtrix.OutputEngine.Models;
+using ThemedMessageBox = BroadcastPlayout.Views.MessageBox;
 
-namespace Kashtrix.OutputTypes
+namespace Kashtrix.OutputEngine
 {
     public partial class AddOutputDialog : Window
     {
@@ -12,7 +13,11 @@ namespace Kashtrix.OutputTypes
         public AddOutputDialog()
         {
             InitializeComponent();
+            BroadcastPlayout.Views.WindowChromeActions.ApplyCleanBorder(this);
         }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) =>
+            BroadcastPlayout.Views.WindowChromeActions.Drag(this, e);
 
         private void ProtocolComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -74,7 +79,7 @@ namespace Kashtrix.OutputTypes
         {
             if (string.IsNullOrWhiteSpace(NameTextBox.Text))
             {
-                MessageBox.Show("Please enter an output feed name.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ThemedMessageBox.Show(this, "Please enter an output feed name.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 

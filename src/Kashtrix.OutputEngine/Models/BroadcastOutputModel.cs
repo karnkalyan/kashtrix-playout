@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Kashtrix.OutputTypes.Models;
+namespace Kashtrix.OutputEngine.Models;
 
 public enum BroadcastOutputProtocol
 {

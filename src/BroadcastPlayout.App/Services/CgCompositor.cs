@@ -822,38 +822,36 @@ public sealed class CgCompositor : IDisposable
 
         double inProgress, outProgress;
         var isTickerLayer = string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase);
-        var isBadgeTextMotion = string.Equals(layer.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
-                                (string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase) &&
-                                 ((layer.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false) ||
-                                  (layer.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false))) ||
-                                layer.TickerCategoriesEnabled;
+        var isCategoryBadge = string.Equals(layer.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(layer.Role, "Badge", StringComparison.OrdinalIgnoreCase) ||
+                              ((layer.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false) &&
+                               (string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase) || string.Equals(layer.Type, "Shape", StringComparison.OrdinalIgnoreCase))) ||
+                              (string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase) &&
+                               (layer.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false)) ||
+                              layer.TickerCategoriesEnabled;
 
-        if (isBadgeTextMotion && project != null)
+        if (isCategoryBadge && project != null)
         {
             var pausePoint = CgDataSourceService.ResolveEffectiveHoldPoint(project);
             var maxOutDuration = project.Layers.Where(x => x.Visible).Select(x => x.AnimationOutSeconds).DefaultIfEmpty(0.5).Max();
             var outPhaseStart = Math.Max(pausePoint, project.DurationSeconds - maxOutDuration);
             if (t < pausePoint)
             {
-                inProgress = Math.Clamp((t - layer.StartSeconds - delay) / Math.Max(0.05, layer.AnimationInSeconds), 0, 1);
-                outProgress = 1;
+                var introTime = Math.Max(0, t - layer.StartSeconds - delay);
+                inProgress = layer.AnimationInSeconds > 0.01 ? Math.Clamp(introTime / Math.Max(0.05, layer.AnimationInSeconds), 0, 1) : 1.0;
+                outProgress = 1.0;
             }
             else if (t >= outPhaseStart)
             {
-                inProgress = 1;
-                outProgress = Math.Clamp((project.DurationSeconds - t) / Math.Max(0.05, layer.AnimationOutSeconds), 0, 1);
+                inProgress = 1.0;
+                outProgress = layer.AnimationOutSeconds > 0.01 ? Math.Clamp((project.DurationSeconds - t) / Math.Max(0.05, layer.AnimationOutSeconds), 0, 1) : 1.0;
             }
             else
             {
-                inProgress = 1;
-                outProgress = 1;
+                // During ticker playing: SOLID, NO fade out / in animation!
+                inProgress = 1.0;
+                outProgress = 1.0;
             }
-        }
-        else if (project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, evalTime, out _, out var catElapsed, out var catDur, out _))
-        {
-            var inSec = layer.AnimationInSeconds > 0.05 ? layer.AnimationInSeconds : CgDataSourceService.CategoryIntroSeconds;
-            var outSec = layer.AnimationOutSeconds > 0.05 ? layer.AnimationOutSeconds : CgDataSourceService.CategoryOutroSeconds;
-            CgDataSourceService.GetCategoryAnimationProgress(catElapsed, catDur, inSec, outSec, out _, out _, out inProgress, out outProgress);
         }
         else if (layer.DataSourceId != Guid.Empty && layer.DataItemDurationSeconds > 0 && !isTickerLayer)
         {
@@ -1573,7 +1571,6 @@ public sealed class CgCompositor : IDisposable
                 }
 
                 var gap = (float)Math.Max(30, layer.TickerGap);
-                totalContentWidth += gap;
 
                 var totalTravelSpan = Math.Max(1.0f, contentRect.Width + totalContentWidth);
                 var travelled = (float)Math.Min(totalTravelSpan, newsElapsed * speed);
@@ -1897,13 +1894,27 @@ public sealed class CgCompositor : IDisposable
                                 cx + ox + (float)Math.Cos(a)*r2, cy + oy + (float)Math.Sin(a)*r2);
             }
         }
+        void Moon(float ox, float oy, double alpha = 1)
+        {
+            using var moon = new SolidBrush(C("#FFFFE8A3", alpha));
+            var radius = 34 * scale;
+            using var crescent = new GraphicsPath(FillMode.Alternate);
+            crescent.AddEllipse(cx - radius + ox, cy - radius + oy, radius * 2, radius * 2);
+            crescent.AddEllipse(cx - 9 * scale + ox, cy - 42 * scale + oy, 64 * scale, 64 * scale);
+            g.FillPath(moon, crescent);
+        }
 
         var prefix = code.Length >= 2 ? code[..2] : code;
         var bob = (float)(Math.Sin(local * 2.2) * 3.5 * scale);
         switch (prefix)
         {
-            case "01": Sun(0, bob); break;
-            case "02": Sun(-34*scale, -24*scale + bob, .9); Cloud(18*scale, 12*scale + bob); break;
+            case "01":
+                if (code.EndsWith('n')) Moon(0, bob); else Sun(0, bob);
+                break;
+            case "02":
+                if (code.EndsWith('n')) Moon(-34*scale, -24*scale + bob, .9); else Sun(-34*scale, -24*scale + bob, .9);
+                Cloud(18*scale, 12*scale + bob);
+                break;
             case "03":
             case "04": Cloud(0, bob); break;
             case "09":

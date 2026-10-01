@@ -44,6 +44,6 @@
                                          '$(MSBuildProjectName)' == 'Kashtrix.Prompter' or
                                          '$(MSBuildProjectName)' == 'Kashtrix.HAController' or
                                          '$(MSBuildProjectName)' == 'Kashtrix.ApiGateway' or
-                                         '$(MSBuildProjectName)' == 'Kashtrix.OutputTypes'">true</IsKashtrixWrapperProject>
+                                         '$(MSBuildProjectName)' == 'Kashtrix.OutputEngine'">true</IsKashtrixWrapperProject>
   </PropertyGroup>
 </Project>

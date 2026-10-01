@@ -32,6 +32,8 @@ public static class CgProjectSanitizer
         project.HtmlSources ??= [];
         project.TimelineEvents ??= [];
 
+        RepairBundledDemoAssets(project);
+
         foreach (var evt in project.TimelineEvents)
         {
             evt.TimeSeconds = Math.Max(0, Finite(evt.TimeSeconds));
@@ -106,6 +108,61 @@ public static class CgProjectSanitizer
                 key.AnchorX = Unit(key.AnchorX, .5); key.AnchorY = Unit(key.AnchorY, .5); key.AnchorZ = Finite(key.AnchorZ);
                 key.Opacity = Unit(key.Opacity, 1);
                 key.SkewX = Finite(key.SkewX); key.SkewY = Finite(key.SkewY); key.BlurRadius = Math.Max(0, Finite(key.BlurRadius));
+            }
+        }
+    }
+
+    private static void RepairBundledDemoAssets(CgProject project)
+    {
+        // Older saved demo packs could retain a missing absolute path. The generic
+        // sequence fallback then found a same-named Space 4K folder, causing the
+        // AP1 breaking graphic to render the wrong channel's frames. Canonical AP1
+        // demos are always rebound to their own asset family during load/sanitize.
+        if (string.Equals(project.Name, CgUniqueDemoFactory.Ap1hdBreakingDemoName, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(project.Name, CgUniqueDemoFactory.Ap1hdFlashDemoName, StringComparison.OrdinalIgnoreCase))
+        {
+            var subfolder = string.Equals(project.Name, CgUniqueDemoFactory.Ap1hdBreakingDemoName, StringComparison.OrdinalIgnoreCase)
+                ? "BreakingNews"
+                : "FlashNews";
+            var ap1Path = CgUniqueDemoFactory.ResolveAp1hdPath(subfolder);
+            if (Directory.Exists(ap1Path))
+            {
+                foreach (var layer in project.Layers.Where(x => string.Equals(x.Type, "ImageSequence", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (!string.Equals(layer.Source, ap1Path, StringComparison.OrdinalIgnoreCase))
+                        layer.Source = ap1Path;
+                }
+            }
+        }
+
+        // Migrate existing AP1 Weather demo files created before animated icon
+        // layers were added. This keeps operator customizations while injecting
+        // only missing canonical icon layers and their cached icon codes.
+        if (string.Equals(project.Name, CgUniqueDemoFactory.Ap1hdWeatherDemoName, StringComparison.OrdinalIgnoreCase) &&
+            project.Layers.Count(x => string.Equals(x.Type, "WeatherIcon", StringComparison.OrdinalIgnoreCase)) < 8)
+        {
+            var canonical = CgUniqueDemoFactory.CreatePlayoutTemplate(CgUniqueDemoFactory.Ap1hdWeatherDemoName);
+            var canonicalSource = canonical?.DataSources.FirstOrDefault();
+            var targetSource = project.DataSources.FirstOrDefault();
+            if (canonical is not null && canonicalSource is not null)
+            {
+                if (targetSource is null)
+                {
+                    targetSource = canonicalSource;
+                    project.DataSources.Add(targetSource);
+                }
+                else if (!targetSource.CachedItemsJson.Contains("\"icon\"", StringComparison.OrdinalIgnoreCase))
+                {
+                    targetSource.CachedItemsJson = canonicalSource.CachedItemsJson;
+                }
+
+                foreach (var canonicalIcon in canonical.Layers.Where(x => string.Equals(x.Type, "WeatherIcon", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (project.Layers.Any(x => string.Equals(x.Name, canonicalIcon.Name, StringComparison.OrdinalIgnoreCase))) continue;
+                    var icon = CgDemoFactory.CloneLayer(canonicalIcon);
+                    icon.DataSourceId = targetSource.Id;
+                    project.Layers.Add(icon);
+                }
             }
         }
     }

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
-using Kashtrix.OutputTypes.Models;
+using Kashtrix.OutputEngine.Models;
 
-namespace Kashtrix.OutputTypes.Services;
+namespace Kashtrix.OutputEngine.Services;
 
 public class Scte35DvbService
 {

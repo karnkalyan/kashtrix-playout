@@ -5,7 +5,10 @@ namespace BroadcastPlayout.Services;
 
 public static class StandaloneAppLauncher
 {
-    private sealed record AppInfo(string ProjectName, string ExeName);
+    private sealed record AppInfo(string ProjectName, string ExeName, string? DisplayName = null)
+    {
+        public string UserFacingName => string.IsNullOrWhiteSpace(DisplayName) ? ProjectName : DisplayName;
+    }
 
     private static readonly Dictionary<string, AppInfo> Apps = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -24,7 +27,7 @@ public static class StandaloneAppLauncher
         ["Prompter"] = new("Kashtrix.Prompter", "Kashtrix.Prompter.exe"),
         ["HAController"] = new("Kashtrix.HAController", "Kashtrix.HAController.exe"),
         ["ApiGateway"] = new("Kashtrix.ApiGateway", "Kashtrix.ApiGateway.exe"),
-        ["OutputTypes"] = new("Kashtrix.OutputTypes", "Kashtrix.OutputTypes.exe")
+        ["OutputEngine"] = new("Kashtrix.OutputEngine", "Kashtrix.OutputEngine.exe", "Kashtrix Output Engine")
     };
 
     public static bool Launch(string appKey, string? arguments = null)
@@ -59,7 +62,7 @@ public static class StandaloneAppLauncher
             var exe = ResolveExecutable(app);
             if (exe is null)
             {
-                error = $"{app.ProjectName} executable was not found. Run tools\\Verify-And-Build.ps1 once so the suite manifest is refreshed.";
+                error = $"{app.UserFacingName} executable was not found. Run tools\\Verify-And-Build.ps1 once so the suite manifest is refreshed.";
                 return false;
             }
 
@@ -74,20 +77,20 @@ public static class StandaloneAppLauncher
 
             if (process is null)
             {
-                error = $"Windows did not start {app.ProjectName}.";
+                error = $"Windows did not start {app.UserFacingName}.";
                 return false;
             }
 
             // Detect immediate startup failures instead of making the launcher appear to do nothing.
             if (process.WaitForExit(900))
             {
-                var log = StandaloneAppDiagnostics.LogPath(app.ProjectName);
-                error = $"{app.ProjectName} exited during startup (exit code {process.ExitCode})." +
+                var log = StandaloneAppDiagnostics.LogPath(app.UserFacingName);
+                error = $"{app.UserFacingName} exited during startup (exit code {process.ExitCode})." +
                         (File.Exists(log) ? $" Startup log: {log}" : string.Empty);
                 return false;
             }
 
-            AuditLogService.Write("APP_LAUNCH", app.ProjectName, exe);
+            AuditLogService.Write("APP_LAUNCH", app.UserFacingName, exe);
             error = string.Empty;
             return true;
         }

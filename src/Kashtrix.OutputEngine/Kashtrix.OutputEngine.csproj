@@ -13,13 +13,18 @@
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <SelfContained>false</SelfContained>
     <ApplicationIcon>..\BroadcastPlayout.App\Branding\kashtrix-playout.ico</ApplicationIcon>
-    <AssemblyName>Kashtrix.OutputTypes</AssemblyName>
-    <RootNamespace>Kashtrix.OutputTypes</RootNamespace>
+    <AssemblyName>Kashtrix.OutputEngine</AssemblyName>
+    <AssemblyTitle>Kashtrix Output Engine</AssemblyTitle>
+    <Product>Kashtrix Output Engine</Product>
+    <Description>Kashtrix multi-protocol broadcast output engine</Description>
+    <RootNamespace>Kashtrix.OutputEngine</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\BroadcastPlayout.App\BroadcastPlayout.App.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Page Include="..\Kashtrix.Shared\KashtrixTheme.xaml" Link="Themes\KashtrixTheme.xaml" />
+    <Resource Include="..\BroadcastPlayout.App\Branding\kashtrix-playout.png" Link="Branding\kashtrix-outputengine.png" />
+    <Resource Include="..\BroadcastPlayout.App\Branding\kashtrix-playout.ico" Link="Branding\kashtrix-outputengine.ico" />
   </ItemGroup>
 </Project>

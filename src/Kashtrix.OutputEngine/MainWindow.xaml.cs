@@ -7,10 +7,11 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using Kashtrix.OutputTypes.Models;
-using Kashtrix.OutputTypes.Services;
+using Kashtrix.OutputEngine.Models;
+using Kashtrix.OutputEngine.Services;
+using ThemedMessageBox = BroadcastPlayout.Views.MessageBox;
 
-namespace Kashtrix.OutputTypes
+namespace Kashtrix.OutputEngine
 {
     public partial class MainWindow : Window
     {
@@ -212,7 +213,7 @@ namespace Kashtrix.OutputTypes
         private void DeleteChannel_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.DataContext is not OutputChannel channel) return;
-            if (MessageBox.Show($"Delete output '{channel.Name}'?", "Output Engine", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            if (ThemedMessageBox.Show(this, $"Delete output '{channel.Name}'?", "Kashtrix Output Engine", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
                 _engine.DeleteOutput(channel);
         }
 

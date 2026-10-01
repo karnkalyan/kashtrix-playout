@@ -12,8 +12,12 @@ namespace BroadcastPlayout.Services;
 /// <summary>Loads and normalizes CG text/data sources into JSON object rows.</summary>
 public static class CgDataSourceService
 {
-    public const double CategoryIntroSeconds = 0.55;
-    public const double CategoryOutroSeconds = 0.45;
+    // Keep category changes broadcast-clean without holding an empty ticker body.
+    // The old 550 ms intro plus 450 ms outro made a cached ticker look as if it
+    // was still loading and left a noticeable blank pause after the last pixel
+    // had already left the canvas.
+    public const double CategoryIntroSeconds = 0.20;
+    public const double CategoryOutroSeconds = 0.0;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (string Signature, CategoryFeedSchedule Schedule)> CategoryScheduleCache = new();
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) };
 
@@ -789,18 +793,34 @@ public static class CgDataSourceService
         if (!Directory.Exists(targetFolder))
         {
             var folderName = Path.GetFileName(folder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            var primeCandidate = CgUniqueDemoFactory.ResolvePrimePath(folderName);
-            if (Directory.Exists(primeCandidate))
+            var normalizedSource = folder.Replace('\\', '/');
+
+            // Preserve the authored channel family when rebasing a stale absolute
+            // path. A name such as BreakingNews exists in several template packs;
+            // blindly probing another pack can silently show the wrong sequence.
+            if (normalizedSource.Contains("/ap1hd/", StringComparison.OrdinalIgnoreCase))
             {
-                targetFolder = primeCandidate;
+                var ap1Candidate = CgUniqueDemoFactory.ResolveAp1hdPath(folderName);
+                if (Directory.Exists(ap1Candidate)) targetFolder = ap1Candidate;
+            }
+            else if (normalizedSource.Contains("/space4k/", StringComparison.OrdinalIgnoreCase))
+            {
+                var spaceCandidate = CgUniqueDemoFactory.ResolveSpace4kPath(folderName);
+                if (Directory.Exists(spaceCandidate)) targetFolder = spaceCandidate;
+            }
+            else if (normalizedSource.Contains("/prime/", StringComparison.OrdinalIgnoreCase))
+            {
+                var primeCandidate = CgUniqueDemoFactory.ResolvePrimePath(folderName);
+                if (Directory.Exists(primeCandidate)) targetFolder = primeCandidate;
             }
             else
             {
+                var ap1Candidate = CgUniqueDemoFactory.ResolveAp1hdPath(folderName);
+                var primeCandidate = CgUniqueDemoFactory.ResolvePrimePath(folderName);
                 var spaceCandidate = CgUniqueDemoFactory.ResolveSpace4kPath(folderName);
-                if (Directory.Exists(spaceCandidate))
-                {
-                    targetFolder = spaceCandidate;
-                }
+                if (Directory.Exists(ap1Candidate)) targetFolder = ap1Candidate;
+                else if (Directory.Exists(primeCandidate)) targetFolder = primeCandidate;
+                else if (Directory.Exists(spaceCandidate)) targetFolder = spaceCandidate;
             }
         }
         if (!Directory.Exists(targetFolder)) return [];
@@ -1160,7 +1180,11 @@ public static class CgDataSourceService
         var logoSize = hasSepLogo ? Math.Max(14.0, (tickerLayer.Height > 10 ? tickerLayer.Height : 90.0) * 0.45) : 0.0;
         var logoPad = hasSepLogo ? 12.0 : 0.0;
         var sepWidth = hasSepLogo ? (logoSize + logoPad * 2) : sepTextWidth;
-        var endGap = Math.Max(30.0, tickerLayer.TickerGap);
+        // TickerGap is spacing used when a static ticker repeats. Category feeds
+        // do not repeat the active category: once its final visible separator has
+        // left the window the next category must start immediately. Do not append
+        // an invisible trailing gap to the category timing calculation.
+        const double categoryEndGap = 0.0;
 
         if (distinctCategories.Count > 0)
         {
@@ -1199,7 +1223,7 @@ public static class CgDataSourceService
                     itemTotalWidth += MeasureTickerTextWidth(itm, tickerLayer.FontFamily, fontSize, tickerLayer.Bold, tickerLayer.Italic);
                 }
                 var totalSepWidth = items.Count * sepWidth;
-                var textWidth = Math.Max(100.0, itemTotalWidth + totalSepWidth + endGap);
+                var textWidth = Math.Max(1.0, itemTotalWidth + totalSepWidth + categoryEndGap);
                 var travelDist = effectiveWidth + textWidth;
                 var scrollDuration = travelDist / effectiveSpeed;
                 // Category push is gapless; TickerGap remains a spatial crawl setting.
@@ -1251,7 +1275,7 @@ public static class CgDataSourceService
                 itemTotalWidth += MeasureTickerTextWidth(itm, tickerLayer.FontFamily, fontSize, tickerLayer.Bold, tickerLayer.Italic);
             }
             var totalSepWidth = allItems.Count * sepWidth;
-            var textWidth = Math.Max(100.0, itemTotalWidth + totalSepWidth + endGap);
+            var textWidth = Math.Max(1.0, itemTotalWidth + totalSepWidth);
             var travelDist = effectiveWidth + textWidth;
             var scrollDuration = travelDist / effectiveSpeed;
             var pushGapSeconds = tickerLayer.TickerGap > 10 ? tickerLayer.TickerGap / 1000.0 : Math.Max(0.0, tickerLayer.TickerGap);

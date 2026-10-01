@@ -37,7 +37,7 @@ public partial class MainWindow : Window
     private long _lastProgramConfidenceStamp;
     private long _lastPreviewConfidenceStamp;
     private const int ProgramConfidenceFpsCeiling = 60;
-    private const int PreviewConfidenceFps = 15;
+    private const int PreviewConfidenceFps = 50;
     private FullscreenWindow? _fullscreen;
     private FullscreenWindow? _programMonitor;
     private readonly AutomationGatewayService _automationGateway = new();

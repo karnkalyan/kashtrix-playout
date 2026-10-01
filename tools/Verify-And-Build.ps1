@@ -433,7 +433,7 @@ if ($mediaFrames -notmatch 'public double FramesPerSecond') { throw 'Media frame
 if ($multiviewCode -match 'class MultiviewTile\s*\(') { throw 'Multiview guard failed: avoid primary-constructor capture warning in MultiviewTile.' }
 if ($mainVmText -match '_isFillerPlayback') { throw 'Filler guard failed: stale unused _isFillerPlayback field remains.' }
 if ($mainVmText -match '_liveFirstPts') { throw 'Warning cleanup guard failed: stale unused _liveFirstPts field remains.' }
-$expectedProjects = @('Kashtrix.Playout','Kashtrix.CGEditor','Kashtrix.Scheduler','Kashtrix.PlaylistEditor','Kashtrix.Settings','Kashtrix.Multiview','Kashtrix.ChannelController','Kashtrix.CGController','Kashtrix.FileManager','Kashtrix.QCController','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.OutputTypes')
+$expectedProjects = @('Kashtrix.Playout','Kashtrix.CGEditor','Kashtrix.Scheduler','Kashtrix.PlaylistEditor','Kashtrix.Settings','Kashtrix.Multiview','Kashtrix.ChannelController','Kashtrix.CGController','Kashtrix.FileManager','Kashtrix.QCController','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.OutputEngine')
 $solutionText = Get-Content $solution -Raw
 foreach ($name in $expectedProjects) {
     if ($solutionText -notmatch [regex]::Escape('"' + $name + '"')) { throw "Solution guard failed: $name is missing." }
@@ -650,7 +650,7 @@ $projectMap = @(
     @{ Name = 'Kashtrix.Prompter'; Path = 'src\Kashtrix.Prompter\Kashtrix.Prompter.csproj' },
     @{ Name = 'Kashtrix.HAController'; Path = 'src\Kashtrix.HAController\Kashtrix.HAController.csproj' },
     @{ Name = 'Kashtrix.ApiGateway'; Path = 'src\Kashtrix.ApiGateway\Kashtrix.ApiGateway.csproj' },
-    @{ Name = 'Kashtrix.OutputTypes'; Path = 'src\Kashtrix.OutputTypes\Kashtrix.OutputTypes.csproj' }
+    @{ Name = 'Kashtrix.OutputEngine'; Path = 'src\Kashtrix.OutputEngine\Kashtrix.OutputEngine.csproj' }
 )
 foreach ($entry in $projectMap) {
     $projectPath = Join-Path $ProjectRoot $entry.Path

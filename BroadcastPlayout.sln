@@ -34,7 +34,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kashtrix.HAController", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kashtrix.ApiGateway", "src\Kashtrix.ApiGateway\Kashtrix.ApiGateway.csproj", "{B3A4F5C1-2D33-4A6E-9C11-7E91E3F20104}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kashtrix.OutputTypes", "src\Kashtrix.OutputTypes\Kashtrix.OutputTypes.csproj", "{B3A4F5C1-2D33-4A6E-9C11-7E91E3F20105}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kashtrix.OutputEngine", "src\Kashtrix.OutputEngine\Kashtrix.OutputEngine.csproj", "{B3A4F5C1-2D33-4A6E-9C11-7E91E3F20105}"
 EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution

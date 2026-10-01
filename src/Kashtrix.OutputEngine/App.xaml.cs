@@ -4,7 +4,7 @@ using System.Linq;
 using System.Windows;
 using BroadcastPlayout.Services;
 
-namespace Kashtrix.OutputTypes;
+namespace Kashtrix.OutputEngine;
 
 public partial class App : Application
 {

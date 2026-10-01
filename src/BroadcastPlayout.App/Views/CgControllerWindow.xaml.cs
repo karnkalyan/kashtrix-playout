@@ -19,7 +19,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
 {
     private readonly MainViewModel _vm;
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly DispatcherTimer _renderClock = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    private readonly DispatcherTimer _renderClock = new() { Interval = TimeSpan.FromMilliseconds(20) };
     private readonly CgCompositor _previewMonitorCompositor = new();
     private readonly CgCompositor _programMonitorCompositor = new();
     private readonly CgGraphicsOutputEngine _cgOutput = new();
@@ -30,6 +30,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     private VideoFrameData? _latestPlayoutProgramFrame;
     private CgProject? _programSnapshot;
     private CgProject? _programPreviousSnapshot;
+    private readonly Dictionary<int, (CgProject Project, DateTime StartedUtc)> _programLayerSnapshots = new();
     private DateTime _previewStartedUtc = DateTime.UtcNow;
     private DateTime _programStartedUtc = DateTime.UtcNow;
     private DateTime _programTransitionStartedUtc = DateTime.MinValue;
@@ -228,6 +229,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             Layer = -1
         };
         try { LocalCgCommandBus.Publish(targets, command); } catch { }
+        _programLayerSnapshots.Clear();
         _programSnapshot = null;
         _programPreviousSnapshot = null;
         ProgramCgImage.Source = null;
@@ -306,7 +308,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
 
     private void RenderClock_Tick(object? sender, EventArgs e)
     {
-        var playoutPreview = Volatile.Read(ref _latestPlayoutPreviewFrame);
+        var playoutPreview = Interlocked.Exchange(ref _latestPlayoutPreviewFrame, null);
         if (playoutPreview is not null)
         {
             _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, playoutPreview);
@@ -316,10 +318,22 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             var frame = _previewMonitorCompositor.Composite(_monitorBaseFrame, _previewSnapshot, Math.Max(0, (DateTime.UtcNow - _previewStartedUtc).TotalSeconds));
             _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, frame);
         }
-        var playoutProgram = Volatile.Read(ref _latestPlayoutProgramFrame);
+
+        var playoutProgram = Interlocked.Exchange(ref _latestPlayoutProgramFrame, null);
         if (playoutProgram is not null)
         {
             _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, playoutProgram);
+        }
+        else if (_programLayerSnapshots.Count > 1)
+        {
+            var frame = _monitorBaseFrame;
+            foreach (var kvp in _programLayerSnapshots.OrderBy(x => x.Key))
+            {
+                var snap = kvp.Value.Project;
+                var elapsed = Math.Max(0, (DateTime.UtcNow - kvp.Value.StartedUtc).TotalSeconds);
+                frame = _programMonitorCompositor.Composite(frame, snap, elapsed);
+            }
+            _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
         }
         else if (_programSnapshot is not null)
         {
@@ -532,10 +546,12 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             if (await RouteAsync("PLAY", "PROGRAM", snapshot))
             {
                 snapshot.OnAir = true;
+                snapshot.ExternalLayer = CurrentOverlayNumber;
                 _programPreviousSnapshot = null;
                 _programTransitionMode = "None";
                 _programSnapshot = snapshot;
                 _programStartedUtc = DateTime.UtcNow;
+                _programLayerSnapshots[CurrentOverlayNumber] = (snapshot, DateTime.UtcNow);
                 CopyProjectToProgramMonitor(snapshot);
                 _cgOutput.SetProgram(snapshot);
             }
@@ -904,23 +920,63 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         if (await RouteAsync("PLAY", "PROGRAM", snapshot))
         {
             snapshot.OnAir = true;
+            snapshot.ExternalLayer = CurrentOverlayNumber;
             _programPreviousSnapshot = null;
             _programTransitionMode = "None";
             _programSnapshot = snapshot;
             _programStartedUtc = DateTime.UtcNow;
+            _programLayerSnapshots[CurrentOverlayNumber] = (snapshot, DateTime.UtcNow);
             CopyProjectToProgramMonitor(snapshot);
             _cgOutput.SetProgram(snapshot);
         }
     }
     private async void ProgramStop_Click(object s, RoutedEventArgs e)
     {
-        var targetProj = SelectedProject;
+        var targetLayer = CurrentOverlayNumber;
+        CgProject? targetProj = null;
+        if (_programLayerSnapshots.TryGetValue(targetLayer, out var active))
+        {
+            targetProj = active.Project;
+        }
+        else if (SelectedProject is not null)
+        {
+            targetProj = SelectedProject;
+        }
+
         await RouteAsync("STOP", "PROGRAM", targetProj);
         LastOperation = "PROGRAM STOP (OUT ANIMATION)";
         LastDetail = targetProj != null
-            ? $"Triggered out animation for {targetProj.Name} (Overlay {CurrentOverlayNumber})."
-            : $"Triggered out animation for active Program graphics (Overlay {CurrentOverlayNumber}).";
-        if (_programSnapshot != null && (targetProj == null || _programSnapshot.Id == targetProj.Id || string.Equals(_programSnapshot.Name, targetProj.Name, StringComparison.OrdinalIgnoreCase)))
+            ? $"Triggered out animation for {targetProj.Name} (Overlay {targetLayer})."
+            : $"Triggered out animation for active Program graphics (Overlay {targetLayer}).";
+
+        if (_programLayerSnapshots.TryGetValue(targetLayer, out var stopping))
+        {
+            stopping.Project.IsStopping = true;
+            stopping.Project.StopRequestedTimelineSeconds = Math.Max(0, (DateTime.UtcNow - stopping.StartedUtc).TotalSeconds);
+            var maxOut = stopping.Project.Layers.Where(l => l.Visible).Select(l => l.AnimationOutSeconds).DefaultIfEmpty(0.5).Max();
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(maxOut + 0.15)).ConfigureAwait(false);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    _programLayerSnapshots.Remove(targetLayer);
+                    if (_programSnapshot != null && _programSnapshot.ExternalLayer == targetLayer)
+                    {
+                        _programSnapshot = _programLayerSnapshots.Count > 0 ? _programLayerSnapshots.Values.Last().Project : null;
+                        if (_programSnapshot == null)
+                        {
+                            ProgramCgImage.Source = null;
+                            _programMonitorBitmap = null;
+                            ProgramProjectName = "No CG on program";
+                            ProgramLayerName = "PROGRAM CLEAR";
+                            ProgramLayerText = "Program CG bus is clear.";
+                            _cgOutput.ClearProgram();
+                        }
+                    }
+                });
+            });
+        }
+        else if (_programSnapshot != null && (targetProj == null || _programSnapshot.Id == targetProj.Id || string.Equals(_programSnapshot.Name, targetProj.Name, StringComparison.OrdinalIgnoreCase)))
         {
             _programSnapshot.IsStopping = true;
             _programSnapshot.StopRequestedTimelineSeconds = Math.Max(0, (DateTime.UtcNow - _programStartedUtc).TotalSeconds);
@@ -933,29 +989,38 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         if (await RouteAsync("UPDATE", "PROGRAM", snapshot))
         {
             snapshot.OnAir = true;
+            snapshot.ExternalLayer = CurrentOverlayNumber;
             _programPreviousSnapshot = null;
             _programTransitionMode = "None";
             _programTransitionStartedUtc = DateTime.MinValue;
             _programSnapshot = snapshot;
             if (_programStartedUtc == default) _programStartedUtc = DateTime.UtcNow;
+            _programLayerSnapshots[CurrentOverlayNumber] = (snapshot, _programStartedUtc);
             CopyProjectToProgramMonitor(snapshot);
             _cgOutput.SetProgram(snapshot);
         }
     }
     private async void ProgramClear_Click(object s, RoutedEventArgs e)
     {
+        var targetLayer = CurrentOverlayNumber;
         if (await RouteAsync("CLEAR", "PROGRAM"))
         {
-            _programSnapshot = null;
-            _programPreviousSnapshot = null;
-            _programTransitionMode = "None";
-            _programTransitionStartedUtc = DateTime.MinValue;
-            ProgramCgImage.Source = null;
-            _programMonitorBitmap = null;
-            ProgramProjectName = "No CG on program";
-            ProgramLayerName = "PROGRAM CLEAR";
-            ProgramLayerText = "Program CG bus is clear.";
-            _cgOutput.ClearProgram();
+            _programLayerSnapshots.Remove(targetLayer);
+            if (_programSnapshot != null && _programSnapshot.ExternalLayer == targetLayer)
+            {
+                _programSnapshot = _programLayerSnapshots.Count > 0 ? _programLayerSnapshots.Values.Last().Project : null;
+                if (_programSnapshot == null)
+                {
+                    ProgramCgImage.Source = null;
+                    _programMonitorBitmap = null;
+                    ProgramProjectName = "No CG on program";
+                    ProgramLayerName = "PROGRAM CLEAR";
+                    ProgramLayerText = "Program CG bus is clear.";
+                    _cgOutput.ClearProgram();
+                }
+            }
+            LastOperation = $"OVERLAY {targetLayer} CLEARED";
+            LastDetail = $"Overlay {targetLayer} cleared from program.";
         }
     }
     private async void TakeToProgram_Click(object s, RoutedEventArgs e) => await TakePreviewToProgramAsync(TakeTransition);
@@ -978,6 +1043,8 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         if (await RouteAsync("TAKE", "PROGRAM", _previewSnapshot, transition, transitionSeconds))
         {
             _previewSnapshot.OnAir = true;
+            _previewSnapshot.ExternalLayer = CurrentOverlayNumber;
+            _programLayerSnapshots[CurrentOverlayNumber] = (_previewSnapshot, DateTime.UtcNow);
             _programPreviousSnapshot = !transition.Equals("None", StringComparison.OrdinalIgnoreCase) ? _programSnapshot : null;
             _programSnapshot = _previewSnapshot; _programStartedUtc = DateTime.UtcNow;
             _programTransitionMode = transition; _programTransitionSeconds = transitionSeconds;
