@@ -82,28 +82,61 @@
 
                     <!-- Resolution -->
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Format / Resolution:" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                        <ComboBox x:Name="ResolutionComboBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6">
-                            <ComboBoxItem Content="1080p50 (1920x1080)" IsSelected="True"/>
-                            <ComboBoxItem Content="1080i50 (Broadcast standard)"/>
-                            <ComboBoxItem Content="1080p59.94"/>
-                            <ComboBoxItem Content="1080p60"/>
-                            <ComboBoxItem Content="2160p50 (4K UHD)"/>
-                            <ComboBoxItem Content="2160p60 (4K UHD)"/>
-                            <ComboBoxItem Content="720p50 (HD)"/>
+                        <TextBlock x:Name="ResolutionLabel" Text="Format / Resolution:" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="ResolutionComboBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6" SelectionChanged="ResolutionComboBox_SelectionChanged">
+                            <ComboBoxItem Content="Auto Detect (From Card Hardware)" IsSelected="True"/>
+                            <ComboBoxItem Content="1080p50 (1920x1080 @ 50.00 fps)"/>
+                            <ComboBoxItem Content="1080i50 (Broadcast standard 25.00 fps)"/>
+                            <ComboBoxItem Content="1080p59.94 (1920x1080 @ 59.94 fps)"/>
+                            <ComboBoxItem Content="1080p60 (1920x1080 @ 60.00 fps)"/>
+                            <ComboBoxItem Content="2160p50 (4K UHD 3840x2160 @ 50.00 fps)"/>
+                            <ComboBoxItem Content="2160p59.94 (4K UHD 3840x2160 @ 59.94 fps)"/>
+                            <ComboBoxItem Content="2160p60 (4K UHD 3840x2160 @ 60.00 fps)"/>
+                            <ComboBoxItem Content="720p50 (HD 1280x720 @ 50.00 fps)"/>
+                            <ComboBoxItem Content="720p59.94 (HD 1280x720 @ 59.94 fps)"/>
+                            <ComboBoxItem Content="1080p25 (1920x1080 @ 25.00 fps)"/>
+                            <ComboBoxItem Content="1080p29.97 (1920x1080 @ 29.97 fps)"/>
+                            <ComboBoxItem Content="1080p24 (1920x1080 @ 24.00 fps)"/>
+                            <ComboBoxItem Content="Custom (User Defined)..."/>
                         </ComboBox>
                     </StackPanel>
 
                     <!-- Target FPS -->
                     <StackPanel Grid.Column="2">
                         <TextBlock Text="Target FPS:" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                        <ComboBox x:Name="FpsComboBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6">
+                        <ComboBox x:Name="FpsComboBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6" SelectionChanged="FpsComboBox_SelectionChanged">
                             <ComboBoxItem Content="50.00" IsSelected="True"/>
                             <ComboBoxItem Content="59.94"/>
                             <ComboBoxItem Content="60.00"/>
                             <ComboBoxItem Content="25.00"/>
                             <ComboBoxItem Content="29.97"/>
+                            <ComboBoxItem Content="24.00"/>
+                            <ComboBoxItem Content="23.98"/>
+                            <ComboBoxItem Content="Custom..."/>
                         </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Custom Resolution & Dimensions Panel (shown when Custom is selected) -->
+                <Grid x:Name="CustomResolutionPanel" Visibility="Collapsed" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Custom Width (px):" Foreground="{DynamicResource MutedBrush}" FontSize="10" Margin="0,0,0,2"/>
+                        <TextBox x:Name="CustomWidthTextBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="5" Text="1920"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Custom Height (px):" Foreground="{DynamicResource MutedBrush}" FontSize="10" Margin="0,0,0,2"/>
+                        <TextBox x:Name="CustomHeightTextBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="5" Text="1080"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Text="Custom FPS:" Foreground="{DynamicResource MutedBrush}" FontSize="10" Margin="0,0,0,2"/>
+                        <TextBox x:Name="CustomFpsTextBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="5" Text="50.0"/>
                     </StackPanel>
                 </Grid>
 
@@ -116,14 +149,14 @@
 
                     <!-- Target Bitrate -->
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Bitrate (Mbps):" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                        <TextBox x:Name="BitrateTextBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6" Text="12.0"/>
+                        <TextBlock x:Name="BitrateLabel" Text="Bitrate (Mbps):" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBox x:Name="BitrateTextBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6" Text="1500.0"/>
                     </StackPanel>
 
-                    <!-- GPU Encoder -->
+                    <!-- GPU Encoder / Raw Hardware Output -->
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="GPU Encoder:" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                        <ComboBox x:Name="GpuEncoderComboBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6">
+                        <TextBlock x:Name="EncoderLabel" Text="Video Processing / Encoder:" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="GpuEncoderComboBox" Visibility="Collapsed" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6">
                             <ComboBoxItem Content="NVENC H.264 (CUDA)" IsSelected="True"/>
                             <ComboBoxItem Content="NVENC H.265/HEVC (CUDA)"/>
                             <ComboBoxItem Content="Intel QSV H.264"/>
@@ -133,8 +166,12 @@
                             <ComboBoxItem Content="Software x264 (CPU)"/>
                             <ComboBoxItem Content="Software x265 (CPU)"/>
                         </ComboBox>
+                        <Border x:Name="CardHardwareNotice" Background="{DynamicResource Bg2Brush}" BorderBrush="{DynamicResource GoodBrush}" BorderThickness="1" CornerRadius="3" Padding="6,5" VerticalAlignment="Center">
+                            <TextBlock Text="⚡ Direct Uncompressed (Raw PCIe DMA - No NVENC needed)" Foreground="{DynamicResource GoodBrush}" FontSize="10" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        </Border>
                     </StackPanel>
                 </Grid>
+
 
                 <!-- DVB / SCTE & Custom PIDs -->
                 <Border Background="{DynamicResource Bg2Brush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,12,0,0">

@@ -69,6 +69,8 @@ public class OutputChannel : INotifyPropertyChanged
     };
 
     public bool IsHardwareDevice => Protocol is BroadcastOutputProtocol.DeckLink or BroadcastOutputProtocol.Matrox or BroadcastOutputProtocol.AJA or BroadcastOutputProtocol.NDI;
+    public bool IsCardHardware => Protocol is BroadcastOutputProtocol.DeckLink or BroadcastOutputProtocol.Matrox or BroadcastOutputProtocol.AJA;
+    public bool RequiresGpuEncoder => !IsCardHardware;
     public bool IsNetworkStream => !IsHardwareDevice;
 
     private string _destinationUri = "DeckLink 8K Pro (Device 1 - SDI 1)";
@@ -83,6 +85,27 @@ public class OutputChannel : INotifyPropertyChanged
     {
         get => _rasterFormat;
         set => SetField(ref _rasterFormat, value);
+    }
+
+    private int _customWidth = 1920;
+    public int CustomWidth
+    {
+        get => _customWidth;
+        set => SetField(ref _customWidth, value);
+    }
+
+    private int _customHeight = 1080;
+    public int CustomHeight
+    {
+        get => _customHeight;
+        set => SetField(ref _customHeight, value);
+    }
+
+    private bool _isCustomResolution;
+    public bool IsCustomResolution
+    {
+        get => _isCustomResolution;
+        set => SetField(ref _isCustomResolution, value);
     }
 
     private double _targetFps = 50.0;

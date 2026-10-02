@@ -36,7 +36,30 @@ public static partial class CgPlaybackRuntime
         var fmt = string.IsNullOrWhiteSpace(format) ? "mm:ss" : format.Trim();
 
         string formatted;
-        if (fmt.Equals("hh:mm:ss", StringComparison.OrdinalIgnoreCase) || fmt.Equals("HH:mm:ss", StringComparison.OrdinalIgnoreCase))
+        int days = ts.Days;
+        int hours = ts.Hours;
+        int minutes = ts.Minutes;
+        int secs = ts.Seconds;
+
+        if (fmt.Equals("d days hh:mm:ss", StringComparison.OrdinalIgnoreCase))
+        {
+            formatted = $"{days} {(days == 1 ? "day" : "days")} {hours:D2}:{minutes:D2}:{secs:D2}";
+        }
+        else if (fmt.Equals("d days h hours m min s sec", StringComparison.OrdinalIgnoreCase) || fmt.Equals("days hours minutes seconds", StringComparison.OrdinalIgnoreCase))
+        {
+            formatted = days > 0
+                ? $"{days} {(days == 1 ? "day" : "days")} {hours} {(hours == 1 ? "hour" : "hours")} {minutes} {(minutes == 1 ? "minute" : "minutes")} {secs} sec"
+                : $"{hours} {(hours == 1 ? "hour" : "hours")} {minutes} {(minutes == 1 ? "minute" : "minutes")} {secs} sec";
+        }
+        else if (fmt.Equals("d'd' hh:mm:ss", StringComparison.OrdinalIgnoreCase) || fmt.Equals("d\\d hh:mm:ss", StringComparison.OrdinalIgnoreCase))
+        {
+            formatted = $"{days}d {hours:D2}:{minutes:D2}:{secs:D2}";
+        }
+        else if (fmt.Equals("dd:hh:mm:ss", StringComparison.OrdinalIgnoreCase))
+        {
+            formatted = $"{days:D2}:{hours:D2}:{minutes:D2}:{secs:D2}";
+        }
+        else if (fmt.Equals("hh:mm:ss", StringComparison.OrdinalIgnoreCase) || fmt.Equals("HH:mm:ss", StringComparison.OrdinalIgnoreCase))
         {
             var totalHours = (int)ts.TotalHours;
             formatted = $"{totalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
@@ -49,6 +72,11 @@ public static partial class CgPlaybackRuntime
         {
             var totalMins = (int)ts.TotalMinutes;
             formatted = $"{totalMins}:{ts.Seconds:D2}";
+        }
+        else if (fmt.Contains("d", StringComparison.OrdinalIgnoreCase))
+        {
+            try { formatted = ts.ToString(fmt, CultureInfo.InvariantCulture); }
+            catch { formatted = $"{days}d {hours:D2}:{minutes:D2}:{secs:D2}"; }
         }
         else // default mm:ss
         {

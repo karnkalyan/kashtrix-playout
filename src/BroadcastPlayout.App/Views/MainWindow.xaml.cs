@@ -89,7 +89,11 @@ public partial class MainWindow : Window
             var root = drive.RootDirectory.FullName;
             if (!MediaRoots.Any(x => string.Equals(x, root, StringComparison.OrdinalIgnoreCase))) MediaRoots.Add(root);
         }
-        LoadDemoPosterFrames();
+        // Confidence monitors must represent the real buses.  Seeding them with the old
+        // red "LIVE PROGRAM" demo poster made PREVIEW look on-air while the channel was
+        // actually in standby and also hid genuine no-signal/clear states.
+        PreviewImage.Source = null;
+        ProgramImage.Source = null;
         Loaded += async (_, _) =>
         {
             // Operator-friendly media browser: reopen the last registered media folder when
@@ -132,24 +136,6 @@ public partial class MainWindow : Window
 
         Closing += MainWindow_Closing;
         Closed += MainWindow_Closed;
-    }
-
-    private void LoadDemoPosterFrames()
-    {
-        try
-        {
-            var posterPath = DemoDataFactory.ResolveDemoAsset("demos/ui/demo-city.png");
-            if (!File.Exists(posterPath)) return;
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.UriSource = new Uri(posterPath, UriKind.Absolute);
-            bitmap.EndInit();
-            bitmap.Freeze();
-            PreviewImage.Source = bitmap;
-            ProgramImage.Source = bitmap;
-        }
-        catch { }
     }
 
     private void UpdateClock()
@@ -602,7 +588,6 @@ public partial class MainWindow : Window
     private void PresentPreview(VideoFrameData frame)
     {
         if (Volatile.Read(ref _closed) != 0) return;
-        if (!ShouldQueueConfidenceFrame(ref _lastPreviewConfidenceStamp, PreviewConfidenceFps)) return;
         Interlocked.Exchange(ref _pendingPreviewFrame, frame);
         if (Interlocked.CompareExchange(ref _previewPresentScheduled, 1, 0) == 0)
             SafeBeginInvoke(DrainPreviewFrame);
@@ -611,7 +596,8 @@ public partial class MainWindow : Window
     private static bool ShouldQueueConfidenceFrame(ref long lastStamp, int fps)
     {
         var now = Stopwatch.GetTimestamp();
-        var interval = Math.Max(1L, Stopwatch.Frequency / Math.Max(1, fps));
+        // Allow a 15% phase tolerance (0.85) so standard thread scheduling variance at 50/60fps doesn't skip frames
+        var interval = Math.Max(1L, (long)(Stopwatch.Frequency / Math.Max(1.0, fps) * 0.85));
         while (true)
         {
             var previous = Volatile.Read(ref lastStamp);
@@ -642,6 +628,7 @@ public partial class MainWindow : Window
     private void ClearPreview()
     {
         Interlocked.Exchange(ref _pendingPreviewFrame, null);
+        Interlocked.Exchange(ref _lastPreviewConfidenceStamp, 0);
         if (Volatile.Read(ref _closed) != 0) return;
         if (!Dispatcher.CheckAccess())
         {
@@ -764,13 +751,13 @@ public partial class MainWindow : Window
 
     private void NowNextFields_Click(object sender, RoutedEventArgs e)
     {
-        var win = new NowNextFieldsDialog(_vm) { Owner = this };
+        var win = new BroadcastDynamicFieldsDialog(_vm, initialTab: 0) { Owner = this };
         win.ShowDialog();
     }
 
     private void WeatherFields_Click(object sender, RoutedEventArgs e)
     {
-        var win = new WeatherFieldsDialog(_vm) { Owner = this };
+        var win = new BroadcastDynamicFieldsDialog(_vm, initialTab: 1) { Owner = this };
         win.ShowDialog();
     }
 

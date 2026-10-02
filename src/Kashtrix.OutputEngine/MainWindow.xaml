@@ -199,14 +199,14 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="BROADCAST OUTPUT STREAMS &amp; HARDWARE CHANNELS" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" FontSize="13"/>
-                            <Border Grid.Column="1" Width="200" Height="112" HorizontalAlignment="Right" Margin="12,0" Background="#05080C" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1.5" CornerRadius="4" ClipToBounds="True" ToolTip="Live Program confidence monitor from Kashtrix virtual output">
+                            <Border Grid.Column="1" Width="360" Height="202" HorizontalAlignment="Right" Margin="12,0" Background="#05080C" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1.5" CornerRadius="4" ClipToBounds="True" ToolTip="Program confidence monitor from Kashtrix Playout virtual output">
                                 <Grid>
                                     <Image x:Name="ProgramPreviewImage" Stretch="Uniform"/>
                                     <!-- Live Badge Top-Left -->
-                                    <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="#B71C1C" CornerRadius="2" Padding="5,1" Margin="6,5,0,0">
+                                    <Border x:Name="ProgramLiveBadge" HorizontalAlignment="Left" VerticalAlignment="Top" Background="#374151" CornerRadius="2" Padding="5,1" Margin="6,5,0,0">
                                         <StackPanel Orientation="Horizontal">
-                                            <Ellipse Width="6" Height="6" Fill="#FF5252" Margin="0,0,4,0"/>
-                                            <TextBlock Text="PGM LIVE" FontSize="8.5" FontWeight="Black" Foreground="#FFFFFF"/>
+                                            <Ellipse x:Name="ProgramLiveDot" Width="6" Height="6" Fill="#9CA3AF" Margin="0,0,4,0"/>
+                                            <TextBlock x:Name="ProgramLiveText" Text="PGM STANDBY" FontSize="8.5" FontWeight="Black" Foreground="#FFFFFF"/>
                                         </StackPanel>
                                     </Border>
                                     <!-- Bottom Label -->
@@ -271,7 +271,7 @@
                                                                             <Setter TargetName="AlertBorder" Property="Background" Value="{DynamicResource OnAirBrush}"/>
                                                                             <Setter TargetName="AlertBorder" Property="Effect">
                                                                                 <Setter.Value>
-                                                                                    <DropShadowEffect Color="{DynamicResource OnAirBrush}" BlurRadius="6" ShadowDepth="0"/>
+                                                                                    <DropShadowEffect Color="{DynamicResource Red}" BlurRadius="6" ShadowDepth="0"/>
                                                                                 </Setter.Value>
                                                                             </Setter>
                                                                         </DataTrigger>

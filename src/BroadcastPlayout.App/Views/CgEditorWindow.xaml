@@ -69,6 +69,8 @@
                     <MenuItem Header="BROADCAST">
                         <MenuItem Header="Take On Air" Click="TakeOnAir_Click"/>
                         <MenuItem Header="CG Controller..." Click="OpenCgController_Click"/>
+                        <Separator/>
+                        <MenuItem Header="Dynamic Broadcast Fields (Now/Next &amp; Weather)..." Click="DynamicFields_Click"/>
                     </MenuItem>
                 </Menu>
 
@@ -172,28 +174,33 @@
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                             </ListBox>
-                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><WrapPanel Margin="5">
-                                <Button Content="TEXT" Click="AddText_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="RECTANGLE" Click="AddRectangle_Click" MinWidth="78" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="SHAPE" Click="AddShape_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="TICKER" Click="AddTicker_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="TIMER" Click="AddTimer_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5" ToolTip="Timer / Countdown / Countup / Commercial Back In"/>
-                                <Button Content="WEATHER" Click="AddWeatherIcon_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="ROLL" Click="AddRoll_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="DATE TIME" Click="AddDigital_Click" MinWidth="82" Height="26" Margin="2" Padding="6,2" FontSize="9.5" ToolTip="Date and time with AD / BS calendar selection"/>
-                                <Button Content="ANALOG" Click="AddAnalog_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="PROGRAM PIP" Click="AddProgramPip_Click" MinWidth="96" Height="26" Margin="2" Padding="6,2" FontSize="9.5" ToolTip="Movable &amp; resizable Program Video PIP squeeze box"/>
-                                <Button Content="ELLIPSE" Click="AddEllipse_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="LINE" Click="AddLine_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="LOGO" Click="ImportLogo_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="IMAGE" Click="ImportImage_Click" MinWidth="74" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="IMAGE SEQUENCE" Click="ImportSequence_Click" MinWidth="110" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="AFTER EFFECTS" Click="ImportAfterEffects_Click" MinWidth="105" Height="26" Margin="2" Padding="6,2" FontSize="9.5" ToolTip="Render an installed Adobe After Effects .aep/.aepx/.aet composition to an alpha image sequence and place it on the native CG timeline"/>
-                                <Button Content="VIDEO FILE" Click="ImportVideo_Click" MinWidth="84" Height="26" Margin="2" Padding="6,2" FontSize="9.5"/>
-                                <Button Content="VIDEO SOURCE" Click="AddVideoSource_Click" MinWidth="100" Height="26" Margin="2" Padding="6,2" FontSize="9.5" ToolTip="Choose File / URL / NDI / card / webcam / screen / custom source, then drag its 16:9 or custom region on the canvas"/>
-                                <TextBlock Width="250" Margin="4,8,4,2" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="9"
-                                           Text="KEYS: Ctrl+C/X/V/D · Delete · arrows move · Shift+arrows 10 px · Ctrl+arrows resize · Alt+Up/Down layer step · Alt+Home/End front/back · Ctrl+G group · Ctrl+Z Undo · Ctrl+Y Redo"/>
-                            </WrapPanel></ScrollViewer>
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel Margin="6">
+                                    <UniformGrid Columns="2">
+                                        <Button Content="TEXT" Click="AddText_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="SHAPE" Click="AddShape_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="PEN SHAPE" Click="AddPenShape_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Click points on the canvas; double-click or press Enter to close the native path"/>
+                                        <Button Content="PEN MASK" Click="AddPenMask_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Draw a freeform mask for the selected layer; double-click or press Enter to finish"/>
+                                        <Button Content="TICKER" Click="AddTicker_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="TIMER" Click="AddTimer_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Timer / Countdown / Countup / Commercial Back In"/>
+                                        <Button Content="WEATHER" Click="AddWeatherIcon_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="ROLL" Click="AddRoll_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="DATE TIME" Click="AddDigital_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Date and time with AD / BS calendar selection"/>
+                                        <Button Content="ANALOG" Click="AddAnalog_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="PROGRAM PIP" Click="AddProgramPip_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Movable &amp; resizable Program Video PIP squeeze box"/>
+                                        <Button Content="ELLIPSE" Click="AddEllipse_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="LINE" Click="AddLine_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="LOGO" Click="ImportLogo_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="IMAGE" Click="ImportImage_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="IMAGE SEQUENCE" Click="ImportSequence_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="AFTER EFFECTS" Click="ImportAfterEffects_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Render an installed Adobe After Effects .aep/.aepx/.aet composition to an alpha image sequence and place it on the native CG timeline"/>
+                                        <Button Content="VIDEO FILE" Click="ImportVideo_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                        <Button Content="VIDEO SOURCE" Click="AddVideoSource_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Choose File / URL / NDI / card / webcam / screen / custom source, then drag its 16:9 or custom region on the canvas"/>
+                                    </UniformGrid>
+                                    <TextBlock Width="250" Margin="4,8,4,2" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="9"
+                                               Text="KEYS: Ctrl+C/X/V/D · Delete · arrows move · Shift+arrows 10 px · Ctrl+arrows resize · Alt+Up/Down layer step · Alt+Home/End front/back · Ctrl+G group · Ctrl+Z Undo · Ctrl+Y Redo"/>
+                                </StackPanel>
+                            </ScrollViewer>
                         </Grid>
                     </TabItem>
                     <TabItem Header="HTML / WEB">
@@ -220,7 +227,7 @@
                                 <ListBox ItemsSource="{Binding DataSources}" SelectedItem="{Binding SelectedDataSource, Mode=TwoWay}" Height="120" DisplayMemberPath="Name"/>
                                 <WrapPanel Margin="0,5,0,0">
                                     <Button Content="URL JSON" Click="AddUrlJsonData_Click" Width="82"/><Button Content="JSON" Click="AddJsonData_Click" Width="62"/><Button Content="XML/RSS" Click="AddXmlRssData_Click" Width="78"/>
-                                    <Button Content="EXCEL" Click="AddExcelData_Click" Width="68"/><Button Content="TXT" Click="AddTxtData_Click" Width="58"/><Button Content="WEATHER" Click="AddWeatherData_Click" Width="78"/><Button Content="FIELDS..." Click="OpenWeatherFields_Click" Width="68" Background="#162736" BorderBrush="#00E5FF" Foreground="#00E5FF" ToolTip="Broadcast Weather Fields (temperature, min/max, feels like, pressure, humidity, clouds, image, multi-day)"/><Button Content="REFRESH" Click="RefreshData_Click" Width="78"/><Button Content="DELETE" Click="DeleteData_Click" Width="68"/>
+                                    <Button Content="EXCEL" Click="AddExcelData_Click" Width="68"/><Button Content="TXT" Click="AddTxtData_Click" Width="58"/><Button Content="WEATHER" Click="AddWeatherData_Click" Width="78"/><Button Content="WEATHER FIELDS..." Click="OpenWeatherFields_Click" Width="105" Background="#162736" BorderBrush="#00E5FF" Foreground="#00E5FF" ToolTip="Broadcast Weather Fields (temperature, min/max, feels like, pressure, humidity, clouds, image, multi-day)"/><Button Content="NOW/NEXT..." Click="OpenNowNextFields_Click" Width="82" Background="#162736" BorderBrush="#00E5FF" Foreground="#00E5FF" ToolTip="Broadcast Now/Next Fields Modal"/><Button Content="REFRESH" Click="RefreshData_Click" Width="78"/><Button Content="DELETE" Click="DeleteData_Click" Width="68"/>
                                 </WrapPanel>
                                 <TextBlock Text="Name" Style="{StaticResource SectionCaption}" Margin="0,7,0,2"/><TextBox Text="{Binding SelectedDataSource.Name, UpdateSourceTrigger=LostFocus}" LostFocus="DataInspector_LostFocus"/>
                                 <TextBlock Text="Source type" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/><ComboBox ItemsSource="{Binding DataSourceTypes}" SelectedItem="{Binding SelectedDataSource.SourceType}" SelectionChanged="DataInspector_SelectionChanged"/>
@@ -490,28 +497,15 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- CARD 4: TYPOGRAPHY & NEPALI DATE -->
+                            <!-- CARD 4: TYPOGRAPHY -->
                             <Border Visibility="{Binding CardTypographyVisibility}" Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
                                 <StackPanel>
                                     <DockPanel Cursor="Hand" Background="Transparent" MouseLeftButtonUp="ToggleCardHeader_Click">
                                         <TextBlock Text="▶" DockPanel.Dock="Right" Foreground="#B78BE7" FontSize="11" VerticalAlignment="Center"/>
-                                        <TextBlock Text="TYPOGRAPHY &amp; NEPALI DATE" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
+                                        <TextBlock Text="TYPOGRAPHY" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
                                     </DockPanel>
                                     <StackPanel Visibility="Collapsed" Margin="0,8,0,0">
                                         <TextBlock Text="Content" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.Text, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" Height="58" TextWrapping="Wrap" LostFocus="Inspector_LostFocus"/>
-                                        <TextBlock Text="INSERT DYNAMIC VARIABLES (MUSIC / PROGRAM / NEWS)" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
-                                        <WrapPanel Margin="0,2,0,6">
-                                            <Button Content="+ {Title}" Tag="{}{Title}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#38BDF8" Foreground="#38BDF8" ToolTip="Item or Song Title"/>
-                                            <Button Content="+ {Artist}" Tag="{}{Artist}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#38BDF8" Foreground="#38BDF8" ToolTip="Music Artist / Singer / Presenter"/>
-                                            <Button Content="+ {ProgramName}" Tag="{}{ProgramName}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#38BDF8" Foreground="#38BDF8" ToolTip="Program or Show Name"/>
-                                            <Button Content="+ {Tag}" Tag="{}{Tag}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#00E5FF" Foreground="#00E5FF" ToolTip="Sub-label or Album"/>
-                                            <Button Content="+ {Category}" Tag="{}{Category}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#A78BFA" Foreground="#A78BFA" ToolTip="Playlist Category"/>
-                                            <Button Content="+ {BackIn}" Tag="{}{BackIn}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#F59E0B" Foreground="#F59E0B" ToolTip="Commercial Break Remaining Countdown"/>
-                                            <Button Content="+ {Timer}" Tag="{}{Timer}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#FBBF24" Foreground="#FBBF24" ToolTip="Dynamic Timer / Countdown"/>
-                                            <Button Content="+ {NextTitle}" Tag="{}{NextTitle}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#F472B6" Foreground="#F472B6" ToolTip="Next Coming Up Title"/>
-                                            <Button Content="+ {NextArtist}" Tag="{}{NextArtist}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#F472B6" Foreground="#F472B6" ToolTip="Next Coming Up Artist"/>
-                                            <Button Content="+ {Description}" Tag="{}{Description}" Click="InsertVariable_Click" Margin="1" Padding="5,2" FontSize="9" Background="#172230" BorderBrush="#FBBF24" Foreground="#FBBF24" ToolTip="Description / Synopsis"/>
-                                        </WrapPanel>
                                         <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
                                             <StackPanel><TextBlock Text="Font family (System / Bundled)" Style="{StaticResource SectionCaption}"/><ComboBox ItemsSource="{Binding SystemFontNames}" Text="{Binding SelectedLayer.FontFamily, UpdateSourceTrigger=LostFocus}" SelectedItem="{Binding SelectedLayer.FontFamily, Mode=TwoWay}" IsEditable="True" IsTextSearchEnabled="True" SelectionChanged="FontFamily_SelectionChanged" KeyUp="FontFamily_KeyUp" LostFocus="Inspector_LostFocus" ToolTip="Select from system &amp; broadcast fonts or type custom font name"/></StackPanel>
                                             <StackPanel Grid.Column="2"><TextBlock Text="Font size" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.FontSize, UpdateSourceTrigger=PropertyChanged}" TextChanged="FontSize_TextChanged" LostFocus="Inspector_LostFocus"/></StackPanel>
@@ -529,15 +523,42 @@
                                         <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition Width="68"/><ColumnDefinition Width="6"/><ColumnDefinition Width="76"/></Grid.ColumnDefinitions><Border Height="28" Background="{Binding SelectedLayer.ShadowColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><TextBox Grid.Column="2" Text="{Binding SelectedLayer.ShadowBlur, UpdateSourceTrigger=LostFocus}" ToolTip="Shadow blur" LostFocus="Inspector_LostFocus"/><Button Grid.Column="4" Content="PICK" Tag="ShadowColor" Click="ColorPicker_Click"/></Grid>
                                         <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition Width="68"/><ColumnDefinition Width="6"/><ColumnDefinition Width="76"/></Grid.ColumnDefinitions><Border Height="28" Background="{Binding SelectedLayer.GlowColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><TextBox Grid.Column="2" Text="{Binding SelectedLayer.GlowRadius, UpdateSourceTrigger=LostFocus}" ToolTip="Glow radius" LostFocus="Inspector_LostFocus"/><Button Grid.Column="4" Content="PICK" Tag="GlowColor" Click="ColorPicker_Click"/></Grid>
 
-                                        <!-- Nepali Date / Clock formatting section -->
+                                        <!-- Date & Time formatting section -->
                                         <StackPanel Visibility="{Binding NepaliDateSectionVisibility}">
                                             <TextBlock Text="DATE &amp; TIME CALENDAR" Foreground="#00E5FF" FontWeight="SemiBold" FontSize="10.5" Margin="0,10,0,3"/>
                                             <TextBlock Text="Calendar system" Foreground="{StaticResource MutedBrush}" FontSize="8.5" Margin="0,0,0,3"/>
                                             <ComboBox ItemsSource="{Binding CalendarSystems}" SelectedItem="{Binding SelectedLayer.CalendarSystem, Mode=TwoWay}" SelectionChanged="CalendarSystem_SelectionChanged" ToolTip="AD Gregorian or BS Bikram Sambat"/>
-                                            <TextBlock Text="Format preset (AD or BS presets based on calendar selection):" Foreground="{StaticResource MutedBrush}" FontSize="8.5" Margin="0,5,0,3"/>
-                                            <ComboBox ItemsSource="{Binding DateTimeFormatPresets}" SelectedItem="{Binding SelectedLayer.DataFormat, Mode=TwoWay}" SelectionChanged="NepaliFormatPreset_SelectionChanged" ToolTip="Select broadcast date and time format token preset"/>
+                                            <TextBlock Text="Format preset (AD / BS or Custom):" Foreground="{StaticResource MutedBrush}" FontSize="8.5" Margin="0,5,0,3"/>
+                                            <ComboBox ItemsSource="{Binding DateTimeFormatPresets}" SelectedItem="{Binding SelectedLayer.DataFormat, Mode=TwoWay}" IsEditable="True" SelectionChanged="NepaliFormatPreset_SelectionChanged" LostFocus="Inspector_LostFocus" ToolTip="Select broadcast date and time format token preset or choose Custom"/>
+                                            <TextBlock Text="Custom date/time format pattern:" Foreground="{StaticResource MutedBrush}" FontSize="8.5" Margin="0,5,0,3"/>
+                                            <TextBox Text="{Binding SelectedLayer.DataFormat, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus" ToolTip="Define custom date/time format (e.g. yyyy-MM-dd HH:mm:ss, dddd MMMM dd, etc.)"/>
                                         </StackPanel>
                                         <CheckBox Content="AUTO CONVERT TO PREETI / KANTIPUR (TTF FONTS)" IsChecked="{Binding SelectedLayer.AutoConvertToPreeti, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,8,0,2" Foreground="#00E5FF" ToolTip="Convert Unicode Devanagari text to Preeti / Kantipur legacy TTF encoding"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- CARD: DYNAMIC VARIABLES -->
+                            <Border Visibility="{Binding CardVariablesVisibility}" Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <DockPanel Cursor="Hand" Background="Transparent" MouseLeftButtonUp="ToggleCardHeader_Click">
+                                        <TextBlock Text="▶" DockPanel.Dock="Right" Foreground="#38BDF8" FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock Text="DYNAMIC VARIABLES" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="11"/>
+                                    </DockPanel>
+                                    <StackPanel Visibility="Collapsed" Margin="0,8,0,0">
+                                        <TextBlock Text="Click variable to insert into text content (Music / Program / News):" Foreground="{StaticResource MutedBrush}" FontSize="9" Margin="0,0,0,6"/>
+                                        <WrapPanel Margin="0,2,0,6">
+                                            <Button Content="+ {Title}" Tag="{}{Title}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#38BDF8" Foreground="#38BDF8" ToolTip="Item or Song Title"/>
+                                            <Button Content="+ {Artist}" Tag="{}{Artist}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#38BDF8" Foreground="#38BDF8" ToolTip="Music Artist / Singer / Presenter"/>
+                                            <Button Content="+ {ProgramName}" Tag="{}{ProgramName}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#38BDF8" Foreground="#38BDF8" ToolTip="Program or Show Name"/>
+                                            <Button Content="+ {Tag}" Tag="{}{Tag}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#00E5FF" Foreground="#00E5FF" ToolTip="Sub-label or Album"/>
+                                            <Button Content="+ {Category}" Tag="{}{Category}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#A78BFA" Foreground="#A78BFA" ToolTip="Playlist Category"/>
+                                            <Button Content="+ {BackIn}" Tag="{}{BackIn}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#F59E0B" Foreground="#F59E0B" ToolTip="Commercial Break Remaining Countdown"/>
+                                            <Button Content="+ {Timer}" Tag="{}{Timer}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#FBBF24" Foreground="#FBBF24" ToolTip="Dynamic Timer / Countdown"/>
+                                            <Button Content="+ {NextTitle}" Tag="{}{NextTitle}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#F472B6" Foreground="#F472B6" ToolTip="Next Coming Up Title"/>
+                                            <Button Content="+ {NextArtist}" Tag="{}{NextArtist}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#F472B6" Foreground="#F472B6" ToolTip="Next Coming Up Artist"/>
+                                            <Button Content="+ {Description}" Tag="{}{Description}" Click="InsertVariable_Click" Margin="2" Padding="6,3" FontSize="9" Background="#172230" BorderBrush="#FBBF24" Foreground="#FBBF24" ToolTip="Description / Synopsis"/>
+                                        </WrapPanel>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -565,9 +586,13 @@
                                             </StackPanel>
                                             <StackPanel Grid.Column="2">
                                                 <TextBlock Text="Display Format" Style="{StaticResource SectionCaption}"/>
-                                                <ComboBox SelectedValue="{Binding SelectedLayer.TimerFormat, Mode=TwoWay}" SelectedValuePath="Content" SelectionChanged="Inspector_SelectionChanged">
+                                                <ComboBox SelectedValue="{Binding SelectedLayer.TimerFormat, Mode=TwoWay}" SelectedValuePath="Content" IsEditable="True" SelectionChanged="Inspector_SelectionChanged" LostFocus="Inspector_LostFocus">
                                                     <ComboBoxItem Content="mm:ss"/>
                                                     <ComboBoxItem Content="hh:mm:ss"/>
+                                                    <ComboBoxItem Content="d days hh:mm:ss"/>
+                                                    <ComboBoxItem Content="d days h hours m min s sec"/>
+                                                    <ComboBoxItem Content="d'd' hh:mm:ss"/>
+                                                    <ComboBoxItem Content="dd:hh:mm:ss"/>
                                                     <ComboBoxItem Content="ss"/>
                                                     <ComboBoxItem Content="m:ss"/>
                                                 </ComboBox>

@@ -192,9 +192,11 @@ public sealed class CgCompositor : IDisposable
                     ? (timelineSeconds >= x.StartSeconds)
                     : (hasDynamicTicker && (string.Equals(x.Type, "Ticker", StringComparison.OrdinalIgnoreCase) || x.DataSourceId != Guid.Empty || x.StartSeconds <= pausePoint || x.EndSeconds >= holdPoint || (tickerGroupId != Guid.Empty && x.GroupId == tickerGroupId)))
                         ? (t >= x.StartSeconds)
-                        : (x.SequenceAdvanceDataItem || (x.SequenceLoop && string.Equals(x.Type, "ImageSequence", StringComparison.OrdinalIgnoreCase)) || string.Equals(x.Type, "Ticker", StringComparison.OrdinalIgnoreCase))
-                            ? (timelineSeconds >= x.StartSeconds)
-                            : (t >= x.StartSeconds && t <= x.EndSeconds)
+                        : x.SequenceAdvanceDataItem
+                            ? (timelineSeconds >= x.StartSeconds && t >= x.StartSeconds && t <= x.EndSeconds)
+                            : ((x.SequenceLoop && string.Equals(x.Type, "ImageSequence", StringComparison.OrdinalIgnoreCase)) || string.Equals(x.Type, "Ticker", StringComparison.OrdinalIgnoreCase))
+                                ? (timelineSeconds >= x.StartSeconds)
+                                : (t >= x.StartSeconds && t <= x.EndSeconds)
             )))
             {
                 var isCategoryLayer = hasAnyTicker && IsTickerStripLayer(layer);
@@ -564,6 +566,10 @@ public sealed class CgCompositor : IDisposable
         var feather = Math.Max(0.0, layer.MaskFeather * Math.Min(sx, sy));
         var radius = Math.Clamp(layer.MaskCornerRadius * Math.Min(sx, sy), 0.0, Math.Min(mw, mh) / 2.0);
         var shape = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant();
+        var customMask = shape is "CUSTOM PATH" or "PEN PATH"
+            ? CgPathData.Parse(layer.MaskPathData)
+                .Select(p => new CgPathData.Point(mx + p.X * mw, my + p.Y * mh)).ToArray()
+            : [];
 
         var data = overlay.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
         try
@@ -579,7 +585,19 @@ public sealed class CgCompositor : IDisposable
                     var px = x + .5;
                     var py = y + .5;
                     double coverage;
-                    if (shape == "ELLIPSE")
+                    if (customMask.Length >= 3)
+                    {
+                        var inside = CgPathData.Contains(customMask, px, py);
+                        if (feather <= .0001) coverage = inside ? 1.0 : 0.0;
+                        else
+                        {
+                            var edgeDistance = CgPathData.DistanceToEdges(customMask, px, py);
+                            var signedDistance = inside ? -edgeDistance : edgeDistance;
+                            var ft = Math.Clamp(0.5 - signedDistance / feather, 0.0, 1.0);
+                            coverage = ft * ft * (3.0 - 2.0 * ft);
+                        }
+                    }
+                    else if (shape == "ELLIPSE")
                     {
                         var rx = mw / 2.0; var ry = mh / 2.0;
                         var nx = (px - (mx + rx)) / Math.Max(.0001, rx);
@@ -1066,6 +1084,25 @@ public sealed class CgCompositor : IDisposable
         var arm = Math.Max(4f, Math.Min(rect.Width, rect.Height) * .18f);
         switch (kind)
         {
+            case "CUSTOM PATH":
+            case "PEN PATH":
+                var customPoints = CgPathData.Parse(layer.ShapePathData)
+                    .Select(p => new PointF(rect.Left + (float)(p.X * rect.Width), rect.Top + (float)(p.Y * rect.Height)))
+                    .ToArray();
+                if (customPoints.Length >= 3)
+                {
+                    path.AddLines(customPoints);
+                    if (layer.ShapePathClosed) path.CloseFigure();
+                }
+                else if (customPoints.Length == 2)
+                {
+                    path.AddLine(customPoints[0], customPoints[1]);
+                }
+                else
+                {
+                    AddRoundedRectangle(path, rect, layer);
+                }
+                break;
             case "L-SHAPE":
             case "LSHAPE":
                 path.AddPolygon([
@@ -1084,14 +1121,187 @@ public sealed class CgCompositor : IDisposable
                 ]);
                 break;
             case "ELLIPSE":
-                path.AddEllipse(rect); break;
+            case "CIRCLE":
+                if (kind == "CIRCLE")
+                {
+                    var s = Math.Min(rect.Width, rect.Height);
+                    path.AddEllipse(new RectangleF(rect.Left + (rect.Width - s) / 2f, rect.Top + (rect.Height - s) / 2f, s, s));
+                }
+                else
+                {
+                    path.AddEllipse(rect);
+                }
+                break;
+            case "TRIANGLE":
+                path.AddPolygon([
+                    new PointF(rect.Left + rect.Width / 2f, rect.Top),
+                    new PointF(rect.Right, rect.Bottom),
+                    new PointF(rect.Left, rect.Bottom)
+                ]);
+                break;
+            case "INVERTED TRIANGLE":
+            case "INVERTEDTRIANGLE":
+                path.AddPolygon([
+                    new PointF(rect.Left, rect.Top),
+                    new PointF(rect.Right, rect.Top),
+                    new PointF(rect.Left + rect.Width / 2f, rect.Bottom)
+                ]);
+                break;
+            case "DIAMOND":
+                path.AddPolygon([
+                    new PointF(rect.Left + rect.Width / 2f, rect.Top),
+                    new PointF(rect.Right, rect.Top + rect.Height / 2f),
+                    new PointF(rect.Left + rect.Width / 2f, rect.Bottom),
+                    new PointF(rect.Left, rect.Top + rect.Height / 2f)
+                ]);
+                break;
+            case "STAR":
+                var cx = rect.Left + rect.Width / 2f;
+                var cy = rect.Top + rect.Height / 2f;
+                var rx = rect.Width / 2f;
+                var ry = rect.Height / 2f;
+                var irx = rx * 0.4f;
+                var iry = ry * 0.4f;
+                var starPts = new PointF[10];
+                for (int p = 0; p < 10; p++)
+                {
+                    var angle = (float)(p * Math.PI / 5.0 - Math.PI / 2.0);
+                    var rCurX = (p % 2 == 0) ? rx : irx;
+                    var rCurY = (p % 2 == 0) ? ry : iry;
+                    starPts[p] = new PointF(cx + (float)Math.Cos(angle) * rCurX, cy + (float)Math.Sin(angle) * rCurY);
+                }
+                path.AddPolygon(starPts);
+                break;
+            case "PENTAGON":
+                var pcx = rect.Left + rect.Width / 2f;
+                var pcy = rect.Top + rect.Height / 2f;
+                var prx = rect.Width / 2f;
+                var pry = rect.Height / 2f;
+                var pentPts = new PointF[5];
+                for (int p = 0; p < 5; p++)
+                {
+                    var angle = (float)(p * 2.0 * Math.PI / 5.0 - Math.PI / 2.0);
+                    pentPts[p] = new PointF(pcx + (float)Math.Cos(angle) * prx, pcy + (float)Math.Sin(angle) * pry);
+                }
+                path.AddPolygon(pentPts);
+                break;
+            case "HEXAGON":
+                var hx = rect.Width * 0.25f;
+                path.AddPolygon([
+                    new PointF(rect.Left + hx, rect.Top),
+                    new PointF(rect.Right - hx, rect.Top),
+                    new PointF(rect.Right, rect.Top + rect.Height / 2f),
+                    new PointF(rect.Right - hx, rect.Bottom),
+                    new PointF(rect.Left + hx, rect.Bottom),
+                    new PointF(rect.Left, rect.Top + rect.Height / 2f)
+                ]);
+                break;
+            case "OCTAGON":
+                var ox = rect.Width * 0.29f;
+                var oy = rect.Height * 0.29f;
+                path.AddPolygon([
+                    new PointF(rect.Left + ox, rect.Top),
+                    new PointF(rect.Right - ox, rect.Top),
+                    new PointF(rect.Right, rect.Top + oy),
+                    new PointF(rect.Right, rect.Bottom - oy),
+                    new PointF(rect.Right - ox, rect.Bottom),
+                    new PointF(rect.Left + ox, rect.Bottom),
+                    new PointF(rect.Left, rect.Bottom - oy),
+                    new PointF(rect.Left, rect.Top + oy)
+                ]);
+                break;
+            case "HEART":
+                var hw = rect.Width;
+                var hh = rect.Height;
+                path.AddBezier(new PointF(rect.Left + hw / 2f, rect.Top + hh * 0.3f),
+                               new PointF(rect.Left + hw * 0.2f, rect.Top),
+                               new PointF(rect.Left, rect.Top + hh * 0.35f),
+                               new PointF(rect.Left, rect.Top + hh * 0.55f));
+                path.AddBezier(new PointF(rect.Left, rect.Top + hh * 0.55f),
+                               new PointF(rect.Left, rect.Top + hh * 0.75f),
+                               new PointF(rect.Left + hw * 0.25f, rect.Top + hh * 0.9f),
+                               new PointF(rect.Left + hw / 2f, rect.Bottom));
+                path.AddBezier(new PointF(rect.Left + hw / 2f, rect.Bottom),
+                               new PointF(rect.Right - hw * 0.25f, rect.Top + hh * 0.9f),
+                               new PointF(rect.Right, rect.Top + hh * 0.75f),
+                               new PointF(rect.Right, rect.Top + hh * 0.55f));
+                path.AddBezier(new PointF(rect.Right, rect.Top + hh * 0.55f),
+                               new PointF(rect.Right, rect.Top + hh * 0.35f),
+                               new PointF(rect.Right - hw * 0.2f, rect.Top),
+                               new PointF(rect.Left + hw / 2f, rect.Top + hh * 0.3f));
+                path.CloseFigure();
+                break;
+            case "ARROW RIGHT":
+            case "ARROWRIGHT":
+                var stemY = rect.Height * 0.25f;
+                var arrowHeadX = rect.Width * 0.6f;
+                path.AddPolygon([
+                    new PointF(rect.Left, rect.Top + stemY),
+                    new PointF(rect.Left + arrowHeadX, rect.Top + stemY),
+                    new PointF(rect.Left + arrowHeadX, rect.Top),
+                    new PointF(rect.Right, rect.Top + rect.Height / 2f),
+                    new PointF(rect.Left + arrowHeadX, rect.Bottom),
+                    new PointF(rect.Left + arrowHeadX, rect.Bottom - stemY),
+                    new PointF(rect.Left, rect.Bottom - stemY)
+                ]);
+                break;
+            case "ARROW LEFT":
+            case "ARROWLEFT":
+                var stemYL = rect.Height * 0.25f;
+                var headXL = rect.Left + rect.Width * 0.4f;
+                path.AddPolygon([
+                    new PointF(headXL, rect.Top),
+                    new PointF(headXL, rect.Top + stemYL),
+                    new PointF(rect.Right, rect.Top + stemYL),
+                    new PointF(rect.Right, rect.Bottom - stemYL),
+                    new PointF(headXL, rect.Bottom - stemYL),
+                    new PointF(headXL, rect.Bottom),
+                    new PointF(rect.Left, rect.Top + rect.Height / 2f)
+                ]);
+                break;
+            case "TRAPEZOID":
+                var trapW = rect.Width * 0.2f;
+                path.AddPolygon([
+                    new PointF(rect.Left + trapW, rect.Top),
+                    new PointF(rect.Right - trapW, rect.Top),
+                    new PointF(rect.Right, rect.Bottom),
+                    new PointF(rect.Left, rect.Bottom)
+                ]);
+                break;
+            case "CROSS / PLUS":
+            case "CROSS":
+            case "PLUS":
+                var cThickness = Math.Min(rect.Width, rect.Height) * 0.3f;
+                var cx1 = rect.Left + (rect.Width - cThickness) / 2f;
+                var cx2 = cx1 + cThickness;
+                var cy1 = rect.Top + (rect.Height - cThickness) / 2f;
+                var cy2 = cy1 + cThickness;
+                path.AddPolygon([
+                    new PointF(cx1, rect.Top), new PointF(cx2, rect.Top),
+                    new PointF(cx2, cy1), new PointF(rect.Right, cy1),
+                    new PointF(rect.Right, cy2), new PointF(cx2, cy2),
+                    new PointF(cx2, rect.Bottom), new PointF(cx1, rect.Bottom),
+                    new PointF(cx1, cy2), new PointF(rect.Left, cy2),
+                    new PointF(rect.Left, cy1), new PointF(cx1, cy1)
+                ]);
+                break;
+            case "SPEECH BUBBLE":
+            case "SPEECHBUBBLE":
+                var bH = rect.Height * 0.8f;
+                AddRoundedRectangle(path, new RectangleF(rect.Left, rect.Top, rect.Width, bH), layer);
+                path.AddPolygon([
+                    new PointF(rect.Left + rect.Width * 0.2f, rect.Top + bH),
+                    new PointF(rect.Left + rect.Width * 0.15f, rect.Bottom),
+                    new PointF(rect.Left + rect.Width * 0.35f, rect.Top + bH)
+                ]);
+                break;
             case "LINE":
                 path.AddLine(rect.Left, rect.Top + rect.Height / 2f, rect.Right, rect.Top + rect.Height / 2f); break;
             default:
                 AddRoundedRectangle(path, rect, layer);
                 break;
         }
-        if (kind == "LINE")
+        if (kind == "LINE" || (kind is "CUSTOM PATH" or "PEN PATH" && !layer.ShapePathClosed))
         {
             using var linePen = new Pen(ParseColor(layer.Background, opacity), Math.Max(1f, (float)(layer.BorderWidth > 0 ? layer.BorderWidth : rect.Height)));
             g.DrawPath(linePen, path);
@@ -1199,8 +1409,9 @@ public sealed class CgCompositor : IDisposable
         if (layer.Bold) style |= FontStyle.Bold;
         if (layer.Italic) style |= FontStyle.Italic;
         if (layer.Underline) style |= FontStyle.Underline;
-        var effectiveSy = sy > 0.05 ? sy : (rect.Height / Math.Max(1, layer.Height));
-        using var font = CreateFont(layer.FontFamily, (float)Math.Max(8, layer.FontSize * effectiveSy), style);
+        var effectiveSy = sy > 0.05 ? sy : 1.0;
+        var fontScale = rect.Height / Math.Max(1.0, layer.Height * effectiveSy);
+        using var font = CreateFont(layer.FontFamily, (float)Math.Max(6, layer.FontSize * effectiveSy * fontScale), style);
         using var format = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoClip };
         format.Alignment = (layer.HorizontalTextAlignment ?? "Left").ToUpperInvariant() switch
         {
@@ -1586,7 +1797,13 @@ public sealed class CgCompositor : IDisposable
                 var gap = (float)Math.Max(30, layer.TickerGap);
 
                 var totalTravelSpan = Math.Max(1.0f, contentRect.Width + totalContentWidth);
-                var travelled = (float)Math.Min(totalTravelSpan, newsElapsed * speed);
+                var travelled = (float)(newsElapsed * speed);
+                if (travelled >= totalTravelSpan)
+                {
+                    // Category crawl reached end position - complete
+                    g.ResetClip();
+                    return;
+                }
 
                 var startX = isRight
                     ? (contentRect.Left - totalContentWidth + travelled)
@@ -1631,16 +1848,20 @@ public sealed class CgCompositor : IDisposable
             }
             else
             {
-                var totalTravelSpan = rect.Width + totalContentWidth;
-                var travelled = (float)((elapsed * speed) % Math.Max(1, totalTravelSpan));
-
+                // The first item must originate completely outside the clipping window.
+                // Previously the repeat copy was drawn inside at t=0, making Prime and
+                // other crawls appear fully populated instead of entering from off-screen.
+                var distance = (float)(elapsed * speed);
+                var repeatSpan = Math.Max(1f, totalContentWidth);
+                var repeating = layer.TickerRepeat && distance >= repeatSpan;
+                var phase = repeating ? (distance - repeatSpan) % repeatSpan : distance;
                 var startX = isRight
-                    ? (rect.Left - totalContentWidth + travelled)
-                    : (rect.Right - travelled);
+                    ? (repeating ? rect.Left + phase : rect.Left - totalContentWidth + distance)
+                    : (repeating ? rect.Right - totalContentWidth - phase : rect.Right - distance);
 
                 DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, startX, isRight);
 
-                if (layer.TickerRepeat)
+                if (repeating)
                 {
                     if (isRight)
                     {

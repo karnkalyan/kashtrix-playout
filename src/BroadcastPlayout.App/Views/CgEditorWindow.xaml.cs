@@ -62,6 +62,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private CgLayer? _drawMaskLayer;
     private Point _drawMaskStart;
     private bool _drawingMask;
+    private readonly List<Point> _penPoints = [];
+    private bool _penDrawing;
+    private bool _penCreatesMask;
+    private CgLayer? _penMaskTarget;
     private bool _autoKey = true;
     private readonly List<CgLayer> _layerClipboard = [];
     private int _pasteGeneration;
@@ -378,7 +382,13 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     public IReadOnlyList<string> DataSourceTypes { get; } = ["UrlJson", "LocalJson", "Xml", "Rss", "Excel", "Csv", "Txt", "OpenWeather"];
     public IReadOnlyList<string> StaggerFromOptions { get; } = ["Start", "End"];
     public IReadOnlyList<string> LayerRoles { get; } = ["Graphic", "Logo", "Bug", "Shape", "Data"];
-    public IReadOnlyList<string> ShapeKinds { get; } = ["Rectangle", "Rounded Rectangle", "Ellipse", "Line"];
+    public IReadOnlyList<string> ShapeKinds { get; } = [
+        "Rectangle", "Rounded Rectangle", "Ellipse", "Circle", "Line",
+        "Triangle", "Inverted Triangle", "Diamond", "Star", "Pentagon",
+        "Hexagon", "Octagon", "Heart", "Arrow Right", "Arrow Left",
+        "Speech Bubble", "Trapezoid", "Cross / Plus"
+        , "Custom Path"
+    ];
     public IReadOnlyList<string> CalendarSystems { get; } = ["AD", "BS"];
     public static readonly IReadOnlyList<string> AdFormatPresets =
     [
@@ -387,7 +397,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         "dddd, MMMM d, yyyy",
         "dd/MM/yyyy  HH:mm",
         "HH:mm:ss",
-        "hh:mm:ss tt"
+        "hh:mm:ss tt",
+        "Custom"
     ];
     public IReadOnlyList<string> DateTimeFormatPresets =>
         SelectedLayer is not null && string.Equals(SelectedLayer.CalendarSystem, "BS", StringComparison.OrdinalIgnoreCase)
@@ -431,7 +442,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     public IReadOnlyList<string> TickerDirections { get; } = ["Left", "Right", "Up", "Down"];
     public IReadOnlyList<string> VideoSourceKinds { get; } = ["File", "URL", "NDI", "DirectShow", "Screen", "Custom"];
     public IReadOnlyList<string> BlendModes { get; } = ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten", "Color Dodge", "Color Burn", "Linear Burn", "Linear Dodge (Add)", "Add", "Hard Light", "Soft Light", "Vivid Light", "Linear Light", "Pin Light", "Hard Mix", "Difference", "Exclusion", "Subtract", "Divide", "Hue", "Saturation", "Color", "Luminosity"];
-    public IReadOnlyList<string> MaskShapes { get; } = ["Rectangle", "Rounded Rectangle", "Ellipse"];
+    public IReadOnlyList<string> MaskShapes { get; } = ["Rectangle", "Rounded Rectangle", "Ellipse", "Custom Path"];
     public IReadOnlyList<string> SqueezeHorizontalModes { get; } = ["Free", "Both", "Left", "Right"];
     public IReadOnlyList<string> AspectRatioOptions { get; } = ["Free", "16:9", "4:3"];
     public IReadOnlyList<string> SafeAreaPresets { get; } = ["ACTION 5% / TITLE 10%", "ACTION 7.5% / TITLE 12.5%", "ACTION 10% / TITLE 20%"];
@@ -797,6 +808,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     public Visibility CardShapeKindVisibility => IsSelectedLayerShape ? Visibility.Visible : Visibility.Collapsed;
     public Visibility CardGradientVisibility => (IsSelectedLayerShape || IsSelectedLayerText) ? Visibility.Visible : Visibility.Collapsed;
     public Visibility CardTypographyVisibility => IsSelectedLayerText ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility CardVariablesVisibility => (IsSelectedLayerText || (SelectedLayer is not null && string.Equals(SelectedLayer.Type, "Ticker", StringComparison.OrdinalIgnoreCase))) ? Visibility.Visible : Visibility.Collapsed;
     public Visibility CardTimerVisibility => IsSelectedLayerTimer ? Visibility.Visible : Visibility.Collapsed;
     public Visibility CardPipVisibility => IsSelectedLayerPipOrShape ? Visibility.Visible : Visibility.Collapsed;
     public Visibility NepaliDateSectionVisibility => IsSelectedLayerNepaliDate ? Visibility.Visible : Visibility.Collapsed;
@@ -817,6 +829,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         Raise(nameof(CardShapeKindVisibility));
         Raise(nameof(CardGradientVisibility));
         Raise(nameof(CardTypographyVisibility));
+        Raise(nameof(CardVariablesVisibility));
         Raise(nameof(CardTimerVisibility));
         Raise(nameof(CardPipVisibility));
         Raise(nameof(NepaliDateSectionVisibility));
@@ -910,7 +923,39 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     public CgKeyframe? SelectedKeyframe
     {
         get => _selectedKeyframe;
-        set { if (ReferenceEquals(_selectedKeyframe, value)) return; _selectedKeyframe = value; Raise(); }
+        set
+        {
+            if (ReferenceEquals(_selectedKeyframe, value)) return;
+            _selectedKeyframe = value;
+            if (_selectedKeyframe is not null && SelectedLayer is not null)
+            {
+                SelectedLayer.X = _selectedKeyframe.X;
+                SelectedLayer.Y = _selectedKeyframe.Y;
+                SelectedLayer.Z = _selectedKeyframe.Z;
+                SelectedLayer.Width = _selectedKeyframe.Width;
+                SelectedLayer.Height = _selectedKeyframe.Height;
+                SelectedLayer.ScaleX = _selectedKeyframe.ScaleX;
+                SelectedLayer.ScaleY = _selectedKeyframe.ScaleY;
+                SelectedLayer.ScaleZ = _selectedKeyframe.ScaleZ;
+                SelectedLayer.RotationX = _selectedKeyframe.RotationX;
+                SelectedLayer.RotationY = _selectedKeyframe.RotationY;
+                SelectedLayer.Rotation = _selectedKeyframe.Rotation;
+                SelectedLayer.AnchorX = _selectedKeyframe.AnchorX;
+                SelectedLayer.AnchorY = _selectedKeyframe.AnchorY;
+                SelectedLayer.AnchorZ = _selectedKeyframe.AnchorZ;
+                SelectedLayer.SkewX = _selectedKeyframe.SkewX;
+                SelectedLayer.SkewY = _selectedKeyframe.SkewY;
+                SelectedLayer.Opacity = _selectedKeyframe.Opacity;
+                if (!string.IsNullOrWhiteSpace(_selectedKeyframe.StyleJson))
+                {
+                    CgAnimationEngine.ApplyStyleJson(SelectedLayer, _selectedKeyframe.StyleJson);
+                }
+                _autoKeyEditSnapshot = CaptureLayerEditSnapshot(SelectedLayer);
+                Raise(nameof(SelectedLayer));
+                RenderPreview();
+            }
+            Raise();
+        }
     }
 
     public CgHtmlSource? SelectedHtml
@@ -1109,6 +1154,65 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     });
     private void AddRectangle_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer { Name="Rectangle", Role="Shape", Type="Shape", ShapeKind="Rectangle", X=160, Y=760, Width=920, Height=150, Background="#D916212C", CornerRadius=0, CornerRadiusAsPercent=false, CornerRadiusTopLeftPercent=0, CornerRadiusTopRightPercent=0, CornerRadiusBottomRightPercent=0, CornerRadiusBottomLeftPercent=0, BorderWidth=0, BorderColor="#00000000", AnimationIn="None", AnimationOut="None", AnimationInSeconds=0, AnimationOutSeconds=0 });
     private void AddShape_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer { Name="Shape", Role="Shape", Type="Shape", ShapeKind="Rectangle", X=160, Y=760, Width=920, Height=150, Background="#D916212C", CornerRadius=0, CornerRadiusAsPercent=false, CornerRadiusTopLeftPercent=0, CornerRadiusTopRightPercent=0, CornerRadiusBottomRightPercent=0, CornerRadiusBottomLeftPercent=0, BorderWidth=0, BorderColor="#00000000", AnimationIn="None", AnimationOut="None", AnimationInSeconds=0, AnimationOutSeconds=0 });
+    private void AddPenShape_Click(object sender, RoutedEventArgs e) => BeginPenDrawing(createMask: false);
+    private void AddPenMask_Click(object sender, RoutedEventArgs e) => BeginPenDrawing(createMask: true);
+
+    private void BeginPenDrawing(bool createMask)
+    {
+        if (SelectedProject is null) NewProject();
+        if (createMask && SelectedLayer is null)
+        {
+            MessageBox.Show("Select the layer that should receive the freeform mask, then choose PEN MASK.", "Pen Mask", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        _penPoints.Clear();
+        _penDrawing = true;
+        _penCreatesMask = createMask;
+        _penMaskTarget = createMask ? SelectedLayer : null;
+        PreviewCanvas.Cursor = Cursors.Cross;
+        PreviewCanvas.Focus();
+        RenderPreview();
+    }
+
+    private void FinishPenDrawing(bool cancel = false)
+    {
+        if (!_penDrawing) return;
+        var points = _penPoints.ToArray();
+        var createsMask = _penCreatesMask;
+        var maskTarget = _penMaskTarget;
+        _penDrawing = false; _penCreatesMask = false; _penMaskTarget = null; _penPoints.Clear();
+        PreviewCanvas.Cursor = Cursors.Arrow;
+        if (cancel || points.Length < 2) { RenderPreview(); return; }
+
+        var minX = points.Min(p => p.X); var minY = points.Min(p => p.Y);
+        var maxX = points.Max(p => p.X); var maxY = points.Max(p => p.Y);
+        var width = Math.Max(2, maxX - minX); var height = Math.Max(2, maxY - minY);
+        var normalized = CgPathData.EncodeNormalized(points.Select(p =>
+            new CgPathData.Point((p.X - minX) / width, (p.Y - minY) / height)));
+
+        if (createsMask && maskTarget is not null)
+        {
+            RecordUndoSnapshot();
+            maskTarget.MaskEnabled = true;
+            maskTarget.MaskShape = "Custom Path";
+            maskTarget.MaskX = minX; maskTarget.MaskY = minY;
+            maskTarget.MaskWidth = width; maskTarget.MaskHeight = height;
+            maskTarget.MaskPathData = normalized;
+            SelectedLayer = maskTarget;
+        }
+        else
+        {
+            AddLayer(new CgLayer
+            {
+                Name = "Pen Shape", Role = "Shape", Type = "Shape", ShapeKind = "Custom Path",
+                ShapePathData = normalized, ShapePathClosed = points.Length >= 3,
+                X = minX, Y = minY, Width = width, Height = height,
+                Background = "#CC8F4FD4", BorderColor = "#FFFFFFFF", BorderWidth = 2,
+                AnimationIn = "None", AnimationOut = "None", AnimationInSeconds = 0, AnimationOutSeconds = 0
+            });
+        }
+        SyncLayersToProject(); _main.SaveCgProjects(); Raise(nameof(SelectedLayer)); RenderAll();
+    }
     private void AddEllipse_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer { Name="Ellipse", Role="Shape", Type="Shape", ShapeKind="Ellipse", X=150, Y=150, Width=420, Height=260, Background="#B58F4FD4", BorderColor="#00000000", BorderWidth=0, AnimationIn="None", AnimationOut="None", AnimationInSeconds=0, AnimationOutSeconds=0 });
     private void AddLine_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer { Name="Line", Role="Shape", Type="Shape", ShapeKind="Line", X=180, Y=720, Width=1100, Height=14, Background="#FFFFFFFF", BorderColor="#FFFFFFFF", BorderWidth=2, AnimationIn="None", AnimationOut="None", AnimationInSeconds=0, AnimationOutSeconds=0 });
     private void AddTicker_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer { Name="Ticker", Type="Ticker", Text="KASHTRIX NEWS • LIVE • BUSINESS • SPORTS • WEATHER", X=0, Y=990, Width=1920, Height=90, FontSize=32, Background="#E60B1118", UseBackground=false, Speed=180, AnimationIn="None", AnimationOut="None", AnimationInSeconds=0, AnimationOutSeconds=0, TickerSeparator=" • ", TickerCategoriesEnabled=true });
@@ -1564,10 +1668,24 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         });
     }
 
+    private void DynamicFields_Click(object sender, RoutedEventArgs e)
+    {
+        var vm = Application.Current?.MainWindow?.DataContext as MainViewModel;
+        var dlg = new BroadcastDynamicFieldsDialog(vm, initialTab: 0) { Owner = this };
+        dlg.ShowDialog();
+    }
+
+    private void OpenNowNextFields_Click(object sender, RoutedEventArgs e)
+    {
+        var vm = Application.Current?.MainWindow?.DataContext as MainViewModel;
+        var dlg = new BroadcastDynamicFieldsDialog(vm, initialTab: 0) { Owner = this };
+        dlg.ShowDialog();
+    }
+
     private void OpenWeatherFields_Click(object sender, RoutedEventArgs e)
     {
         var vm = Application.Current?.MainWindow?.DataContext as MainViewModel;
-        var dlg = new WeatherFieldsDialog(vm) { Owner = this };
+        var dlg = new BroadcastDynamicFieldsDialog(vm, initialTab: 1) { Owner = this };
         dlg.ShowDialog();
     }
 
@@ -1665,44 +1783,98 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     private void CommitInspectorAutoKey()
     {
-        if(!AutoKey||SelectedLayer is null||_autoKeyEditSnapshot is null||!ReferenceEquals(_autoKeyEditSnapshot.Layer,SelectedLayer))return;
-        var snap=_autoKeyEditSnapshot;_autoKeyEditSnapshot=null;var layer=SelectedLayer;
-        var styleNow=CgAnimationEngine.CaptureStyleJson(layer);
-        var xc=Different(layer.X,snap.X);var yc=Different(layer.Y,snap.Y);var zc=Different(layer.Z,snap.Z);
-        var wc=Different(layer.Width,snap.Width);var hc=Different(layer.Height,snap.Height);
-        var rxc=Different(layer.RotationX,snap.RotationX);var ryc=Different(layer.RotationY,snap.RotationY);var rzc=Different(layer.Rotation,snap.Rotation);
-        var oc=Different(layer.Opacity,snap.Opacity);var sxc=Different(layer.ScaleX,snap.ScaleX);var syc=Different(layer.ScaleY,snap.ScaleY);var szc=Different(layer.ScaleZ,snap.ScaleZ);
-        var axc=Different(layer.AnchorX,snap.AnchorX);var ayc=Different(layer.AnchorY,snap.AnchorY);var azc=Different(layer.AnchorZ,snap.AnchorZ);
-        var styleChanged=!string.Equals(styleNow,snap.StyleJson,StringComparison.Ordinal);
-        if(!(xc||yc||zc||wc||hc||rxc||ryc||rzc||oc||sxc||syc||szc||axc||ayc||azc||styleChanged))return;
-        const double tolerance=.002;layer.Keyframes??=[];
-        if(Playhead<=tolerance)
+        if (SelectedLayer is null) return;
+        var layer = SelectedLayer;
+        var styleNow = CgAnimationEngine.CaptureStyleJson(layer);
+
+        // Case 1: An explicit keyframe is selected in the timeline
+        if (SelectedKeyframe is not null && layer.Keyframes != null && layer.Keyframes.Contains(SelectedKeyframe))
         {
-            var zero=layer.Keyframes.FirstOrDefault(k=>Math.Abs(k.TimeSeconds)<=tolerance);
-            if(zero is not null)CopyLayerTransformToKeyframe(layer,zero,styleNow);
+            SelectedKeyframe.X = layer.X;
+            SelectedKeyframe.Y = layer.Y;
+            SelectedKeyframe.Z = layer.Z;
+            SelectedKeyframe.Width = layer.Width;
+            SelectedKeyframe.Height = layer.Height;
+            SelectedKeyframe.RotationX = layer.RotationX;
+            SelectedKeyframe.RotationY = layer.RotationY;
+            SelectedKeyframe.Rotation = layer.Rotation;
+            SelectedKeyframe.Opacity = layer.Opacity;
+            SelectedKeyframe.ScaleX = layer.ScaleX;
+            SelectedKeyframe.ScaleY = layer.ScaleY;
+            SelectedKeyframe.ScaleZ = layer.ScaleZ;
+            SelectedKeyframe.AnchorX = layer.AnchorX;
+            SelectedKeyframe.AnchorY = layer.AnchorY;
+            SelectedKeyframe.AnchorZ = layer.AnchorZ;
+            SelectedKeyframe.SkewX = layer.SkewX;
+            SelectedKeyframe.SkewY = layer.SkewY;
+            SelectedKeyframe.StyleJson = styleNow;
+            _autoKeyEditSnapshot = CaptureLayerEditSnapshot(layer);
             return;
         }
-        if(layer.Keyframes.Count==0)
+
+        // Case 2: AutoKey is enabled
+        if (!AutoKey) return;
+
+        layer.Keyframes ??= [];
+        const double tolerance = .002;
+
+        if (Playhead <= tolerance)
         {
-            var baseState=new CgAnimationEngine.MotionState(snap.X,snap.Y,snap.Z,snap.Width,snap.Height,snap.RotationX,snap.RotationY,snap.Rotation,snap.Opacity,snap.ScaleX,snap.ScaleY,snap.ScaleZ,snap.AnchorX,snap.AnchorY,snap.AnchorZ,0,0,0);
-            var baseKey=KeyframeFromMotion(0,baseState,layer.DefaultEase);baseKey.StyleJson=snap.StyleJson;layer.Keyframes.Add(baseKey);
+            var zero = layer.Keyframes.FirstOrDefault(k => Math.Abs(k.TimeSeconds) <= tolerance);
+            if (zero is not null)
+            {
+                CopyLayerTransformToKeyframe(layer, zero, styleNow);
+                _autoKeyEditSnapshot = CaptureLayerEditSnapshot(layer);
+                return;
+            }
         }
-        var state=CgAnimationEngine.EvaluateLayerLocal(layer,Playhead);
-        var key=layer.Keyframes.OrderBy(k=>Math.Abs(k.TimeSeconds-Playhead)).FirstOrDefault(k=>Math.Abs(k.TimeSeconds-Playhead)<=tolerance)??KeyframeFromMotion(Playhead,state,layer.DefaultEase);
-        if(!layer.Keyframes.Contains(key))layer.Keyframes.Add(key);
-        if(xc)key.X=layer.X;if(yc)key.Y=layer.Y;if(zc)key.Z=layer.Z;if(wc)key.Width=layer.Width;if(hc)key.Height=layer.Height;
-        if(rxc)key.RotationX=layer.RotationX;if(ryc)key.RotationY=layer.RotationY;if(rzc)key.Rotation=layer.Rotation;if(oc)key.Opacity=layer.Opacity;
-        if(sxc)key.ScaleX=layer.ScaleX;if(syc)key.ScaleY=layer.ScaleY;if(szc)key.ScaleZ=layer.ScaleZ;if(axc)key.AnchorX=layer.AnchorX;if(ayc)key.AnchorY=layer.AnchorY;if(azc)key.AnchorZ=layer.AnchorZ;
-        if(styleChanged)key.StyleJson=styleNow;
-        Keyframes.Clear();foreach(var frame in layer.Keyframes.OrderBy(k=>k.TimeSeconds))Keyframes.Add(frame);SelectedKeyframe=key;
-        SyncLayersToProject();_main.SaveCgProjects();RenderAll();
+
+        if (layer.Keyframes.Count == 0)
+        {
+            var baseState = new CgAnimationEngine.MotionState(
+                layer.X, layer.Y, layer.Z, layer.Width, layer.Height,
+                layer.RotationX, layer.RotationY, layer.Rotation, layer.Opacity,
+                layer.ScaleX, layer.ScaleY, layer.ScaleZ,
+                layer.AnchorX, layer.AnchorY, layer.AnchorZ,
+                layer.SkewX, layer.SkewY, layer.BlurRadius);
+            var baseKey = KeyframeFromMotion(0, baseState, layer.DefaultEase);
+            baseKey.StyleJson = styleNow;
+            layer.Keyframes.Add(baseKey);
+        }
+
+        var key = layer.Keyframes.OrderBy(k => Math.Abs(k.TimeSeconds - Playhead)).FirstOrDefault(k => Math.Abs(k.TimeSeconds - Playhead) <= tolerance);
+        if (key is null)
+        {
+            var state = CgAnimationEngine.EvaluateLayerLocal(layer, Playhead);
+            key = KeyframeFromMotion(Playhead, state, layer.DefaultEase);
+            layer.Keyframes.Add(key);
+        }
+
+        key.X = layer.X; key.Y = layer.Y; key.Z = layer.Z;
+        key.Width = layer.Width; key.Height = layer.Height;
+        key.RotationX = layer.RotationX; key.RotationY = layer.RotationY; key.Rotation = layer.Rotation;
+        key.Opacity = layer.Opacity;
+        key.ScaleX = layer.ScaleX; key.ScaleY = layer.ScaleY; key.ScaleZ = layer.ScaleZ;
+        key.AnchorX = layer.AnchorX; key.AnchorY = layer.AnchorY; key.AnchorZ = layer.AnchorZ;
+        key.SkewX = layer.SkewX; key.SkewY = layer.SkewY;
+        key.StyleJson = styleNow;
+
+        Keyframes.Clear();
+        foreach (var frame in layer.Keyframes.OrderBy(k => k.TimeSeconds)) Keyframes.Add(frame);
+        SelectedKeyframe = key;
+        _autoKeyEditSnapshot = CaptureLayerEditSnapshot(layer);
+        SyncLayersToProject();
+        _main.SaveCgProjects();
+        RenderAll();
     }
 
-    private static void CopyLayerTransformToKeyframe(CgLayer layer,CgKeyframe key,string styleJson)
+    private static void CopyLayerTransformToKeyframe(CgLayer layer, CgKeyframe key, string styleJson)
     {
-        key.X=layer.X;key.Y=layer.Y;key.Z=layer.Z;key.Width=layer.Width;key.Height=layer.Height;
-        key.RotationX=layer.RotationX;key.RotationY=layer.RotationY;key.Rotation=layer.Rotation;key.Opacity=layer.Opacity;
-        key.ScaleX=layer.ScaleX;key.ScaleY=layer.ScaleY;key.ScaleZ=layer.ScaleZ;key.AnchorX=layer.AnchorX;key.AnchorY=layer.AnchorY;key.AnchorZ=layer.AnchorZ;key.StyleJson=styleJson;
+        key.X = layer.X; key.Y = layer.Y; key.Z = layer.Z; key.Width = layer.Width; key.Height = layer.Height;
+        key.RotationX = layer.RotationX; key.RotationY = layer.RotationY; key.Rotation = layer.Rotation; key.Opacity = layer.Opacity;
+        key.ScaleX = layer.ScaleX; key.ScaleY = layer.ScaleY; key.ScaleZ = layer.ScaleZ; key.AnchorX = layer.AnchorX; key.AnchorY = layer.AnchorY; key.AnchorZ = layer.AnchorZ;
+        key.SkewX = layer.SkewX; key.SkewY = layer.SkewY;
+        key.StyleJson = styleJson;
     }
 
     private static CgKeyframe CloneKeyframe(CgKeyframe k) => new()
@@ -1794,7 +1966,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     }
     private static CgLayer CloneLayer(CgLayer l, string name, double dx = 0, double dy = 0) => new()
     {
-        Name=name, Type=l.Type, Role=l.Role, ShapeKind=l.ShapeKind, Text=l.Text, Source=l.Source, BlendMode=l.BlendMode, MaskEnabled=l.MaskEnabled, MaskShape=l.MaskShape, MaskX=l.MaskX+dx, MaskY=l.MaskY+dy, MaskWidth=l.MaskWidth, MaskHeight=l.MaskHeight, MaskCornerRadius=l.MaskCornerRadius, MaskFeather=l.MaskFeather, MaskInvert=l.MaskInvert, ExternalProjectSource=l.ExternalProjectSource, ExternalComposition=l.ExternalComposition, ExternalProjectKind=l.ExternalProjectKind, Precomposition=ClonePrecomposition(l.Precomposition), VideoSourceKind=l.VideoSourceKind, VideoInputFormat=l.VideoInputFormat, VideoInputOptions=l.VideoInputOptions, VideoDevice=l.VideoDevice, AudioDevice=l.AudioDevice, AlternateAudioUrl=l.AlternateAudioUrl, VideoIsLiveSource=l.VideoIsLiveSource, VideoCaptureWidth=l.VideoCaptureWidth, VideoCaptureHeight=l.VideoCaptureHeight, VideoSourceFrameRate=l.VideoSourceFrameRate,
+        Name=name, Type=l.Type, Role=l.Role, ShapeKind=l.ShapeKind, ShapePathData=l.ShapePathData, ShapePathClosed=l.ShapePathClosed, Text=l.Text, Source=l.Source, BlendMode=l.BlendMode, MaskEnabled=l.MaskEnabled, MaskShape=l.MaskShape, MaskPathData=l.MaskPathData, MaskX=l.MaskX+dx, MaskY=l.MaskY+dy, MaskWidth=l.MaskWidth, MaskHeight=l.MaskHeight, MaskCornerRadius=l.MaskCornerRadius, MaskFeather=l.MaskFeather, MaskInvert=l.MaskInvert, ExternalProjectSource=l.ExternalProjectSource, ExternalComposition=l.ExternalComposition, ExternalProjectKind=l.ExternalProjectKind, Precomposition=ClonePrecomposition(l.Precomposition), VideoSourceKind=l.VideoSourceKind, VideoInputFormat=l.VideoInputFormat, VideoInputOptions=l.VideoInputOptions, VideoDevice=l.VideoDevice, AudioDevice=l.AudioDevice, AlternateAudioUrl=l.AlternateAudioUrl, VideoIsLiveSource=l.VideoIsLiveSource, VideoCaptureWidth=l.VideoCaptureWidth, VideoCaptureHeight=l.VideoCaptureHeight, VideoSourceFrameRate=l.VideoSourceFrameRate,
         X=l.X+dx, Y=l.Y+dy, Z=l.Z, Width=l.Width, Height=l.Height, ScaleX=l.ScaleX, ScaleY=l.ScaleY, ScaleZ=l.ScaleZ, RotationX=l.RotationX, RotationY=l.RotationY, AnchorX=l.AnchorX, AnchorY=l.AnchorY, AnchorZ=l.AnchorZ, Perspective=l.Perspective, FontSize=l.FontSize, FontFamily=l.FontFamily,
         Fill=l.Fill, Background=l.Background, StartSeconds=l.StartSeconds, EndSeconds=l.EndSeconds,
         AnimationIn=l.AnimationIn, AnimationOut=l.AnimationOut, AnimationInSeconds=l.AnimationInSeconds, AnimationOutSeconds=l.AnimationOutSeconds, Speed=l.Speed, Rotation=l.Rotation, Opacity=l.Opacity,
@@ -1828,10 +2000,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedProject is null) return;
-        var name = PromptText("Save CG", "CG name", SelectedProject.Name, "SAVE");
-        if (string.IsNullOrWhiteSpace(name)) return;
-        SelectedProject.Name = name.Trim();
-        SyncLayersToProject(); _main.SaveCgProjects(); ProjectView.Refresh(); Raise(nameof(TemplateCountText));
+        SyncLayersToProject();
+        _main.SaveCgProjects();
+        ProjectView.Refresh();
+        Raise(nameof(TemplateCountText));
     }
     private void SaveAs_Click(object sender, RoutedEventArgs e)
     {
@@ -2821,52 +2993,11 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); Raise(nameof(SelectedLayer)); RenderAll();
     }
 
-    private static void UpdateKeyframesForLayerProperty(CgLayer? layer, string propertyName, object? value)
-    {
-        if (layer?.Keyframes is null || layer.Keyframes.Count == 0) return;
-        foreach (var kf in layer.Keyframes)
-        {
-            if (!string.IsNullOrWhiteSpace(kf.StyleJson))
-            {
-                try
-                {
-                    var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(kf.StyleJson);
-                    if (dict is not null)
-                    {
-                        dict[propertyName] = value;
-                        kf.StyleJson = JsonSerializer.Serialize(dict);
-                    }
-                }
-                catch { }
-            }
-        }
-    }
+
 
     private void Inspector_LostFocus(object sender, RoutedEventArgs e)
     {
         RecordUndoSnapshot();
-        if (SelectedLayer is not null)
-        {
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.FontSize), SelectedLayer.FontSize);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.HorizontalTextAlignment), SelectedLayer.HorizontalTextAlignment);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.VerticalTextAlignment), SelectedLayer.VerticalTextAlignment);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.FontFamily), SelectedLayer.FontFamily);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.Fill), SelectedLayer.Fill);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.TextAnimationDelaySeconds), SelectedLayer.TextAnimationDelaySeconds);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.AnimationInSeconds), SelectedLayer.AnimationInSeconds);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.AnimationOutSeconds), SelectedLayer.AnimationOutSeconds);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.AnimationBlurRadius), SelectedLayer.AnimationBlurRadius);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.AnimationGlowRadius), SelectedLayer.AnimationGlowRadius);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.AnimationGlowColor), SelectedLayer.AnimationGlowColor);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.TextAnimationScaleStart), SelectedLayer.TextAnimationScaleStart);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.TextAnimationScaleEnd), SelectedLayer.TextAnimationScaleEnd);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.MaskFeather), SelectedLayer.MaskFeather);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.MaskCornerRadius), SelectedLayer.MaskCornerRadius);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.MaskX), SelectedLayer.MaskX);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.MaskY), SelectedLayer.MaskY);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.MaskWidth), SelectedLayer.MaskWidth);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.MaskHeight), SelectedLayer.MaskHeight);
-        }
         CommitInspectorAutoKey();
         SyncLayersToProject();
         _main.SaveCgProjects();
@@ -2883,14 +3014,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         if (!IsLoaded) return;
         RecordUndoSnapshot();
-        if (SelectedLayer is not null)
-        {
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.HorizontalTextAlignment), SelectedLayer.HorizontalTextAlignment);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.VerticalTextAlignment), SelectedLayer.VerticalTextAlignment);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.AnimationIn), SelectedLayer.AnimationIn);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.AnimationOut), SelectedLayer.AnimationOut);
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.TextAnimationPreset), SelectedLayer.TextAnimationPreset);
-        }
         CommitInspectorAutoKey();
         SyncLayersToProject();
         _main.SaveCgProjects();
@@ -2901,11 +3024,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         if (!IsLoaded || SelectedLayer is null) return;
         RecordUndoSnapshot();
-        UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.Bold), SelectedLayer.Bold);
-        UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.Italic), SelectedLayer.Italic);
-        UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.Underline), SelectedLayer.Underline);
-        UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.ShadowEnabled), SelectedLayer.ShadowEnabled);
-        UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.AutoConvertToPreeti), SelectedLayer.AutoConvertToPreeti);
         CommitInspectorAutoKey();
         SyncLayersToProject();
         _main.SaveCgProjects();
@@ -3100,7 +3218,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var textEvalTime = visualLayer.DataSourceId != Guid.Empty ? ContinuousPlaybackSeconds : Playhead;
             var resolvedText=CgAnimationEngine.ResolveAnimatedText(visualLayer,CgDataSourceService.ResolveLayerText(project,visualLayer,ContinuousPlaybackSeconds),textEvalTime);
             var el = BuildElement(project, visualLayer, sx, sy, resolvedText); if (el is null) continue;
-            var baseW = Math.Max(2, (motion.Width > 0 ? motion.Width : visualLayer.Width) * sx); var baseH = Math.Max(2, (motion.Height > 0 ? motion.Height : visualLayer.Height) * sy);
+            // EvaluateLayer already bakes keyframed scale, Z perspective and X/Y rotation
+            // foreshortening into X/Y/Width/Height. Use that geometry exactly as the software
+            // compositor does so editor, controller and program remain pixel-proportional.
+            var baseW = Math.Max(2, motion.Width * sx); var baseH = Math.Max(2, motion.Height * sy);
             var x = motion.X * sx; var y = motion.Y * sy; var w = baseW; var h = baseH;
             if (string.Equals(visualLayer.Type, "Ticker", StringComparison.OrdinalIgnoreCase))
             {
@@ -3143,16 +3264,11 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                     tb.Effect = new System.Windows.Media.Effects.BlurEffect { Radius = effectiveBlur * sy, KernelType = System.Windows.Media.Effects.KernelType.Gaussian };
                 }
             }
-            var pz = 1000.0 / Math.Max(100.0, 1000.0 + motion.Z + motion.AnchorZ);
-            var totalScaleX = motion.ScaleX * pz;
-            var totalScaleY = motion.ScaleY * pz;
             var anchorPxX = w * Math.Clamp(motion.AnchorX, 0, 1);
             var anchorPxY = h * Math.Clamp(motion.AnchorY, 0, 1);
             var group = new TransformGroup();
-            if (Math.Abs(totalScaleX - 1.0) > .001 || Math.Abs(totalScaleY - 1.0) > .001)
-                group.Children.Add(new ScaleTransform(totalScaleX, totalScaleY, anchorPxX, anchorPxY));
-            var skewX = Math.Clamp(motion.SkewX + motion.RotationY * .35, -70, 70);
-            var skewY = Math.Clamp(motion.SkewY - motion.RotationX * .35, -70, 70);
+            var skewX = Math.Clamp(motion.SkewX + Math.Tan(motion.RotationY * Math.PI / 180.0) * 35.0, -75, 75);
+            var skewY = Math.Clamp(motion.SkewY - Math.Tan(motion.RotationX * Math.PI / 180.0) * 35.0, -75, 75);
             if (Math.Abs(skewX) > .001 || Math.Abs(skewY) > .001)
                 group.Children.Add(new SkewTransform(skewX, skewY, anchorPxX, anchorPxY));
             if (Math.Abs(motion.Rotation) > .001)
@@ -3172,6 +3288,30 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         }
         DrawSafeAreaGuides();
         DrawPreviewSelection(project, sx, sy);
+        DrawPenGuide(sx, sy);
+    }
+
+    private void DrawPenGuide(double sx, double sy)
+    {
+        if (!_penDrawing) return;
+        if (_penPoints.Count > 0)
+        {
+            var line = new Polyline
+            {
+                Points = new PointCollection(_penPoints.Select(p => new Point(p.X * sx, p.Y * sy))),
+                Stroke = _penCreatesMask ? Brushes.DeepSkyBlue : Brushes.Gold,
+                StrokeThickness = 2,
+                StrokeDashArray = new DoubleCollection { 5, 3 },
+                IsHitTestVisible = false
+            };
+            Panel.SetZIndex(line, 2000); PreviewCanvas.Children.Add(line);
+        }
+        foreach (var point in _penPoints)
+        {
+            var node = new Ellipse { Width = 9, Height = 9, Fill = Brushes.White, Stroke = _penCreatesMask ? Brushes.DeepSkyBlue : Brushes.Gold, StrokeThickness = 2, IsHitTestVisible = false };
+            Canvas.SetLeft(node, point.X * sx - 4.5); Canvas.SetTop(node, point.Y * sy - 4.5);
+            Panel.SetZIndex(node, 2001); PreviewCanvas.Children.Add(node);
+        }
     }
 
     private static readonly Dictionary<string, Brush> _maskBrushCache = new();
@@ -3219,8 +3359,12 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var radius = Math.Clamp(layer.MaskCornerRadius * Math.Min(sx, sy), 0.0, Math.Min(mw, mh) / 2.0);
         var shape = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant();
         var invert = layer.MaskInvert;
+        var customMask = shape == "CUSTOM PATH"
+            ? CgPathData.Parse(layer.MaskPathData)
+                .Select(p => new CgPathData.Point(mx + p.X * mw, my + p.Y * mh)).ToArray()
+            : [];
 
-        var cacheKey = $"{shape}_{mx:0.#}_{my:0.#}_{mw:0.#}_{mh:0.#}_{feather:0.#}_{radius:0.#}_{invert}_{canvasWidth}_{canvasHeight}";
+        var cacheKey = $"{shape}_{layer.MaskPathData}_{mx:0.#}_{my:0.#}_{mw:0.#}_{mh:0.#}_{feather:0.#}_{radius:0.#}_{invert}_{canvasWidth}_{canvasHeight}";
         if (_maskBrushCache.TryGetValue(cacheKey, out var cached))
             return cached;
 
@@ -3234,7 +3378,15 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 var px = x + 0.5;
                 var py = y + 0.5;
                 double coverage;
-                if (shape == "ELLIPSE")
+                if (customMask.Length >= 3)
+                {
+                    var inside = CgPathData.Contains(customMask, px, py);
+                    var edge = CgPathData.DistanceToEdges(customMask, px, py);
+                    var signedDistance = inside ? -edge : edge;
+                    var t = Math.Clamp(0.5 - signedDistance / feather, 0.0, 1.0);
+                    coverage = t * t * (3.0 - 2.0 * t);
+                }
+                else if (shape == "ELLIPSE")
                 {
                     var rx = mw / 2.0; var ry = mh / 2.0;
                     var nx = (px - (mx + rx)) / Math.Max(.0001, rx);
@@ -3294,12 +3446,29 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var rect = new Rect(mxProject * sx, myProject * sy, Math.Max(1, mwProject * sx), Math.Max(1, mhProject * sy));
         Geometry mask = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant() switch
         {
+            "CUSTOM PATH" => BuildNormalizedPathGeometry(layer.MaskPathData, rect, true),
             "ELLIPSE" => new EllipseGeometry(rect),
             "ROUNDED RECTANGLE" => new RectangleGeometry(rect, Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy)), Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy))),
             _ => new RectangleGeometry(rect)
         };
         if (!layer.MaskInvert) return mask;
         return new CombinedGeometry(GeometryCombineMode.Exclude, new RectangleGeometry(new Rect(0, 0, canvasWidth, canvasHeight)), mask);
+    }
+
+    private static Geometry BuildNormalizedPathGeometry(string? data, Rect bounds, bool closed)
+    {
+        var points = CgPathData.Parse(data)
+            .Select(p => new Point(bounds.Left + p.X * bounds.Width, bounds.Top + p.Y * bounds.Height))
+            .ToArray();
+        if (points.Length == 0) return new RectangleGeometry(bounds);
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.BeginFigure(points[0], isFilled: closed, isClosed: closed);
+            if (points.Length > 1) context.PolyLineTo(points.Skip(1).ToArray(), isStroked: true, isSmoothJoin: true);
+        }
+        geometry.Freeze();
+        return geometry;
     }
 
     private void DrawCanvasGrid()
@@ -3402,17 +3571,12 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             baseH = Math.Max(8, motion.Height * sy);
             x = motion.X * sx; y = motion.Y * sy;
 
-            var pz = 1000.0 / Math.Max(100.0, 1000.0 + motion.Z + motion.AnchorZ);
-            var totalScaleX = motion.ScaleX * pz;
-            var totalScaleY = motion.ScaleY * pz;
             var anchorPxX = baseW * Math.Clamp(motion.AnchorX, 0, 1);
             var anchorPxY = baseH * Math.Clamp(motion.AnchorY, 0, 1);
 
             group = new TransformGroup();
-            if (Math.Abs(totalScaleX - 1.0) > .001 || Math.Abs(totalScaleY - 1.0) > .001)
-                group.Children.Add(new ScaleTransform(totalScaleX, totalScaleY, anchorPxX, anchorPxY));
-            var skewX = Math.Clamp(motion.SkewX + motion.RotationY * .35, -70, 70);
-            var skewY = Math.Clamp(motion.SkewY - motion.RotationX * .35, -70, 70);
+            var skewX = Math.Clamp(motion.SkewX + Math.Tan(motion.RotationY * Math.PI / 180.0) * 35.0, -75, 75);
+            var skewY = Math.Clamp(motion.SkewY - Math.Tan(motion.RotationX * Math.PI / 180.0) * 35.0, -75, 75);
             if (Math.Abs(skewX) > .001 || Math.Abs(skewY) > .001)
                 group.Children.Add(new SkewTransform(skewX, skewY, anchorPxX, anchorPxY));
             if (Math.Abs(motion.Rotation) > .001)
@@ -3439,23 +3603,36 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var maskRect = new Rect(mxProject * sx, myProject * sy, Math.Max(1, mwProject * sx), Math.Max(1, mhProject * sy));
             Geometry maskGeometry = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant() switch
             {
+                "CUSTOM PATH" => BuildNormalizedPathGeometry(layer.MaskPathData, maskRect, true),
                 "ELLIPSE" => new EllipseGeometry(maskRect),
                 "ROUNDED RECTANGLE" => new RectangleGeometry(maskRect, Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy)), Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy))),
                 _ => new RectangleGeometry(maskRect)
             };
             var maskGuide = new System.Windows.Shapes.Path
             {
-                Data = maskGeometry, Fill = Brushes.Transparent, Stroke = new SolidColorBrush(Color.FromRgb(74, 225, 255)), StrokeThickness = 1.4,
-                StrokeDashArray = new DoubleCollection { 5, 3 }, IsHitTestVisible = false,
-                ToolTip = "Fixed canvas mask: animation remains active outside this boundary but is not visible"
+                Data = maskGeometry, Fill = new SolidColorBrush(Color.FromArgb(24, 74, 225, 255)), Stroke = new SolidColorBrush(Color.FromRgb(74, 225, 255)), StrokeThickness = 1.6,
+                StrokeDashArray = new DoubleCollection { 5, 3 },
+                Tag = new PreviewHit { Layer = layer, Mode = "move_mask" },
+                Cursor = Cursors.SizeAll,
+                ToolTip = "Drag mask to reposition · Use corner/edge handles to resize mask"
             };
             Panel.SetZIndex(maskGuide, 995); PreviewCanvas.Children.Add(maskGuide);
             var maskLabel = new Border
             {
                 Background = new SolidColorBrush(Color.FromArgb(220, 2, 24, 31)), BorderBrush = new SolidColorBrush(Color.FromRgb(74,225,255)), BorderThickness = new Thickness(1), Padding = new Thickness(4,1,4,1), IsHitTestVisible = false,
-                Child = new TextBlock { Text = $"MASK · {layer.MaskShape}{(layer.MaskInvert ? " · INVERT" : "")} · FEATHER {layer.MaskFeather:0.#}", Foreground = new SolidColorBrush(Color.FromRgb(126,236,255)), FontSize = 8 }
+                Child = new TextBlock { Text = $"MASK · {layer.MaskShape}{(layer.MaskInvert ? " · INVERT" : "")} · {layer.MaskWidth:0}×{layer.MaskHeight:0} (DRAG / RESIZE)", Foreground = new SolidColorBrush(Color.FromRgb(126,236,255)), FontSize = 8 }
             };
             Canvas.SetLeft(maskLabel, Math.Max(0, maskRect.Left)); Canvas.SetTop(maskLabel, Math.Max(0, maskRect.Top - 18)); Panel.SetZIndex(maskLabel, 996); PreviewCanvas.Children.Add(maskLabel);
+
+            var mx = maskRect.Left; var my = maskRect.Top; var mw = maskRect.Width; var mh = maskRect.Height;
+            AddPreviewHandle(layer, "mask_nw", mx - 5, my - 5, Cursors.SizeNWSE, Brushes.DeepSkyBlue, Brushes.White);
+            AddPreviewHandle(layer, "mask_ne", mx + mw - 5, my - 5, Cursors.SizeNESW, Brushes.DeepSkyBlue, Brushes.White);
+            AddPreviewHandle(layer, "mask_sw", mx - 5, my + mh - 5, Cursors.SizeNESW, Brushes.DeepSkyBlue, Brushes.White);
+            AddPreviewHandle(layer, "mask_se", mx + mw - 5, my + mh - 5, Cursors.SizeNWSE, Brushes.DeepSkyBlue, Brushes.White);
+            AddPreviewHandle(layer, "mask_n", mx + mw / 2 - 5, my - 5, Cursors.SizeNS, Brushes.DeepSkyBlue, Brushes.White);
+            AddPreviewHandle(layer, "mask_s", mx + mw / 2 - 5, my + mh - 5, Cursors.SizeNS, Brushes.DeepSkyBlue, Brushes.White);
+            AddPreviewHandle(layer, "mask_w", mx - 5, my + mh / 2 - 5, Cursors.SizeWE, Brushes.DeepSkyBlue, Brushes.White);
+            AddPreviewHandle(layer, "mask_e", mx + mw - 5, my + mh / 2 - 5, Cursors.SizeWE, Brushes.DeepSkyBlue, Brushes.White);
         }
 
         if (layer.SqueezeProgram && layer.SqueezeWidth > 0 && layer.SqueezeHeight > 0)
@@ -3790,12 +3967,50 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 ? layer.DataItemDurationSeconds
                 : Math.Max(1.5, 360.0 / speed);
             var pushElapsed = Math.Max(0, ContinuousPlaybackSeconds - layer.StartSeconds);
-            var totalCycleDuration = list.Count * hold;
+            // Resolve data-source items before calculating the push index. Previously this
+            // happened later in the crawl-only path, so a JSON-backed Push ticker usually
+            // contained one already-resolved string and appeared not to move at all.
+            if (layer.DataSourceId != Guid.Empty && SelectedProject?.DataSources is not null)
+            {
+                var pushSource = SelectedProject.DataSources.FirstOrDefault(x => x.Id == layer.DataSourceId);
+                var pushRows = pushSource is null ? null : CgDataRuntime.Shared.GetRows(pushSource);
+                if (pushRows is { Count: > 0 })
+                {
+                    var schedule = CgDataSourceService.BuildCategoryFeedSchedule(
+                        SelectedProject, layer, pushRows,
+                        layer.Width > 10 ? layer.Width : SelectedProject.Width, speed);
+                    if (schedule.Categories.Count > 0)
+                    {
+                        var (activeCategory, categoryElapsed, _) = schedule.Evaluate(Math.Max(0, ContinuousPlaybackSeconds));
+                        list = activeCategory.Items
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Select(x => (activeCategory.Category, x, false))
+                            .ToList();
+                        if (list.Count == 0 && !string.IsNullOrWhiteSpace(activeCategory.CombinedItemsText))
+                            list.Add((activeCategory.Category, activeCategory.CombinedItemsText, false));
+                        pushElapsed = Math.Max(0, categoryElapsed - CgDataSourceService.CategoryIntroSeconds);
+                    }
+                }
+            }
+            if (list.Count == 0) list.Add(("", raw, false));
+            var gapSec = layer.TickerGap switch
+            {
+                > 10 => layer.TickerGap / 1000.0,
+                > 0 => layer.TickerGap,
+                _ => 0
+            };
+            // Category schedules are gapless; static push tickers honor their authored gap.
+            if (layer.DataSourceId != Guid.Empty) gapSec = 0;
+            var itemTotalTime = Math.Max(0.1, hold + gapSec);
+            var totalCycleDuration = list.Count * itemTotalTime;
             var cycleElapsed = totalCycleDuration > 0.05 ? (pushElapsed % totalCycleDuration) : pushElapsed;
-            var index = (int)Math.Floor(cycleElapsed / hold) % list.Count;
-            var local = (cycleElapsed % hold) / hold;
+            var index = (int)Math.Floor(cycleElapsed / itemTotalTime) % list.Count;
+            var itemElapsed = cycleElapsed % itemTotalTime;
             var next = (index + 1) % list.Count;
-            var pVal = local < .72 ? 0.0 : ((local - .72) / .28);
+            var transDur = Math.Min(0.6, hold * 0.28);
+            var transStart = Math.Max(0.0, hold - transDur);
+            var pVal = itemElapsed < transStart ? 0.0 : (itemElapsed - transStart) / Math.Max(.001, transDur);
+            pVal = Math.Clamp(pVal, 0, 1);
             var pSmooth = pVal * pVal * (3 - 2 * pVal);
 
             FrameworkElement CreateSegmentVisual((string Cat, string Text, bool IsBadge) seg)
@@ -3845,23 +4060,48 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
             var curTop = Math.Max(0, (layerH - (curVis.DesiredSize.Height > 0 ? curVis.DesiredSize.Height : fontSize * 1.2)) / 2.0);
             var nextTop = Math.Max(0, (layerH - (nextVis.DesiredSize.Height > 0 ? nextVis.DesiredSize.Height : fontSize * 1.2)) / 2.0);
+            var direction = (layer.TickerDirection ?? "Left").Trim().ToUpperInvariant();
 
-            Canvas.SetTop(curVis, curTop);
-            Canvas.SetTop(nextVis, nextTop);
-
-            if (isRight)
+            // Match the program compositor's first-item entrance. This was previously
+            // omitted in the editor, and Up/Down were incorrectly treated as Left.
+            if (pushElapsed < transDur)
             {
-                Canvas.SetLeft(curVis, pSmooth * layerW);
-                Canvas.SetLeft(nextVis, -(1 - pSmooth) * layerW);
+                var enterRaw = Math.Clamp(pushElapsed / Math.Max(.001, transDur), 0, 1);
+                var enter = enterRaw * enterRaw * (3 - 2 * enterRaw);
+                Canvas.SetLeft(curVis, direction == "RIGHT" ? -(1 - enter) * layerW : 10);
+                Canvas.SetTop(curVis, direction switch
+                {
+                    "UP" => curTop + (1 - enter) * layerH,
+                    "DOWN" => curTop - (1 - enter) * layerH,
+                    _ => curTop
+                });
+                if (direction == "LEFT") Canvas.SetLeft(curVis, (1 - enter) * layerW);
+                pushCanvas.Children.Add(curVis);
             }
             else
             {
-                Canvas.SetLeft(curVis, -pSmooth * layerW);
-                Canvas.SetLeft(nextVis, (1 - pSmooth) * layerW);
+                switch (direction)
+                {
+                    case "UP":
+                        Canvas.SetLeft(curVis, 10); Canvas.SetTop(curVis, curTop - pSmooth * layerH);
+                        Canvas.SetLeft(nextVis, 10); Canvas.SetTop(nextVis, nextTop + (1 - pSmooth) * layerH);
+                        break;
+                    case "DOWN":
+                        Canvas.SetLeft(curVis, 10); Canvas.SetTop(curVis, curTop + pSmooth * layerH);
+                        Canvas.SetLeft(nextVis, 10); Canvas.SetTop(nextVis, nextTop - (1 - pSmooth) * layerH);
+                        break;
+                    case "RIGHT":
+                        Canvas.SetTop(curVis, curTop); Canvas.SetTop(nextVis, nextTop);
+                        Canvas.SetLeft(curVis, pSmooth * layerW); Canvas.SetLeft(nextVis, -(1 - pSmooth) * layerW);
+                        break;
+                    default:
+                        Canvas.SetTop(curVis, curTop); Canvas.SetTop(nextVis, nextTop);
+                        Canvas.SetLeft(curVis, -pSmooth * layerW); Canvas.SetLeft(nextVis, (1 - pSmooth) * layerW);
+                        break;
+                }
+                pushCanvas.Children.Add(curVis);
+                if (pSmooth > .001) pushCanvas.Children.Add(nextVis);
             }
-
-            pushCanvas.Children.Add(curVis);
-            pushCanvas.Children.Add(nextVis);
 
             return new Border
             {
@@ -4107,8 +4347,12 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var totalW = Math.Max(20.0, p.DesiredSize.Width);
 
         var elapsed = Math.Max(0, ContinuousPlaybackSeconds - layer.StartSeconds);
-        var travelled = (elapsed * speedPx) % Math.Max(1.0, totalW);
-        var startX = isRight ? (-totalW + travelled) : (layerW - travelled);
+        var distance = elapsed * speedPx;
+        var repeating = layer.TickerRepeat && distance >= totalW;
+        var phase = repeating ? (distance - totalW) % Math.Max(1.0, totalW) : distance;
+        var startX = isRight
+            ? (repeating ? phase : -totalW + distance)
+            : (repeating ? layerW - totalW - phase : layerW - distance);
 
         var crawlCanvas = new Canvas
         {
@@ -4121,7 +4365,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         Canvas.SetTop(p, top);
         crawlCanvas.Children.Add(p);
 
-        if (layer.TickerRepeat || totalW < layerW * 2)
+        if (repeating)
         {
             StackPanel CreateDuplicatePanel()
             {
@@ -4376,17 +4620,69 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         if(layer.UseGradient) bg=CreatePreviewGradientBrush(layer,layer.Background,layer.GradientColor2);
         var kind=(layer.ShapeKind??"Rectangle").ToUpperInvariant();
-        if(kind=="ELLIPSE") return new Ellipse { Fill=bg, Stroke=BrushFrom(layer.BorderColor,fill), StrokeThickness=Math.Max(0,layer.BorderWidth)*.5 };
-        if(kind=="LINE") return new Border { Background=fill, Height=Math.Max(2,layer.BorderWidth) };
-        if(kind is "L-SHAPE" or "LSHAPE" or "U-SHAPE" or "USHAPE")
+        var strokeBrush = BrushFrom(layer.BorderColor, fill);
+        var strokeThickness = Math.Max(0, layer.BorderWidth) * .5;
+
+        if (kind is "CUSTOM PATH" or "PEN PATH")
         {
-            var canvas=new Canvas { Background=Brushes.Transparent };
-            var arm=kind.StartsWith("L")?36:32;
-            canvas.Children.Add(new Border { Background=bg, Width=arm, Height=540 });
-            var bottom=new Border { Background=bg, Width=960, Height=arm }; Canvas.SetTop(bottom,540-arm); canvas.Children.Add(bottom);
-            if(kind.StartsWith("U")){var right=new Border{Background=bg,Width=arm,Height=540};Canvas.SetLeft(right,960-arm);canvas.Children.Add(right);} return canvas;
+            return new System.Windows.Shapes.Path
+            {
+                Data = BuildNormalizedPathGeometry(layer.ShapePathData, new Rect(0, 0, 100, 100), layer.ShapePathClosed),
+                Fill = layer.ShapePathClosed ? bg : Brushes.Transparent,
+                Stroke = strokeBrush,
+                StrokeThickness = Math.Max(1, strokeThickness),
+                Stretch = Stretch.Fill,
+                StrokeLineJoin = PenLineJoin.Round,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round
+            };
         }
-        return new Border { Background=bg, BorderBrush=BrushFrom(layer.BorderColor,Brushes.Transparent), BorderThickness=new Thickness(Math.Max(0,layer.BorderWidth)*.5), CornerRadius=LayerCornerRadius(layer, .5) };
+        if (kind == "ELLIPSE") return new Ellipse { Fill = bg, Stroke = strokeBrush, StrokeThickness = strokeThickness };
+        if (kind == "CIRCLE") return new Ellipse { Fill = bg, Stroke = strokeBrush, StrokeThickness = strokeThickness, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        if (kind == "LINE") return new Border { Background = fill, Height = Math.Max(2, layer.BorderWidth) };
+        if (kind is "L-SHAPE" or "LSHAPE" or "U-SHAPE" or "USHAPE")
+        {
+            var canvas = new Canvas { Background = Brushes.Transparent };
+            var arm = kind.StartsWith("L") ? 36 : 32;
+            canvas.Children.Add(new Border { Background = bg, Width = arm, Height = 540 });
+            var bottom = new Border { Background = bg, Width = 960, Height = arm }; Canvas.SetTop(bottom, 540 - arm); canvas.Children.Add(bottom);
+            if (kind.StartsWith("U")) { var right = new Border { Background = bg, Width = arm, Height = 540 }; Canvas.SetLeft(right, 960 - arm); canvas.Children.Add(right); }
+            return canvas;
+        }
+
+        string? pathData = kind switch
+        {
+            "TRIANGLE" => "M 50,0 L 100,100 L 0,100 Z",
+            "INVERTED TRIANGLE" or "INVERTEDTRIANGLE" => "M 0,0 L 100,0 L 50,100 Z",
+            "DIAMOND" => "M 50,0 L 100,50 L 50,100 L 0,50 Z",
+            "STAR" => "M 50,0 L 63,35 L 100,38 L 73,63 L 81,100 L 50,81 L 19,100 L 27,63 L 0,38 L 37,35 Z",
+            "PENTAGON" => "M 50,0 L 100,38 L 81,100 L 19,100 L 0,38 Z",
+            "HEXAGON" => "M 25,0 L 75,0 L 100,50 L 75,100 L 25,100 L 0,50 Z",
+            "OCTAGON" => "M 29,0 L 71,0 L 100,29 L 100,71 L 71,100 L 29,100 L 0,71 L 0,29 Z",
+            "HEART" => "M 50,30 C 20,0 0,35 0,55 C 0,75 25,90 50,100 C 75,90 100,75 100,55 C 100,35 80,0 50,30 Z",
+            "ARROW RIGHT" or "ARROWRIGHT" => "M 0,25 L 60,25 L 60,0 L 100,50 L 60,100 L 60,75 L 0,75 Z",
+            "ARROW LEFT" or "ARROWLEFT" => "M 40,0 L 40,25 L 100,25 L 100,75 L 40,75 L 40,100 L 0,50 Z",
+            "TRAPEZOID" => "M 20,0 L 80,0 L 100,100 L 0,100 Z",
+            "CROSS / PLUS" or "CROSS" or "PLUS" => "M 35,0 L 65,0 L 65,35 L 100,35 L 100,65 L 65,65 L 65,100 L 35,100 L 35,65 L 0,65 L 0,35 L 35,35 Z",
+            "SPEECH BUBBLE" or "SPEECHBUBBLE" => "M 10,0 L 90,0 C 95,0 100,5 100,10 L 100,70 C 100,75 95,80 90,80 L 35,80 L 15,100 L 20,80 L 10,80 C 5,80 0,75 0,70 L 0,10 C 0,5 5,0 10,0 Z",
+            _ => null
+        };
+
+        if (pathData is not null)
+        {
+            return new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse(pathData),
+                Fill = bg,
+                Stroke = strokeBrush,
+                StrokeThickness = strokeThickness,
+                Stretch = Stretch.Fill,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+        }
+
+        return new Border { Background = bg, BorderBrush = BrushFrom(layer.BorderColor, Brushes.Transparent), BorderThickness = new Thickness(strokeThickness), CornerRadius = LayerCornerRadius(layer, .5) };
     }
     private static CornerRadius LayerCornerRadius(CgLayer layer, double scale)
     {
@@ -5045,11 +5341,27 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                             Text = subLabels[s],
                             Foreground = new SolidColorBrush(Color.FromRgb(150, 165, 180)),
                             FontSize = 8.5,
-                            Width = 120,
+                            Width = 98,
                             IsHitTestVisible = false
                         };
                         Canvas.SetLeft(subText, 6); Canvas.SetTop(subText, subY + 3);
                         TimelineHeadersCanvas.Children.Add(subText);
+
+                        var hasKeyAtPlayhead = (l.Keyframes ?? []).Any(k => Math.Abs(k.TimeSeconds - Playhead) <= 0.04 &&
+                            (string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(propName, StringComparison.OrdinalIgnoreCase)));
+
+                        var kfBtn = new TextBlock
+                        {
+                            Text = hasKeyAtPlayhead ? "◆" : "◇",
+                            Foreground = hasKeyAtPlayhead ? Brushes.Gold : new SolidColorBrush(Color.FromRgb(130, 145, 160)),
+                            FontSize = 9.5,
+                            FontWeight = FontWeights.Bold,
+                            Cursor = Cursors.Hand,
+                            ToolTip = hasKeyAtPlayhead ? $"Remove {propName} keyframe at {Playhead:0.00}s" : $"Add {propName} keyframe at {Playhead:0.00}s",
+                            Tag = new TimelineLayerHit { Layer = l, Mode = "toggle_prop_keyframe", Property = propName }
+                        };
+                        Canvas.SetLeft(kfBtn, 116); Canvas.SetTop(kfBtn, subY + 2);
+                        TimelineHeadersCanvas.Children.Add(kfBtn);
                     }
 
                     var subTrack = new Rectangle
@@ -5402,6 +5714,34 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
+            // Diamond toggle: add or remove property keyframe at playhead
+            if (layerHit.Mode == "toggle_prop_keyframe")
+            {
+                var l = layerHit.Layer;
+                var prop = layerHit.Property ?? "All";
+                l.Keyframes ??= [];
+                var existing = l.Keyframes.FirstOrDefault(k => Math.Abs(k.TimeSeconds - Playhead) <= 0.04 &&
+                    (string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(prop, StringComparison.OrdinalIgnoreCase)));
+                if (existing != null)
+                {
+                    l.Keyframes.Remove(existing);
+                    if (ReferenceEquals(SelectedKeyframe, existing)) SelectedKeyframe = null;
+                }
+                else
+                {
+                    var state = CgAnimationEngine.EvaluateLayerLocal(l, Playhead);
+                    var kf = KeyframeFromMotion(Playhead, state, l.DefaultEase);
+                    kf.TargetProperty = prop;
+                    kf.StyleJson = CgAnimationEngine.CaptureStyleJson(l);
+                    l.Keyframes.Add(kf);
+                    SelectedKeyframe = kf;
+                }
+                Keyframes.Clear();
+                foreach (var k in l.Keyframes.OrderBy(x => x.TimeSeconds)) Keyframes.Add(k);
+                SyncLayersToProject(); _main.SaveCgProjects(); RenderAll();
+                e.Handled = true;
+                return;
+            }
             if (layerHit.Mode == "twirl" || (layerHit.Mode == "row" && e.ClickCount >= 2))
             {
                 if (_expandedTimelineLayerIds.Contains(layerHit.Layer.Id))
@@ -5482,19 +5822,19 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
         var waitMenu = new MenuItem { Header = "WAIT / DELAY" };
         var w2 = new MenuItem { Header = "Set Wait: 2.0s (Prime Burst Hold)", IsChecked = Math.Abs(layer.TextAnimationDelaySeconds - 2.0) < 0.05 };
-        w2.Click += (_, _) => { RecordUndoSnapshot(); layer.TextAnimationDelaySeconds = 2.0; UpdateKeyframesForLayerProperty(layer, nameof(CgLayer.TextAnimationDelaySeconds), 2.0); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll(); };
+        w2.Click += (_, _) => { RecordUndoSnapshot(); layer.TextAnimationDelaySeconds = 2.0; CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll(); };
         waitMenu.Items.Add(w2);
 
         var w1 = new MenuItem { Header = "Set Wait: 1.0s", IsChecked = Math.Abs(layer.TextAnimationDelaySeconds - 1.0) < 0.05 };
-        w1.Click += (_, _) => { RecordUndoSnapshot(); layer.TextAnimationDelaySeconds = 1.0; UpdateKeyframesForLayerProperty(layer, nameof(CgLayer.TextAnimationDelaySeconds), 1.0); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll(); };
+        w1.Click += (_, _) => { RecordUndoSnapshot(); layer.TextAnimationDelaySeconds = 1.0; CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll(); };
         waitMenu.Items.Add(w1);
 
         var w05 = new MenuItem { Header = "Set Wait: 0.5s", IsChecked = Math.Abs(layer.TextAnimationDelaySeconds - 0.5) < 0.05 };
-        w05.Click += (_, _) => { RecordUndoSnapshot(); layer.TextAnimationDelaySeconds = 0.5; UpdateKeyframesForLayerProperty(layer, nameof(CgLayer.TextAnimationDelaySeconds), 0.5); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll(); };
+        w05.Click += (_, _) => { RecordUndoSnapshot(); layer.TextAnimationDelaySeconds = 0.5; CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll(); };
         waitMenu.Items.Add(w05);
 
         var w0 = new MenuItem { Header = "Clear Wait: 0s", IsChecked = layer.TextAnimationDelaySeconds <= 0.01 };
-        w0.Click += (_, _) => { RecordUndoSnapshot(); layer.TextAnimationDelaySeconds = 0; UpdateKeyframesForLayerProperty(layer, nameof(CgLayer.TextAnimationDelaySeconds), 0); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll(); };
+        w0.Click += (_, _) => { RecordUndoSnapshot(); layer.TextAnimationDelaySeconds = 0; CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll(); };
         waitMenu.Items.Add(w0);
 
         cm.Items.Add(waitMenu);
@@ -6166,6 +6506,19 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         PreviewCanvas.Focus();
         var point = e.GetPosition(PreviewCanvas);
+        if (_penDrawing && SelectedProject is not null)
+        {
+            var px = SelectedProject.Width / Math.Max(1.0, PreviewCanvas.ActualWidth);
+            var py = SelectedProject.Height / Math.Max(1.0, PreviewCanvas.ActualHeight);
+            var projectPoint = new Point(
+                Math.Clamp(point.X * px, 0, SelectedProject.Width),
+                Math.Clamp(point.Y * py, 0, SelectedProject.Height));
+            if (_penPoints.Count == 0 || (projectPoint - _penPoints[^1]).Length > 1)
+                _penPoints.Add(projectPoint);
+            if (e.ClickCount >= 2) FinishPenDrawing(); else RenderPreview();
+            e.Handled = true;
+            return;
+        }
         if(_drawMaskLayer is not null && SelectedProject is not null)
         {
             if (AutoKey && _autoKeyEditSnapshot is null) CaptureAutoKeyEditSnapshot();
@@ -6221,6 +6574,14 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 _previewStartW = ph.Layer.SqueezeWidth > 0 ? ph.Layer.SqueezeWidth : ph.Layer.Width;
                 _previewStartH = ph.Layer.SqueezeHeight > 0 ? ph.Layer.SqueezeHeight : ph.Layer.Height;
             }
+            else if (ph.Mode == "move_mask" || ph.Mode.StartsWith("mask_"))
+            {
+                _previewEditKeyframe = null;
+                _previewStartX = ph.Layer.MaskX;
+                _previewStartY = ph.Layer.MaskY;
+                _previewStartW = ph.Layer.MaskWidth > 0 ? ph.Layer.MaskWidth : ph.Layer.Width;
+                _previewStartH = ph.Layer.MaskHeight > 0 ? ph.Layer.MaskHeight : ph.Layer.Height;
+            }
             else if (AutoKey)
             {
                 _previewEditKeyframe = EnsureAutoKeyframe(ph.Layer, Playhead);
@@ -6247,6 +6608,12 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private void PreviewCanvas_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         PreviewCanvas.Focus();
+        if (_penDrawing)
+        {
+            FinishPenDrawing();
+            e.Handled = true;
+            return;
+        }
         var point=e.GetPosition(PreviewCanvas);
         var hit=PreviewCanvas.InputHitTest(point) as DependencyObject;
         while(hit is not null && hit is FrameworkElement fe && fe.Tag is null) hit=VisualTreeHelper.GetParent(hit);
@@ -6266,17 +6633,12 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var baseH = Math.Max(2, motion.Height * sy);
         var rawX = motion.X * sx; var rawY = motion.Y * sy;
 
-        var pz = 1000.0 / Math.Max(100.0, 1000.0 + motion.Z + motion.AnchorZ);
-        var totalScaleX = motion.ScaleX * pz;
-        var totalScaleY = motion.ScaleY * pz;
         var anchorPxX = baseW * Math.Clamp(motion.AnchorX, 0, 1);
         var anchorPxY = baseH * Math.Clamp(motion.AnchorY, 0, 1);
 
         var group = new TransformGroup();
-        if (Math.Abs(totalScaleX - 1.0) > .001 || Math.Abs(totalScaleY - 1.0) > .001)
-            group.Children.Add(new ScaleTransform(totalScaleX, totalScaleY, anchorPxX, anchorPxY));
-        var skewX = Math.Clamp(motion.SkewX + motion.RotationY * .35, -70, 70);
-        var skewY = Math.Clamp(motion.SkewY - motion.RotationX * .35, -70, 70);
+        var skewX = Math.Clamp(motion.SkewX + Math.Tan(motion.RotationY * Math.PI / 180.0) * 35.0, -75, 75);
+        var skewY = Math.Clamp(motion.SkewY - Math.Tan(motion.RotationX * Math.PI / 180.0) * 35.0, -75, 75);
         if (Math.Abs(skewX) > .001 || Math.Abs(skewY) > .001)
             group.Children.Add(new SkewTransform(skewX, skewY, anchorPxX, anchorPxY));
         if (Math.Abs(motion.Rotation) > .001)
@@ -6417,6 +6779,28 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (_previewDragMode == "move_mask" || _previewDragMode.StartsWith("mask_"))
+        {
+            switch (_previewDragMode)
+            {
+                case "mask_nw": x += dx; y += dy; w = Math.Max(min, w - dx); h = Math.Max(min, h - dy); break;
+                case "mask_ne": y += dy; w = Math.Max(min, w + dx); h = Math.Max(min, h - dy); break;
+                case "mask_sw": x += dx; w = Math.Max(min, w - dx); h = Math.Max(min, h + dy); break;
+                case "mask_se": w = Math.Max(min, w + dx); h = Math.Max(min, h + dy); break;
+                case "mask_n": y += dy; h = Math.Max(min, h - dy); break;
+                case "mask_s": h = Math.Max(min, h + dy); break;
+                case "mask_w": x += dx; w = Math.Max(min, w - dx); break;
+                case "mask_e": w = Math.Max(min, w + dx); break;
+                default: x += dx; y += dy; break;
+            }
+            l.MaskX = Math.Round(x, 1);
+            l.MaskY = Math.Round(y, 1);
+            l.MaskWidth = Math.Round(Math.Max(10, w), 1);
+            l.MaskHeight = Math.Round(Math.Max(10, h), 1);
+            RequestInteractiveRender();
+            return;
+        }
+
         switch (_previewDragMode)
         {
             case "nw": x += dx; y += dy; w = Math.Max(min, w - dx); h = Math.Max(min, h - dy); break;
@@ -6483,6 +6867,18 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             _previewDragLayer = null; _previewDragMode = ""; _previewEditKeyframe = null;
             PreviewCanvas.ReleaseMouseCapture();
             CancelInteractiveRender();
+            SyncLayersToProject(); _main.SaveCgProjects();
+            Raise(nameof(SelectedLayer));
+            RenderAll();
+            e.Handled = true;
+            return;
+        }
+        if (_previewDragMode == "move_mask" || _previewDragMode.StartsWith("mask_"))
+        {
+            _previewDragLayer = null; _previewDragMode = ""; _previewEditKeyframe = null;
+            PreviewCanvas.ReleaseMouseCapture();
+            CancelInteractiveRender();
+            CommitInspectorAutoKey();
             SyncLayersToProject(); _main.SaveCgProjects();
             Raise(nameof(SelectedLayer));
             RenderAll();
@@ -6585,6 +6981,9 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             return;
         }
         if (Keyboard.FocusedElement is ComboBox) return;
+
+        if (_penDrawing && e.Key == Key.Enter) { FinishPenDrawing(); e.Handled = true; return; }
+        if (_penDrawing && e.Key == Key.Escape) { FinishPenDrawing(cancel: true); e.Handled = true; return; }
 
         if (e.Key == Key.Space)
         {
@@ -7084,7 +7483,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (sender is TextBox tb && double.TryParse(tb.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var size) && size > 1)
         {
             SelectedLayer.FontSize = size;
-            UpdateKeyframesForLayerProperty(SelectedLayer, nameof(CgLayer.FontSize), size);
             CommitInspectorAutoKey();
             SyncLayersToProject();
             RequestInteractiveRender();

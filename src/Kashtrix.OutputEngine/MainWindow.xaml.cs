@@ -9,6 +9,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Kashtrix.OutputEngine.Models;
 using Kashtrix.OutputEngine.Services;
+using BroadcastPlayout.Outputs;
 using ThemedMessageBox = BroadcastPlayout.Views.MessageBox;
 
 namespace Kashtrix.OutputEngine
@@ -23,7 +24,10 @@ namespace Kashtrix.OutputEngine
         private MemoryMappedFile? _programVideoMap;
         private MemoryMappedViewAccessor? _programVideoView;
         private WriteableBitmap? _programPreviewBitmap;
+        private byte[]? _programPreviewPixels;
         private long _programPreviewSequence;
+        private DateTime _lastProgramPreviewUtc = DateTime.MinValue;
+        private bool _programIsLive;
 
         public ObservableCollection<BroadcastEventLog> FilteredLogs { get; } = new();
 
@@ -43,9 +47,12 @@ namespace Kashtrix.OutputEngine
 
             _dvbService.LogAdded += OnLogReceived;
 
-            _uiRefreshTimer = new DispatcherTimer
+            _uiRefreshTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromMilliseconds(100)
+                // Follow the default 50 fps Program cadence. A 30 fps sampler creates an
+                // uneven 1/2-frame skip pattern for 50 fps crawls and makes a correct ticker
+                // look as though it is juddering in the confidence monitor.
+                Interval = TimeSpan.FromMilliseconds(20)
             };
             _uiRefreshTimer.Tick += UiRefreshTimer_Tick;
             _uiRefreshTimer.Start();
@@ -74,6 +81,11 @@ namespace Kashtrix.OutputEngine
             int frameNumber = (int)(now.Millisecond / 20.0);
             MasterTimecodeText.Text = $"{now:HH:mm:ss}:{frameNumber:D2}";
             RefreshProgramPreview();
+            var receiving = DateTime.UtcNow - _lastProgramPreviewUtc < TimeSpan.FromSeconds(1);
+            var live = receiving && _programIsLive;
+            ProgramLiveBadge.Background = live ? new SolidColorBrush(Color.FromRgb(183, 28, 28)) : new SolidColorBrush(Color.FromRgb(55, 65, 81));
+            ProgramLiveDot.Fill = live ? new SolidColorBrush(Color.FromRgb(255, 82, 82)) : new SolidColorBrush(Color.FromRgb(156, 163, 175));
+            ProgramLiveText.Text = live ? "PGM LIVE" : receiving ? "PGM STANDBY" : "NO PROGRAM SIGNAL";
         }
 
         private void RefreshProgramPreview()
@@ -81,7 +93,7 @@ namespace Kashtrix.OutputEngine
             if (ProgramPreviewImage == null) return;
             try
             {
-                _programVideoMap ??= MemoryMappedFile.OpenExisting("KashtrixPlayout.VirtualOutput.Video.v1", MemoryMappedFileRights.Read);
+                _programVideoMap ??= MemoryMappedFile.OpenExisting(VirtualOutputBridge.ProgramConfidenceVideoMapName, MemoryMappedFileRights.Read);
                 _programVideoView ??= _programVideoMap.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
                 if (_programVideoView.ReadInt32(0) != 0x4B545856) return;
                 var width = _programVideoView.ReadInt32(8);
@@ -89,9 +101,15 @@ namespace Kashtrix.OutputEngine
                 var stride = _programVideoView.ReadInt32(16);
                 var sequence = _programVideoView.ReadInt64(28);
                 var length = _programVideoView.ReadInt32(44);
+                var isLive = _programVideoView.ReadInt32(48) != 0;
                 if (sequence == _programPreviewSequence || width <= 0 || height <= 0 || stride < width * 4 || length <= 0 || length > stride * height) return;
-                var pixels = new byte[length];
+                var pixels = _programPreviewPixels;
+                if (pixels is null || pixels.Length != length)
+                    pixels = _programPreviewPixels = new byte[length];
                 _programVideoView.ReadArray(256, pixels, 0, pixels.Length);
+                // The writer commits by storing sequence after the pixel copy. If it changes
+                // while we read, discard this sample and try again on the next render tick.
+                if (_programVideoView.ReadInt64(28) != sequence) return;
                 if (_programPreviewBitmap is null || _programPreviewBitmap.PixelWidth != width || _programPreviewBitmap.PixelHeight != height)
                 {
                     _programPreviewBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
@@ -99,6 +117,8 @@ namespace Kashtrix.OutputEngine
                 }
                 _programPreviewBitmap.WritePixels(new Int32Rect(0, 0, width, height), pixels, stride, 0);
                 _programPreviewSequence = sequence;
+                _lastProgramPreviewUtc = DateTime.UtcNow;
+                _programIsLive = isLive;
             }
             catch
             {
@@ -174,6 +194,7 @@ namespace Kashtrix.OutputEngine
             if (dialog.ShowDialog() == true && dialog.ResultChannel != null)
             {
                 _engine.Outputs.Add(dialog.ResultChannel);
+                _engine.SaveOutputs();
                 _dvbService.Log("CONFIG", $"Provisioned new output destination: {dialog.ResultChannel.Name} [{dialog.ResultChannel.ProtocolDisplayName}] ({dialog.ResultChannel.GpuEncoder})", "SUCCESS");
             }
         }
@@ -225,10 +246,7 @@ namespace Kashtrix.OutputEngine
         private void StartAll_Click(object sender, RoutedEventArgs e)
         {
             foreach (var ch in _engine.Outputs)
-            {
-                ch.IsEnabled = true;
-                ch.Status = OutputStatus.Online;
-            }
+                _engine.StartOutput(ch);
             _dvbService.Log("ENGINE", "All broadcast outputs resumed by operator", "INFO");
         }
 

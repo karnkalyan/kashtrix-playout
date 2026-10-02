@@ -153,9 +153,16 @@ public sealed class CgGraphicsOutputEngine : IDisposable
                 var prerolling = _prerollRemaining > 0;
                 if (project is not null && !prerolling) project.OnAir = true;
                 var now = DateTime.UtcNow;
-                var timeline = project is null || prerolling ? 0 : Math.Max(0, (now - started).TotalSeconds);
+                // Evaluate motion on exact output-frame boundaries. Raw DateTime deltas vary by
+                // a few milliseconds under Windows scheduling pressure; feeding those directly
+                // to a crawl produces visible uneven pixel steps on Program/NDI/SDI.
+                var timeline = project is null || prerolling
+                    ? 0
+                    : QuantizeToFrame(Math.Max(0, (now - started).TotalSeconds), fps);
                 VideoFrameData frame;
-                var transitionElapsed = transitionStarted == DateTime.MinValue ? double.MaxValue : (now - transitionStarted).TotalSeconds;
+                var transitionElapsed = transitionStarted == DateTime.MinValue
+                    ? double.MaxValue
+                    : QuantizeToFrame(Math.Max(0, (now - transitionStarted).TotalSeconds), fps);
                 if (!prerolling && project is not null && previousProject is not null &&
                     !transitionMode.Equals("None", StringComparison.OrdinalIgnoreCase) && transitionElapsed < transitionSeconds)
                 {
@@ -259,6 +266,12 @@ public sealed class CgGraphicsOutputEngine : IDisposable
         if (Math.Abs(fps - 29.97) < .01) return (30000, 1001);
         if (Math.Abs(fps - 59.94) < .01) return (60000, 1001);
         return ((int)Math.Round(fps), 1);
+    }
+
+    private static double QuantizeToFrame(double seconds, double fps)
+    {
+        fps = Math.Clamp(fps, 1, 120);
+        return Math.Floor(Math.Max(0, seconds) * fps + .0001) / fps;
     }
 
     private void PublishStatus(string status)

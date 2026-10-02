@@ -82,6 +82,11 @@ public sealed class CgLayer : INotifyPropertyChanged
     public double MaskCornerRadius { get; set; }
     public double MaskFeather { get; set; }
     public bool MaskInvert { get; set; }
+    // Semicolon-separated normalized points (x,y;x,y;...) authored by the pen tool.
+    // ShapePathData is local to the layer bounds; MaskPathData is local to MaskX/Y/Width/Height.
+    public string ShapePathData { get; set; } = string.Empty;
+    public bool ShapePathClosed { get; set; } = true;
+    public string MaskPathData { get; set; } = string.Empty;
 
     // When an Adobe After Effects project is imported, Kashtrix keeps the source project and
     // composition metadata while playing the rendered alpha image sequence on the native timeline.

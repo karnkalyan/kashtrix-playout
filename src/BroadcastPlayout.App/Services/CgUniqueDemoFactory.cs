@@ -813,7 +813,7 @@ public static class CgUniqueDemoFactory
         const double duration = 30.0;
         var project = new CgProject { Id = new Guid("88888888-9999-aaaa-bbbb-cccccccccccc"), Name = PrimeTickerDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = duration };
         var scrollPath = ResolvePrimePath("scrolling");
-        project.Layers.Add(new CgLayer { Id = Guid.NewGuid(), Name = "Prime News Ticker", Type = "Ticker", Source = scrollPath, Text = "k|wfgdGqLåf/f /fli6«o ljsf; cfof]hgfxi'sf] ultljlw lgl/If0f · d]nDrLsf] kfOk km'6]\\/ e]n k;]kl5 ljz]if cbfntsf] ;'g'jfO \\/f]lsof] · kfFr b]zsf /fHosf]if k|d'vsf] cGt/f{li6«o ;Dd]ng sf7df8f}Fdf ;'?", X = 0, Y = 1030, Width = 1920, Height = 50, FontSize = 32, FontFamily = "Kantipur", Bold = true, Fill = "#FFFFFFFF", TickerSpeed = 120, StartSeconds = 0, EndSeconds = duration, Visible = true, Opacity = 1.0 });
+        project.Layers.Add(new CgLayer { Id = Guid.NewGuid(), Name = "Prime News Ticker", Type = "Ticker", Source = scrollPath, Text = "k|wfgdGqLåf/f /fli6«o ljsf; cfof]hgfxi'sf] ultljlw lgl/If0f · d]nDrLsf] kfOk km'6]\\/ e]n k;]kl5 ljz]if cbfntsf] ;'g'jfO \\/f]lsof] · kfFr b]zsf /fHosf]if k|d'vsf] cGt/f{li6«o ;Dd]ng sf7df8f}Fdf ;'?", X = 0, Y = 1030, Width = 1920, Height = 50, FontSize = 32, FontFamily = "Kantipur", Bold = true, Fill = "#FFFFFFFF", TickerSpeed = 120, TickerMode = "Continuous", TickerDirection = "Left", TickerRepeat = true, TickerGap = 120, AnimationIn = "None", AnimationOut = "None", AnimationInSeconds = 0, AnimationOutSeconds = 0, StartSeconds = 0, EndSeconds = duration, Visible = true, Opacity = 1.0 });
         return project;
     }
     #endregion
@@ -2048,7 +2048,7 @@ public static class CgUniqueDemoFactory
 
     private static CgProject CreateEventTimerDemo()
     {
-        var p = new CgProject { Id = new Guid("88888888-eeee-2222-eeee-888888888888"), Name = EventTimerDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = 3600, OnAir = false };
+        var p = new CgProject { Id = new Guid("88888888-eeee-2222-eeee-888888888888"), Name = EventTimerDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = 15, Loop = true, OnAir = false };
         var g = Guid.NewGuid();
         p.Groups.Add(new CgGroup { Id = g, Name = "Event Timer Clock" });
         Add(p, new CgLayer { Name = "Timer Base Plate", Type = "Shape", ShapeKind = "Rounded Rectangle", X = 1440, Y = 80, Width = 400, Height = 100, Background = "#E6090D16", CornerRadius = 12, BorderWidth = 1.5, BorderColor = "#6600E5FF", GroupId = g, AnimationIn = "Slide Right", AnimationOut = "Fade", AnimationInSeconds = 0.45, AnimationOutSeconds = 0.35 });
@@ -2340,7 +2340,7 @@ public static class CgUniqueDemoFactory
 
     private static CgProject CreateLogoStationIdentDemo()
     {
-        var p = new CgProject { Id = new Guid("77777777-dddd-1111-dddd-777777777777"), Name = LogoStationIdentDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = 3600, OnAir = false };
+        var p = new CgProject { Id = new Guid("77777777-dddd-1111-dddd-777777777777"), Name = LogoStationIdentDemoName, Width = 1920, Height = 1080, FrameRate = 50, DurationSeconds = 10, Loop = true, OnAir = false };
         var g = Guid.NewGuid();
         p.Groups.Add(new CgGroup { Id = g, Name = "Station Logo Bug" });
         Add(p, new CgLayer { Name = "Plate", Type = "Shape", ShapeKind = "Rounded Rectangle", X = 1680, Y = 60, Width = 170, Height = 70, Background = "#800A0F14", CornerRadius = 8, BorderWidth = 1, BorderColor = "#33FFFFFF", GroupId = g });

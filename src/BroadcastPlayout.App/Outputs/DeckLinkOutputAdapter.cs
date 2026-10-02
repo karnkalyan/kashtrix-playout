@@ -22,6 +22,12 @@ public sealed record DeckLinkDeviceOption(int Index, string ModelName, string Di
         : $"{ModelName} · {DisplayName}";
 }
 
+public sealed record DeckLinkDisplayModeOption(string ModeName, int Width, int Height, double FrameRate, string ScanMode)
+{
+    public string DisplayLabel => $"{ModeName} ({Width}x{Height} @ {FrameRate:0.##} fps {ScanMode})";
+    public override string ToString() => DisplayLabel;
+}
+
 public sealed class DeckLinkOutputAdapter : IDisposable
 {
     private readonly object _sync = new();
@@ -276,6 +282,61 @@ public sealed class DeckLinkOutputAdapter : IDisposable
         if (devices.Count > 0) return devices;
 #endif
         return [new DeckLinkDeviceOption(0, "DeckLink hardware", "Desktop Video SDK scan unavailable")];
+    }
+
+    public static IReadOnlyList<DeckLinkDisplayModeOption> EnumerateDisplayModes(int deviceIndex = 0)
+    {
+#if DECKLINK_SDK
+        var modes = new List<DeckLinkDisplayModeOption>();
+        try
+        {
+            IDeckLinkIterator iterator = new CDeckLinkIterator();
+            IDeckLink? targetDevice = null;
+            for (var index = 0; index <= Math.Max(0, deviceIndex); index++)
+            {
+                iterator.Next(out var candidate);
+                if (candidate is null) break;
+                targetDevice = candidate;
+            }
+            if (targetDevice is IDeckLinkOutput output)
+            {
+                output.GetDisplayModeIterator(out var modeIterator);
+                while (true)
+                {
+                    modeIterator.Next(out var mode);
+                    if (mode is null) break;
+                    mode.GetName(out var modeName);
+                    var width = mode.GetWidth();
+                    var height = mode.GetHeight();
+                    var fps = GetModeFrameRate(mode);
+                    var scan = GetModeScanMode(mode);
+                    modes.Add(new DeckLinkDisplayModeOption(modeName, width, height, fps, scan));
+                }
+            }
+        }
+        catch { }
+        if (modes.Count > 0) return modes;
+#endif
+        return
+        [
+            new DeckLinkDisplayModeOption("1080p50", 1920, 1080, 50.0, "Progressive"),
+            new DeckLinkDisplayModeOption("1080i50", 1920, 1080, 25.0, "Interlaced Upper First"),
+            new DeckLinkDisplayModeOption("1080p59.94", 1920, 1080, 59.94, "Progressive"),
+            new DeckLinkDisplayModeOption("1080i59.94", 1920, 1080, 29.97, "Interlaced Upper First"),
+            new DeckLinkDisplayModeOption("1080p60", 1920, 1080, 60.0, "Progressive"),
+            new DeckLinkDisplayModeOption("1080p25", 1920, 1080, 25.0, "Progressive"),
+            new DeckLinkDisplayModeOption("1080p29.97", 1920, 1080, 29.97, "Progressive"),
+            new DeckLinkDisplayModeOption("1080p24", 1920, 1080, 24.0, "Progressive"),
+            new DeckLinkDisplayModeOption("1080p23.98", 1920, 1080, 23.976, "Progressive"),
+            new DeckLinkDisplayModeOption("720p50", 1280, 720, 50.0, "Progressive"),
+            new DeckLinkDisplayModeOption("720p59.94", 1280, 720, 59.94, "Progressive"),
+            new DeckLinkDisplayModeOption("720p60", 1280, 720, 60.0, "Progressive"),
+            new DeckLinkDisplayModeOption("2160p50", 3840, 2160, 50.0, "Progressive"),
+            new DeckLinkDisplayModeOption("2160p59.94", 3840, 2160, 59.94, "Progressive"),
+            new DeckLinkDisplayModeOption("2160p60", 3840, 2160, 60.0, "Progressive"),
+            new DeckLinkDisplayModeOption("2160p25", 3840, 2160, 25.0, "Progressive"),
+            new DeckLinkDisplayModeOption("2160p29.97", 3840, 2160, 29.97, "Progressive")
+        ];
     }
 
     public void Close()

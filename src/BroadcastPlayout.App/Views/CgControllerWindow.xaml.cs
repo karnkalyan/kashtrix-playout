@@ -19,7 +19,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
 {
     private readonly MainViewModel _vm;
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly DispatcherTimer _renderClock = new() { Interval = TimeSpan.FromMilliseconds(20) };
+    private readonly DispatcherTimer _renderClock = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(20) };
     private readonly CgCompositor _previewMonitorCompositor = new();
     private readonly CgCompositor _programMonitorCompositor = new();
     private readonly CgGraphicsOutputEngine _cgOutput = new();
@@ -28,6 +28,8 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     private WriteableBitmap? _programMonitorBitmap;
     private VideoFrameData? _latestPlayoutPreviewFrame;
     private VideoFrameData? _latestPlayoutProgramFrame;
+    private VideoFrameData? _latestPlayoutPreviewBaseFrame;
+    private VideoFrameData? _latestPlayoutProgramBaseFrame;
     private CgProject? _programSnapshot;
     private CgProject? _programPreviousSnapshot;
     private readonly Dictionary<int, (CgProject Project, DateTime StartedUtc)> _programLayerSnapshots = new();
@@ -288,8 +290,10 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         ReloadProjects();
         _vm.CgProjectsChanged += OnCgProjectsChanged;
         _vm.PreviewFrameReady += OnPlayoutPreviewFrame;
+        _vm.PreviewBaseFrameReady += OnPlayoutPreviewBaseFrame;
         _vm.PreviewCleared += () => Interlocked.Exchange(ref _latestPlayoutPreviewFrame, null);
         _vm.VideoFrameReady += OnPlayoutProgramFrame;
+        _vm.ProgramBaseFrameReady += OnPlayoutProgramBaseFrame;
         LoadRegistryChannels();
         LoadSchedules();
         _clock.Tick += Clock_Tick;
@@ -310,45 +314,43 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     private void RenderClock_Tick(object? sender, EventArgs e)
     {
         var playoutPreview = Volatile.Read(ref _latestPlayoutPreviewFrame);
-        if (playoutPreview is not null)
+        if (_previewSnapshot is not null)
+        {
+            var baseFrame = Volatile.Read(ref _latestPlayoutPreviewBaseFrame) ?? _monitorBaseFrame;
+            var frame = _previewMonitorCompositor.Composite(baseFrame, _previewSnapshot, MonitorElapsed(_previewStartedUtc, _previewSnapshot));
+            _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, frame);
+        }
+        else if (playoutPreview is not null)
         {
             _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, playoutPreview);
         }
-        else if (_previewSnapshot is not null)
-        {
-            var frame = _previewMonitorCompositor.Composite(_monitorBaseFrame, _previewSnapshot, Math.Max(0, (DateTime.UtcNow - _previewStartedUtc).TotalSeconds));
-            _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, frame);
-        }
 
         var playoutProgram = Volatile.Read(ref _latestPlayoutProgramFrame);
-        if (playoutProgram is not null)
+        if (_programLayerSnapshots.Count > 1)
         {
-            _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, playoutProgram);
-        }
-        else if (_programLayerSnapshots.Count > 1)
-        {
-            var frame = _monitorBaseFrame;
+            var frame = Volatile.Read(ref _latestPlayoutProgramBaseFrame) ?? _monitorBaseFrame;
             foreach (var kvp in _programLayerSnapshots.OrderBy(x => x.Key))
             {
                 var snap = kvp.Value.Project;
-                var elapsed = Math.Max(0, (DateTime.UtcNow - kvp.Value.StartedUtc).TotalSeconds);
+                var elapsed = MonitorElapsed(kvp.Value.StartedUtc, snap);
                 frame = _programMonitorCompositor.Composite(frame, snap, elapsed);
             }
             _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
         }
         else if (_programSnapshot is not null)
         {
+            var baseFrame = Volatile.Read(ref _latestPlayoutProgramBaseFrame) ?? _monitorBaseFrame;
             VideoFrameData frame;
             var transitionElapsed = _programTransitionStartedUtc == DateTime.MinValue ? double.MaxValue : (DateTime.UtcNow - _programTransitionStartedUtc).TotalSeconds;
             if (_programPreviousSnapshot is not null && !_programTransitionMode.Equals("None", StringComparison.OrdinalIgnoreCase) && transitionElapsed < _programTransitionSeconds)
             {
                 var progress = Math.Clamp(transitionElapsed / Math.Max(.05, _programTransitionSeconds), 0, 1);
                 frame = _programMonitorCompositor.CompositeTransition(
-                    _monitorBaseFrame,
+                    baseFrame,
                     _programPreviousSnapshot,
                     _programSnapshot,
-                    Math.Max(0, (DateTime.UtcNow - _programStartedUtc).TotalSeconds),
-                    Math.Max(0, (DateTime.UtcNow - _programStartedUtc).TotalSeconds),
+                    MonitorElapsed(_programStartedUtc, _programSnapshot),
+                    MonitorElapsed(_programStartedUtc, _programSnapshot),
                     progress,
                     _programTransitionMode);
             }
@@ -356,9 +358,13 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             {
                 _programPreviousSnapshot = null;
                 _programTransitionMode = "None";
-                frame = _programMonitorCompositor.Composite(_monitorBaseFrame, _programSnapshot, Math.Max(0, (DateTime.UtcNow - _programStartedUtc).TotalSeconds));
+                frame = _programMonitorCompositor.Composite(baseFrame, _programSnapshot, MonitorElapsed(_programStartedUtc, _programSnapshot));
             }
             _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
+        }
+        else if (playoutProgram is not null)
+        {
+            _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, playoutProgram);
         }
     }
 
@@ -366,13 +372,22 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     // preventing dispatcher backlog/frame-loss while showing the real Playout buses.
     private void OnPlayoutPreviewFrame(VideoFrameData frame) => Interlocked.Exchange(ref _latestPlayoutPreviewFrame, frame);
     private void OnPlayoutProgramFrame(VideoFrameData frame) => Interlocked.Exchange(ref _latestPlayoutProgramFrame, frame);
+    private void OnPlayoutPreviewBaseFrame(VideoFrameData frame) => Interlocked.Exchange(ref _latestPlayoutPreviewBaseFrame, frame);
+    private void OnPlayoutProgramBaseFrame(VideoFrameData frame) => Interlocked.Exchange(ref _latestPlayoutProgramBaseFrame, frame);
+
+    private static double MonitorElapsed(DateTime startedUtc, CgProject project)
+    {
+        var raw = Math.Max(0, (DateTime.UtcNow - startedUtc).TotalSeconds);
+        var fps = Math.Clamp(project.FrameRate > 0 ? project.FrameRate : 50.0, 1.0, 120.0);
+        return Math.Floor(raw * fps + 0.0001) / fps;
+    }
 
     private static VideoFrameData CreateMonitorBaseFrame()
     {
-        const int width = 640, height = 360, stride = width * 4;
+        const int width = 1920, height = 1080, stride = width * 4;
         var bgra = new byte[stride * height];
         for (var i = 3; i < bgra.Length; i += 4) bgra[i] = 255;
-        return new VideoFrameData(bgra, width, height, stride, 0, 25, 1);
+        return new VideoFrameData(bgra, width, height, stride, 0, 50, 1);
     }
 
     private static WriteableBitmap PresentMonitorFrame(System.Windows.Controls.Image target, WriteableBitmap? bitmap, VideoFrameData frame)
@@ -400,7 +415,9 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             CatalogGroups.Add(new CgCatalogGroup { Name = group.Key, Projects = new ObservableCollection<CgProject>(group.OrderBy(x => x.Name)) });
         CatalogCards.Clear();
         foreach(var project in Projects) CatalogCards.Add(new CgCatalogCard { Project=project, Category=ProjectCategory(project), Thumbnail=CreateCatalogThumbnail(project) });
-        SelectedProject = Projects.FirstOrDefault(x => x.Id == selectedId) ?? Projects.FirstOrDefault();
+        // Loading/reloading the catalog must not silently arm the first graphic. An
+        // operator selection is required before PLAY PREVIEW or PLAY PROGRAM can run.
+        SelectedProject = selectedId == Guid.Empty ? null : Projects.FirstOrDefault(x => x.Id == selectedId);
         SelectedCatalogCard = SelectedProject is null ? null : CatalogCards.FirstOrDefault(x=>x.Project.Id==SelectedProject.Id);
     }
     private static string ProjectCategory(CgProject project)
@@ -567,22 +584,9 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         }
         else if(e.NewValue is CgCatalogGroup group && group.Projects.Count > 0)
         {
-            SelectedProject = group.Projects[0];
-            SelectedCatalogCard = CatalogCards.FirstOrDefault(x => x.Project.Id == group.Projects[0].Id);
-        }
-    }
-    private void CatalogTree_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (SelectedProject is not null)
-        {
-            _ = RouteAsync("PLAY", "PREVIEW");
-        }
-    }
-    private void CatalogGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (SelectedProject is not null)
-        {
-            _ = RouteAsync("PLAY", "PREVIEW");
+            // A category node is navigation, not a CG item selection.
+            SelectedProject = null;
+            SelectedCatalogCard = null;
         }
     }
     private void ImportCg_Click(object sender, RoutedEventArgs e)
@@ -850,7 +854,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
                 var maxOut = snapshot.Layers.Where(x => x.Visible)
                     .Select(x => x.AnimationOutSeconds).DefaultIfEmpty(0.5).Max();
                 var holdPt = CgDataSourceService.ResolveEffectiveHoldPoint(snapshot);
-                var compact = Math.Max(2.0, holdPt + maxOut + 0.5);
+                var compact = Math.Max(2.0, holdPt + tickerCycleDuration + maxOut + 0.5);
                 if (snapshot.DurationSeconds > compact * 3)
                 {
                     snapshot.DurationSeconds = Math.Max(2.0, compact);
@@ -880,12 +884,16 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         }
 
         var snapshot = BuildFullProjectSnapshot(SelectedProject);
-        if (await RouteAsync("PLAY", "PREVIEW", snapshot))
+        snapshot.OnAir = true;
+        _previewSnapshot = snapshot;
+        _previewStartedUtc = DateTime.UtcNow;
+        CopyProjectToPreviewMonitor(snapshot);
+
+        if (!await RouteAsync("PLAY", "PREVIEW", snapshot))
         {
-            snapshot.OnAir = true;
-            _previewSnapshot = snapshot;
-            _previewStartedUtc = DateTime.UtcNow;
-            CopyProjectToPreviewMonitor(snapshot);
+            _previewSnapshot = null;
+            PreviewCgImage.Source = null;
+            _previewMonitorBitmap = null;
         }
     }
     private async void PreviewStop_Click(object s, RoutedEventArgs e)
@@ -899,6 +907,22 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         if (_previewSnapshot != null && (targetProj == null || _previewSnapshot.Id == targetProj.Id || string.Equals(_previewSnapshot.Name, targetProj.Name, StringComparison.OrdinalIgnoreCase)))
         {
             _previewSnapshot.IsStopping = true;
+            _previewSnapshot.StopRequestedTimelineSeconds = Math.Max(0, (DateTime.UtcNow - _previewStartedUtc).TotalSeconds);
+            var maxOut = _previewSnapshot.Layers.Where(l => l.Visible).Select(l => l.AnimationOutSeconds).DefaultIfEmpty(0.0).Max();
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(maxOut + 0.15)).ConfigureAwait(false);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    _previewSnapshot = null;
+                    Interlocked.Exchange(ref _latestPlayoutPreviewFrame, null);
+                    PreviewCgImage.Source = null;
+                    _previewMonitorBitmap = null;
+                    PreviewProjectName = "No CG in preview";
+                    PreviewLayerName = "PREVIEW STOPPED";
+                    PreviewLayerText = "Preview CG stopped.";
+                });
+            });
         }
     }
     private async void PreviewClear_Click(object s, RoutedEventArgs e)
@@ -918,17 +942,27 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     {
         if (SelectedProject is null) return;
         var snapshot = BuildFullProjectSnapshot(SelectedProject);
-        if (await RouteAsync("PLAY", "PROGRAM", snapshot))
+        snapshot.OnAir = true;
+        snapshot.ExternalLayer = CurrentOverlayNumber;
+        _programPreviousSnapshot = null;
+        _programTransitionMode = "None";
+        _programSnapshot = snapshot;
+        _programStartedUtc = DateTime.UtcNow;
+        _programLayerSnapshots[CurrentOverlayNumber] = (snapshot, DateTime.UtcNow);
+        CopyProjectToProgramMonitor(snapshot);
+        _cgOutput.SetProgram(snapshot);
+
+        if (!await RouteAsync("PLAY", "PROGRAM", snapshot))
         {
-            snapshot.OnAir = true;
-            snapshot.ExternalLayer = CurrentOverlayNumber;
-            _programPreviousSnapshot = null;
-            _programTransitionMode = "None";
-            _programSnapshot = snapshot;
-            _programStartedUtc = DateTime.UtcNow;
-            _programLayerSnapshots[CurrentOverlayNumber] = (snapshot, DateTime.UtcNow);
-            CopyProjectToProgramMonitor(snapshot);
-            _cgOutput.SetProgram(snapshot);
+            _programLayerSnapshots.Remove(CurrentOverlayNumber);
+            if (_programSnapshot == snapshot)
+            {
+                _programSnapshot = _programLayerSnapshots.Count > 0 ? _programLayerSnapshots.Values.Last().Project : null;
+            }
+            if (_programSnapshot == null)
+            {
+                _cgOutput.ClearProgram();
+            }
         }
     }
     private async void ProgramStop_Click(object s, RoutedEventArgs e)
@@ -1424,7 +1458,9 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         _disposed = true;
         _vm.CgProjectsChanged -= OnCgProjectsChanged;
         _vm.PreviewFrameReady -= OnPlayoutPreviewFrame;
+        _vm.PreviewBaseFrameReady -= OnPlayoutPreviewBaseFrame;
         _vm.VideoFrameReady -= OnPlayoutProgramFrame;
+        _vm.ProgramBaseFrameReady -= OnPlayoutProgramBaseFrame;
         Interlocked.Exchange(ref _latestPlayoutPreviewFrame, null);
         Interlocked.Exchange(ref _latestPlayoutProgramFrame, null);
         _clock.Stop();

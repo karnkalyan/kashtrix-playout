@@ -126,6 +126,12 @@
             </Setter>
         </Style>
 
+        <Style x:Key="ChromeButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="MinHeight" Value="24"/><Setter Property="Height" Value="24"/>
+            <Setter Property="MinWidth" Value="30"/><Setter Property="Padding" Value="5,0"/>
+            <Setter Property="Margin" Value="2,0"/>
+        </Style>
+
         <Style x:Key="SmallTool" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Height" Value="28"/>
             <Setter Property="MinHeight" Value="28"/>

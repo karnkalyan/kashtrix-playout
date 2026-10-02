@@ -129,7 +129,7 @@ public static class CgProjectSanitizer
             {
                 foreach (var layer in project.Layers.Where(x => string.Equals(x.Type, "ImageSequence", StringComparison.OrdinalIgnoreCase)))
                 {
-                    if (!string.Equals(layer.Source, ap1Path, StringComparison.OrdinalIgnoreCase))
+                    if (string.IsNullOrWhiteSpace(layer.Source))
                         layer.Source = ap1Path;
                 }
             }

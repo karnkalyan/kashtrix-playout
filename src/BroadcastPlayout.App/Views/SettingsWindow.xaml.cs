@@ -84,16 +84,17 @@ public partial class SettingsWindow : Window
         try{_vm.SaveSettings();ChannelPresetStore.Export(d.FileName,SettingsStore.Load());MessageBox.Show("Channel preset exported.","Channel Preset");}catch(Exception ex){MessageBox.Show(ex.Message,"Channel Preset",MessageBoxButton.OK,MessageBoxImage.Error);}
     }
 
+    private void LaunchOutputEngine_Click(object sender, RoutedEventArgs e) => Launch("OutputEngine");
+
     private void AddOutputRoute_Click(object sender, RoutedEventArgs e)
     {
         _vm.AddOutputRoute();
-        AdditionalOutputList.SelectedItem = _vm.AdditionalOutputs.LastOrDefault();
     }
 
     private void RemoveOutputRoute_Click(object sender, RoutedEventArgs e)
     {
-        if (AdditionalOutputList.SelectedItem is not BroadcastPlayout.Models.OutputRoute route) return;
-        _vm.RemoveOutputRoute(route);
+        var route = _vm.AdditionalOutputs.LastOrDefault();
+        if (route is not null) _vm.RemoveOutputRoute(route);
     }
 
     private void ClearCache_Click(object sender, RoutedEventArgs e)

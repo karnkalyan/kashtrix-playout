@@ -418,10 +418,11 @@ public static class CgDataSourceService
             // Case 1: Multiple rows (e.g. 20 json items)
             if (rows.Count > 1)
             {
+                var activeTimeline = Math.Max(0, timelineSeconds - layer.StartSeconds);
                 // If row has the exact DataField directly (and it's not generic lineN on multi-row)
                 if (!string.IsNullOrWhiteSpace(layer.DataField) && rows[0].ContainsKey(layer.DataField) && !layer.DataField.StartsWith("line", StringComparison.OrdinalIgnoreCase))
                 {
-                    var directRowIndex = (int)Math.Floor(Math.Max(0, timelineSeconds) / Math.Max(.05, itemDuration)) + layer.DataItemOffset;
+                    var directRowIndex = (int)Math.Floor(activeTimeline / Math.Max(.05, itemDuration)) + layer.DataItemOffset;
                     directRowIndex = ((directRowIndex % rows.Count) + rows.Count) % rows.Count;
                     var val = ResolveField(rows[directRowIndex], layer.DataField);
                     try { return string.Format(layer.DataFormat ?? "{0}", val); } catch { return val; }
@@ -431,7 +432,7 @@ public static class CgDataSourceService
                 var projectLineSlots = project.Layers?.Count(x => x.DataSourceId == layer.DataSourceId && (x.DataField.StartsWith("line", StringComparison.OrdinalIgnoreCase) || x.DataField.StartsWith("item", StringComparison.OrdinalIgnoreCase) || x.Name.Contains("Line") || x.Name.Contains("Headline"))) ?? 0;
                 var pageSize = projectLineSlots > 0 ? projectLineSlots : 4;
                 var totalPages = (int)Math.Max(1, Math.Ceiling(rows.Count / (double)pageSize));
-                var pageIndex = (int)Math.Floor(Math.Max(0, timelineSeconds) / Math.Max(.05, itemDuration));
+                var pageIndex = (int)Math.Floor(activeTimeline / Math.Max(.05, itemDuration));
                 pageIndex = ((pageIndex % totalPages) + totalPages) % totalPages;
                 var targetIndex = (pageIndex * pageSize + lineSlot) % rows.Count;
                 var r = rows[targetIndex];
@@ -488,7 +489,8 @@ public static class CgDataSourceService
             try { return string.Format(layer.DataFormat ?? "{0}", catVal); } catch { return catVal; }
         }
 
-        var index = (int)Math.Floor(Math.Max(0, timelineSeconds) / Math.Max(.05, itemDuration)) + layer.DataItemOffset;
+        var activeSeconds = Math.Max(0, timelineSeconds - layer.StartSeconds);
+        var index = (int)Math.Floor(activeSeconds / Math.Max(.05, itemDuration)) + layer.DataItemOffset;
         index = ((index % rows.Count) + rows.Count) % rows.Count;
         var row = rows[index];
         var value = ResolveField(row, layer.DataField);
@@ -505,7 +507,7 @@ public static class CgDataSourceService
         var rows = CgDataRuntime.Shared.GetRows(source);
         if (rows.Count == 0) return 0;
         var itemDuration = ResolveEffectiveItemDuration(project, layer);
-        var i = (int)Math.Floor(Math.Max(0, timelineSeconds) / Math.Max(.05, itemDuration)) + layer.DataItemOffset;
+        var i = (int)Math.Floor(Math.Max(0, timelineSeconds - layer.StartSeconds) / Math.Max(.05, itemDuration)) + layer.DataItemOffset;
         return ((i % rows.Count) + rows.Count) % rows.Count;
     }
 
@@ -1120,7 +1122,7 @@ public static class CgDataSourceService
         {
             var style = bold ? FontStyle.Bold : FontStyle.Regular;
             if (italic) style |= FontStyle.Italic;
-            using var font = new Font(string.IsNullOrWhiteSpace(fontFamily) ? "Segoe UI" : fontFamily, (float)Math.Max(8, fontSize), style);
+            using var font = new Font(string.IsNullOrWhiteSpace(fontFamily) ? "Segoe UI" : fontFamily, (float)Math.Max(8, fontSize), style, GraphicsUnit.Pixel);
             using var bmp = new Bitmap(1, 1);
             using var g = Graphics.FromImage(bmp);
             return g.MeasureString(text, font).Width;
@@ -1624,10 +1626,11 @@ public sealed class CategoryFeedSchedule
             return (fallback, 0, 0);
         }
         var elapsed = TotalCycleDuration > 0.05 ? (timelineSeconds % TotalCycleDuration) : timelineSeconds;
+        if (elapsed < 0 && TotalCycleDuration > 0.05) elapsed += TotalCycleDuration;
         for (int i = 0; i < Categories.Count; i++)
         {
             var cat = Categories[i];
-            if (elapsed >= cat.StartTime && (elapsed < cat.EndTime || i == Categories.Count - 1))
+            if (elapsed >= cat.StartTime && elapsed < cat.EndTime)
             {
                 return (cat, Math.Max(0, elapsed - cat.StartTime), i);
             }

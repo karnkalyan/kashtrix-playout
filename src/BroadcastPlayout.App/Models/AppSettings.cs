@@ -86,7 +86,7 @@ public sealed class AppSettings
     public double IngestMinimumFreeSpaceGb { get; set; } = 10;
 
     // Shared-memory output consumed by the optional DirectShow .ax filter.
-    public bool EnableVirtualOutput { get; set; }
+    public bool EnableVirtualOutput { get; set; } = true;
     public string VirtualOutputName { get; set; } = "Kashtrix Playout Virtual Output";
     public int VirtualOutputWidth { get; set; } = 1920;
     public int VirtualOutputHeight { get; set; } = 1080;

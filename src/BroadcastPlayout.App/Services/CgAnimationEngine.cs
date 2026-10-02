@@ -16,7 +16,7 @@ public static class CgAnimationEngine
     // clones a layer when style-keyframes actually exist, so normal playback stays on the fast path.
     private static readonly string[] StylePropertyNames =
     [
-        "Name","Type","Text","Source","BlendMode","MaskEnabled","MaskShape","MaskX","MaskY","MaskWidth","MaskHeight","MaskCornerRadius","MaskFeather","MaskInvert","VideoSourceKind","VideoInputFormat","VideoInputOptions","VideoDevice","AudioDevice","AlternateAudioUrl","VideoIsLiveSource","VideoCaptureWidth","VideoCaptureHeight","VideoSourceFrameRate","FontSize","FontFamily","Fill","Background","Visible","Speed",
+        "Name","Type","Text","Source","BlendMode","MaskEnabled","MaskShape","MaskX","MaskY","MaskWidth","MaskHeight","MaskCornerRadius","MaskFeather","MaskInvert","MaskPathData","ShapePathData","ShapePathClosed","VideoSourceKind","VideoInputFormat","VideoInputOptions","VideoDevice","AudioDevice","AlternateAudioUrl","VideoIsLiveSource","VideoCaptureWidth","VideoCaptureHeight","VideoSourceFrameRate","FontSize","FontFamily","Fill","Background","Visible","Speed",
         "AnimationIn","AnimationOut","AnimationInSeconds","AnimationOutSeconds","Role","ShapeKind","CornerRadius",
         "CornerRadiusTopLeft","CornerRadiusTopRight","CornerRadiusBottomRight","CornerRadiusBottomLeft",
         "CornerRadiusAsPercent","CornerRadiusTopLeftPercent","CornerRadiusTopRightPercent","CornerRadiusBottomRightPercent","CornerRadiusBottomLeftPercent","Perspective",
@@ -113,6 +113,28 @@ public static class CgAnimationEngine
         clone.FontSize = Lerp(clone.FontSize, rightClone.FontSize, eased);
         clone.GradientAngle = Lerp(clone.GradientAngle, rightClone.GradientAngle, eased);
         clone.CornerRadius = Lerp(clone.CornerRadius, rightClone.CornerRadius, eased);
+        clone.CornerRadiusTopLeft = Lerp(clone.CornerRadiusTopLeft, rightClone.CornerRadiusTopLeft, eased);
+        clone.CornerRadiusTopRight = Lerp(clone.CornerRadiusTopRight, rightClone.CornerRadiusTopRight, eased);
+        clone.CornerRadiusBottomRight = Lerp(clone.CornerRadiusBottomRight, rightClone.CornerRadiusBottomRight, eased);
+        clone.CornerRadiusBottomLeft = Lerp(clone.CornerRadiusBottomLeft, rightClone.CornerRadiusBottomLeft, eased);
+        clone.CornerRadiusTopLeftPercent = Lerp(clone.CornerRadiusTopLeftPercent, rightClone.CornerRadiusTopLeftPercent, eased);
+        clone.CornerRadiusTopRightPercent = Lerp(clone.CornerRadiusTopRightPercent, rightClone.CornerRadiusTopRightPercent, eased);
+        clone.CornerRadiusBottomRightPercent = Lerp(clone.CornerRadiusBottomRightPercent, rightClone.CornerRadiusBottomRightPercent, eased);
+        clone.CornerRadiusBottomLeftPercent = Lerp(clone.CornerRadiusBottomLeftPercent, rightClone.CornerRadiusBottomLeftPercent, eased);
+
+        // Mask properties keyframing
+        clone.MaskFeather = Lerp(clone.MaskFeather, rightClone.MaskFeather, eased);
+        clone.MaskCornerRadius = Lerp(clone.MaskCornerRadius, rightClone.MaskCornerRadius, eased);
+        clone.MaskX = Lerp(clone.MaskX, rightClone.MaskX, eased);
+        clone.MaskY = Lerp(clone.MaskY, rightClone.MaskY, eased);
+        clone.MaskWidth = Lerp(clone.MaskWidth, rightClone.MaskWidth, eased);
+        clone.MaskHeight = Lerp(clone.MaskHeight, rightClone.MaskHeight, eased);
+
+        // Shape kind keyframing: switch cleanly at midpoint with smooth interpolation of geometry
+        if (!string.Equals(clone.ShapeKind, rightClone.ShapeKind, StringComparison.OrdinalIgnoreCase))
+        {
+            clone.ShapeKind = eased >= 0.5 ? rightClone.ShapeKind : clone.ShapeKind;
+        }
 
         return clone;
     }

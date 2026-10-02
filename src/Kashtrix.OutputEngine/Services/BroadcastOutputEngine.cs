@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Threading;
@@ -29,290 +29,49 @@ public class BroadcastOutputEngine
         _cadenceTimer.Start();
     }
 
+    private static string GetConfigPath()
+    {
+        var dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KashtrixPlayout");
+        System.IO.Directory.CreateDirectory(dir);
+        return System.IO.Path.Combine(dir, "output-channels.json");
+    }
+
+    public void SaveOutputs()
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(Outputs.ToList(), new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            System.IO.File.WriteAllText(GetConfigPath(), json);
+        }
+        catch { }
+    }
+
     private void InitializeDefaultOutputs()
     {
-        Outputs.Add(new OutputChannel
+        Outputs.Clear();
+        var path = GetConfigPath();
+        if (System.IO.File.Exists(path))
         {
-            Name = "DeckLink 8K Pro (SDI 1 - Main TX)",
-            Protocol = BroadcastOutputProtocol.DeckLink,
-            DestinationUri = "Blackmagic DeckLink 8K Pro (Subdevice 1)",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 1500.0, // Uncompressed SDI 1.5G-SDI
-            PcrJitterNs = 4.2,
-            LatencyMs = 1.8,
-            BufferPercent = 98,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            ServiceId = 101,
-            PmtPid = 256,
-            VideoPid = 257,
-            AudioPid = 258,
-            PcrPid = 257,
-            Scte35Pid = 500,
-            ServiceName = "Prime HD Master Playout"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "NDI 6 HX Studio Broadcast Feed",
-            Protocol = BroadcastOutputProtocol.NDI,
-            DestinationUri = "KASHTRIX-STUDIO (Main Program)",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 125.0,
-            PcrJitterNs = 6.8,
-            LatencyMs = 8.5,
-            BufferPercent = 96,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            ServiceName = "Prime HD NDI Studio"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "Matrox DSX SDI Hardware Mux",
-            Protocol = BroadcastOutputProtocol.Matrox,
-            DestinationUri = "Matrox DSX.LE4 Card 0 (Port A)",
-            RasterFormat = "1080i50",
-            TargetFps = 25.0,
-            RunningFps = 25.0,
-            BitrateMbps = 1485.0,
-            PcrJitterNs = 5.1,
-            LatencyMs = 2.0,
-            BufferPercent = 97,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            ServiceName = "Prime HD Matrox Master"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "AJA Kona 5 12G-SDI Auxiliary",
-            Protocol = BroadcastOutputProtocol.AJA,
-            DestinationUri = "AJA Kona 5 (Device 0 - Channel 1)",
-            RasterFormat = "2160p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 11880.0, // 12G-SDI UHD
-            PcrJitterNs = 3.9,
-            LatencyMs = 1.5,
-            BufferPercent = 99,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            ServiceName = "Space 4K UHD Master"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "DVB-TS UDP Primary Headend Multicast",
-            Protocol = BroadcastOutputProtocol.DvbUdp,
-            DestinationUri = "udp://239.192.10.101:5000?pkt_size=1316&ttl=32",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 12.5,
-            PcrJitterNs = 14.2,
-            LatencyMs = 18.0,
-            BufferPercent = 94,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            DvbStandardEnabled = true,
-            Scte35Enabled = true,
-            ServiceId = 101,
-            ServiceName = "Prime HD DVB Satellite Transport"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "SRT Cloud Distribution (Caller)",
-            Protocol = BroadcastOutputProtocol.SRT,
-            DestinationUri = "srt://ott-gateway.kashtrix.net:9000?mode=caller&latency=120&passphrase=KashtrixBroadcast2026",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 49.98,
-            BitrateMbps = 8.5,
-            PcrJitterNs = 16.5,
-            LatencyMs = 122.4,
-            BufferPercent = 91,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            ServiceName = "Prime HD Cloud SRT"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "RTMP Live Primary (YouTube / CDN)",
-            Protocol = BroadcastOutputProtocol.RTMP,
-            DestinationUri = "rtmp://a.rtmp.youtube.com/live2/xxxx-xxxx-xxxx-xxxx",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 6.5,
-            PcrJitterNs = 22.0,
-            LatencyMs = 850.0,
-            BufferPercent = 93,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            ServiceName = "Prime HD Social RTMP"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "DVB-Compliant HLS OTT Stream",
-            Protocol = BroadcastOutputProtocol.HLS,
-            DestinationUri = "http://cdn-edge.kashtrix.net/live/primehd/index.m3u8",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 7.2,
-            PcrJitterNs = 18.1,
-            LatencyMs = 2100.0,
-            BufferPercent = 95,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            ServiceName = "Prime HD OTT HLS"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "MPEG-DASH (MPD) Adaptive Live",
-            Protocol = BroadcastOutputProtocol.MPD,
-            DestinationUri = "http://cdn-edge.kashtrix.net/live/primehd/manifest.mpd",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 7.0,
-            PcrJitterNs = 19.4,
-            LatencyMs = 2200.0,
-            BufferPercent = 95,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            GpuEncoder = "NVENC H.264 (CUDA)",
-            ServiceName = "Prime HD DASH MPD"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "YouTube Live (RTMP)",
-            Protocol = BroadcastOutputProtocol.RTMP,
-            DestinationUri = "rtmp://a.rtmp.youtube.com/live2/xxxx-xxxx-xxxx-xxxx-xxxx",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 6.0,
-            PcrJitterNs = 20.1,
-            LatencyMs = 1200.0,
-            BufferPercent = 94,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            GpuEncoder = "NVENC H.264 (CUDA)",
-            StreamPreset = "YouTube Live",
-            ServiceName = "Prime HD YouTube"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "Facebook Live (RTMPS)",
-            Protocol = BroadcastOutputProtocol.RTMP,
-            DestinationUri = "rtmps://live-api-s.facebook.com:443/rtmp/FB-xxxx-xxxx-xxxx",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 4.5,
-            PcrJitterNs = 24.3,
-            LatencyMs = 1500.0,
-            BufferPercent = 92,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            GpuEncoder = "NVENC H.264 (CUDA)",
-            StreamPreset = "Facebook Live",
-            ServiceName = "Prime HD Facebook"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "Twitch Live (RTMP)",
-            Protocol = BroadcastOutputProtocol.RTMP,
-            DestinationUri = "rtmp://live.twitch.tv/app/live_xxxxxxxx_xxxxxxxxxx",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 6.0,
-            PcrJitterNs = 18.9,
-            LatencyMs = 900.0,
-            BufferPercent = 95,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            GpuEncoder = "NVENC H.264 (CUDA)",
-            StreamPreset = "Twitch Live",
-            ServiceName = "Prime HD Twitch"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "TikTok Live (RTMP)",
-            Protocol = BroadcastOutputProtocol.RTMP,
-            DestinationUri = "rtmp://push-rtmp-f5-tt.tiktokcdn.com/stage/stream-xxxxxxxxxxxx",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 4.0,
-            PcrJitterNs = 26.1,
-            LatencyMs = 1800.0,
-            BufferPercent = 91,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            GpuEncoder = "NVENC H.264 (CUDA)",
-            StreamPreset = "TikTok Live",
-            ServiceName = "Prime HD TikTok"
-        });
-
-        Outputs.Add(new OutputChannel
-        {
-            Name = "DVB-TS UDP Unicast (IP Transport)",
-            Protocol = BroadcastOutputProtocol.DvbUdp,
-            DestinationUri = "udp://192.168.1.100:5000?pkt_size=1316&bitrate=15000000",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 50.0,
-            BitrateMbps = 15.0,
-            PcrJitterNs = 11.2,
-            LatencyMs = 12.0,
-            BufferPercent = 96,
-            Status = OutputStatus.Standby,
-            IsEnabled = false,
-            DvbStandardEnabled = true,
-            Scte35Enabled = true,
-            GpuEncoder = "NVENC H.265/HEVC (CUDA)",
-            ServiceId = 102,
-            ServiceName = "Prime HD IP Unicast"
-        });
-
-        // Add 1 test channel with Alert status to demonstrate real-time "!" alert monitoring
-        Outputs.Add(new OutputChannel
-        {
-            Name = "Backup Headend UDP (Secondary Route)",
-            Protocol = BroadcastOutputProtocol.DvbUdp,
-            DestinationUri = "udp://239.192.10.102:5000",
-            RasterFormat = "1080p50",
-            TargetFps = 50.0,
-            RunningFps = 48.2,
-            FramesTransmitted = 34500,
-            DroppedFrames = 12,
-            BitrateMbps = 11.8,
-            PcrJitterNs = 44.8,
-            LatencyMs = 38.0,
-            BufferPercent = 74,
-            Status = OutputStatus.Standby,
-            AlertMessage = "Minor PCR jitter variance (>40ns) detected on secondary interface; packets recovered via SMPTE 2022-1 FEC.",
-            IsEnabled = false,
-            GpuEncoder = "NVENC H.264 (CUDA)",
-            ServiceName = "Prime HD Backup DVB"
-        });
+            try
+            {
+                var text = System.IO.File.ReadAllText(path);
+                var loaded = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<OutputChannel>>(text);
+                if (loaded is not null && loaded.Count > 0)
+                {
+                    foreach (var ch in loaded)
+                    {
+                        ch.Status = OutputStatus.Standby;
+                        ch.IsEnabled = false;
+                        Outputs.Add(ch);
+                    }
+                    return;
+                }
+            }
+            catch { }
+        }
+        // No mock channels: clean operator-ready state
     }
+
 
     private void OnCadenceTick(object? sender, EventArgs e)
     {
@@ -320,7 +79,13 @@ public class BroadcastOutputEngine
 
         foreach (var ch in Outputs)
         {
-            if (!ch.IsEnabled || ch.Status == OutputStatus.Standby) { ch.RunningFps = 0.0; ch.BitrateMbps = 0.0; continue; }
+            if (!ch.IsEnabled || ch.Status == OutputStatus.Standby)
+            {
+                // BitrateMbps is the configured target as well as the value shown by the
+                // simulator. Preserve it in standby so validation can still start a channel.
+                ch.RunningFps = 0.0;
+                continue;
+            }
 
             // Increment frame counts based on target FPS (200ms tick = ~10 frames @ 50fps, ~5 frames @ 25fps)
             var framesThisTick = (long)Math.Round(ch.TargetFps * 0.2);
@@ -363,6 +128,14 @@ public class BroadcastOutputEngine
         }
         else
         {
+            if (!TryValidateOutput(channel, out var validationError))
+            {
+                channel.IsEnabled = false;
+                channel.Status = OutputStatus.Error;
+                channel.AlertMessage = validationError;
+                Scte35DvbService.Instance.Log("VALIDATION", $"Output '{channel.Name}' was not started: {validationError}", "ERROR");
+                return;
+            }
             channel.IsEnabled = true;
             channel.Status = OutputStatus.Online;
             channel.AlertMessage = string.Empty;
@@ -372,6 +145,14 @@ public class BroadcastOutputEngine
 
     public void StartOutput(OutputChannel channel)
     {
+        if (!TryValidateOutput(channel, out var validationError))
+        {
+            channel.IsEnabled = false;
+            channel.Status = OutputStatus.Error;
+            channel.AlertMessage = validationError;
+            Scte35DvbService.Instance.Log("VALIDATION", $"Output '{channel.Name}' was not started: {validationError}", "ERROR");
+            return;
+        }
         channel.IsEnabled = true;
         channel.Status = OutputStatus.Online;
         channel.AlertMessage = string.Empty;
@@ -397,6 +178,7 @@ public class BroadcastOutputEngine
     {
         StopOutput(channel);
         Outputs.Remove(channel);
+        SaveOutputs();
         Scte35DvbService.Instance.Log("CONFIG", $"Deleted output '{channel.Name}'", "WARN");
     }
 
@@ -414,4 +196,63 @@ public class BroadcastOutputEngine
         }
         Scte35DvbService.Instance.Log("GENERAL", "All output frame counters and error flags have been reset by operator", "INFO");
     }
+
+    public static bool TryValidateOutput(OutputChannel channel, out string error)
+    {
+        error = string.Empty;
+        if (string.IsNullOrWhiteSpace(channel.Name)) { error = "Output name is required."; return false; }
+        var destination = channel.DestinationUri?.Trim() ?? string.Empty;
+        if (destination.Length == 0) { error = "Destination/device is required."; return false; }
+        if (!double.IsFinite(channel.TargetFps) || channel.TargetFps < 1 || channel.TargetFps > 120) { error = "Frame rate must be between 1 and 120 fps."; return false; }
+        if (!double.IsFinite(channel.BitrateMbps) || channel.BitrateMbps <= 0) { error = "Bitrate must be greater than zero."; return false; }
+
+        if (channel.IsCardHardware)
+        {
+            channel.GpuEncoder = "Direct Uncompressed (Raw PCIe DMA)";
+            if (channel.IsCustomResolution)
+            {
+                if (channel.CustomWidth < 320 || channel.CustomWidth > 7680 ||
+                    channel.CustomHeight < 240 || channel.CustomHeight > 4320)
+                {
+                    error = "Custom resolution must be between 320x240 and 7680x4320.";
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if (channel.IsNetworkStream)
+        {
+            if (destination.Contains("xxxx", StringComparison.OrdinalIgnoreCase) || destination.Contains("your-server", StringComparison.OrdinalIgnoreCase))
+            { error = "Replace the placeholder destination/stream key before starting this output."; return false; }
+            if (!Uri.TryCreate(destination, UriKind.Absolute, out var uri))
+            { error = "Destination must be a valid absolute network URI."; return false; }
+            var allowed = channel.Protocol switch
+            {
+                BroadcastOutputProtocol.DvbUdp => new[] { "udp", "rtp" },
+                BroadcastOutputProtocol.SRT => new[] { "srt" },
+                BroadcastOutputProtocol.RTMP => new[] { "rtmp", "rtmps" },
+                BroadcastOutputProtocol.HLS or BroadcastOutputProtocol.MPD => new[] { "http", "https" },
+                BroadcastOutputProtocol.RTSP => new[] { "rtsp", "rtsps" },
+                _ => Array.Empty<string>()
+            };
+            if (allowed.Length > 0 && !allowed.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
+            { error = $"{channel.ProtocolDisplayName} requires a {string.Join("/", allowed)} destination."; return false; }
+            // UDP and SRT have no universally safe implicit destination port. RTMP/RTSP
+            // endpoints commonly omit their standard port and remain valid.
+            if ((channel.Protocol is BroadcastOutputProtocol.DvbUdp or BroadcastOutputProtocol.SRT) && uri.Port <= 0)
+            { error = "The network destination must include a valid port."; return false; }
+        }
+
+        if (channel.Protocol == BroadcastOutputProtocol.DvbUdp)
+        {
+            if (channel.ServiceId is < 1 or > 65535) { error = "DVB service ID must be in the range 1–65535."; return false; }
+            var pids = new[] { channel.PmtPid, channel.VideoPid, channel.AudioPid, channel.PcrPid };
+            if (pids.Any(pid => pid is < 16 or > 8190)) { error = "DVB PIDs must be in the range 16–8190."; return false; }
+            if (new[] { channel.PmtPid, channel.VideoPid, channel.AudioPid }.Distinct().Count() != 3)
+            { error = "PMT, video and audio PIDs must be unique."; return false; }
+        }
+        return true;
+    }
 }
+

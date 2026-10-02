@@ -13,7 +13,11 @@ public sealed class VirtualOutputBridge : IDisposable
 {
     public const string VideoMapName = "KashtrixPlayout.VirtualOutput.Video.v1";
     public const string AudioMapName = "KashtrixPlayout.VirtualOutput.Audio.v1";
+    public const string ProgramConfidenceVideoMapName = "KashtrixPlayout.ProgramConfidence.Video.v1";
+    public const string ProgramConfidenceAudioMapName = "KashtrixPlayout.ProgramConfidence.Audio.v1";
     private readonly object _sync = new();
+    private readonly string _videoMapName;
+    private readonly string _audioMapName;
     private MemoryMappedFile? _videoMap;
     private MemoryMappedViewAccessor? _videoView;
     private MemoryMappedFile? _audioMap;
@@ -24,36 +28,50 @@ public sealed class VirtualOutputBridge : IDisposable
     public bool IsOpen => _videoView is not null;
     public string Status { get; private set; } = "OFF";
 
+    public VirtualOutputBridge(string videoMapName = VideoMapName, string audioMapName = AudioMapName)
+    {
+        _videoMapName = string.IsNullOrWhiteSpace(videoMapName) ? VideoMapName : videoMapName;
+        _audioMapName = string.IsNullOrWhiteSpace(audioMapName) ? AudioMapName : audioMapName;
+    }
+
     public void Open(int width, int height, double fps)
     {
         lock (_sync)
         {
             CloseCore();
             _width = Math.Clamp(width, 320, 7680); _height = Math.Clamp(height, 240, 4320); _fps = Math.Clamp(fps, 1, 120);
-            var videoCapacity = 256L + (long)_width * _height * 4;
-            _videoMap = MemoryMappedFile.CreateOrOpen(VideoMapName, videoCapacity, MemoryMappedFileAccess.ReadWrite);
+            var frameCapacity = (long)_width * _height * 4;
+            if (string.Equals(_videoMapName, ProgramConfidenceVideoMapName, StringComparison.Ordinal))
+                frameCapacity = Math.Max(frameCapacity, 3840L * 2160 * 4);
+            var videoCapacity = 256L + frameCapacity;
+            _videoMap = MemoryMappedFile.CreateOrOpen(_videoMapName, videoCapacity, MemoryMappedFileAccess.ReadWrite);
             _videoView = _videoMap.CreateViewAccessor(0, videoCapacity, MemoryMappedFileAccess.ReadWrite);
             var audioCapacity = 256L + 48000 * 2 * 2 * 2; // about two seconds stereo PCM16
-            _audioMap = MemoryMappedFile.CreateOrOpen(AudioMapName, audioCapacity, MemoryMappedFileAccess.ReadWrite);
+            _audioMap = MemoryMappedFile.CreateOrOpen(_audioMapName, audioCapacity, MemoryMappedFileAccess.ReadWrite);
             _audioView = _audioMap.CreateViewAccessor(0, audioCapacity, MemoryMappedFileAccess.ReadWrite);
             Status = $"ON · {_width}x{_height} · {_fps:0.###} fps";
         }
     }
 
-    public void SubmitVideo(VideoFrameData frame)
+    public void SubmitVideo(VideoFrameData frame, bool onAir = false)
     {
         lock (_sync)
         {
             if (_videoView is null) return;
             var bytes = frame.Width == _width && frame.Height == _height && frame.Stride == _width * 4
                 ? frame.Bgra : ResizeBgra(frame.Bgra, frame.Width, frame.Height, frame.Stride, _width, _height);
-            _videoSequence++;
+            // Publish the sequence last. Readers use it as a commit marker and verify it
+            // after copying pixels, preventing half-written/torn confidence frames.
+            var nextSequence = _videoSequence + 1;
             _videoView.Write(0, 0x4B545856); // KTXV
             _videoView.Write(4, 1);
             _videoView.Write(8, _width); _videoView.Write(12, _height); _videoView.Write(16, _width * 4);
-            _videoView.Write(20, _fps); _videoView.Write(28, _videoSequence); _videoView.Write(36, DateTime.UtcNow.Ticks);
+            _videoView.Write(20, _fps); _videoView.Write(36, DateTime.UtcNow.Ticks);
             _videoView.Write(44, bytes.Length);
+            _videoView.Write(48, onAir ? 1 : 0);
             _videoView.WriteArray(256, bytes, 0, bytes.Length);
+            _videoView.Write(28, nextSequence);
+            _videoSequence = nextSequence;
         }
     }
 
