@@ -104,7 +104,22 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     public CgProject? SelectedProject
     {
         get => _selectedProject;
-        set { _selectedProject = value; Raise(); LoadLayers(); }
+        set
+        {
+            _selectedProject = value;
+            Raise();
+            LoadLayers();
+            if (value is not null)
+            {
+                var activeKvp = _programLayerSnapshots.FirstOrDefault(kv =>
+                    kv.Value.Project.Id == value.Id ||
+                    string.Equals(kv.Value.Project.Name, value.Name, StringComparison.OrdinalIgnoreCase));
+                if (activeKvp.Key > 0)
+                {
+                    CurrentOverlayNumber = activeKvp.Key;
+                }
+            }
+        }
     }
     public CgLayer? SelectedLayer
     {
@@ -226,7 +241,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         var command = new CgRemoteCommand
         {
             CommandId = Guid.NewGuid().ToString("N"),
-            Action = "STOP",
+            Action = "CLEAR",
             Bus = "PROGRAM",
             Layer = -1
         };
@@ -561,17 +576,39 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         if (SelectedProject is not null)
         {
             var snapshot = BuildFullProjectSnapshot(SelectedProject);
-            if (await RouteAsync("PLAY", "PROGRAM", snapshot))
+            var targetLayer = CurrentOverlayNumber;
+            var existingLayer = _programLayerSnapshots.FirstOrDefault(kv =>
+                kv.Value.Project.Id == SelectedProject.Id ||
+                string.Equals(kv.Value.Project.Name, SelectedProject.Name, StringComparison.OrdinalIgnoreCase)).Key;
+
+            if (existingLayer > 0)
+            {
+                targetLayer = existingLayer;
+                CurrentOverlayNumber = targetLayer;
+            }
+            else if (_programLayerSnapshots.TryGetValue(targetLayer, out var occupant) &&
+                     occupant.Project is not null &&
+                     occupant.Project.Id != SelectedProject.Id &&
+                     !string.Equals(occupant.Project.Name, SelectedProject.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                var freeLayer = 1;
+                while (_programLayerSnapshots.ContainsKey(freeLayer)) freeLayer++;
+                targetLayer = freeLayer;
+                if (!ActiveOverlayLayers.Contains(targetLayer)) ActiveOverlayLayers.Add(targetLayer);
+                CurrentOverlayNumber = targetLayer;
+            }
+
+            if (await RouteAsync("PLAY", "PROGRAM", snapshot, layerOverride: targetLayer))
             {
                 snapshot.OnAir = true;
-                snapshot.ExternalLayer = CurrentOverlayNumber;
+                snapshot.ExternalLayer = targetLayer;
                 _programPreviousSnapshot = null;
                 _programTransitionMode = "None";
                 _programSnapshot = snapshot;
                 _programStartedUtc = DateTime.UtcNow;
-                _programLayerSnapshots[CurrentOverlayNumber] = (snapshot, DateTime.UtcNow);
+                _programLayerSnapshots[targetLayer] = (snapshot, DateTime.UtcNow);
                 CopyProjectToProgramMonitor(snapshot);
-                _cgOutput.SetProgram(snapshot);
+                _cgOutput.SetProgramLayer(targetLayer, snapshot);
             }
         }
     }
@@ -727,7 +764,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         }
     }
 
-    private async Task<bool> RouteAsync(string action, string bus, CgProject? projectOverride = null, string transition = "None", double transitionSeconds = 0.45)
+    private async Task<bool> RouteAsync(string action, string bus, CgProject? projectOverride = null, string transition = "None", double transitionSeconds = 0.45, int? layerOverride = null, bool targetAll = false)
     {
         var targets = Channels.Where(x => x.IsSelected).Select(x => x.ChannelId)
             .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -748,7 +785,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             }
             quickProject = BuildFullProjectSnapshot(SelectedProject);
         }
-        else if (action.Equals("STOP", StringComparison.OrdinalIgnoreCase) && SelectedProject is not null)
+        else if (!targetAll && (action.Equals("STOP", StringComparison.OrdinalIgnoreCase) || action.Equals("CLEAR", StringComparison.OrdinalIgnoreCase)) && SelectedProject is not null)
         {
             quickProject = SelectedProject;
         }
@@ -758,7 +795,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             CommandId = Guid.NewGuid().ToString("N"),
             Action = action,
             Bus = bus,
-            Layer = CurrentOverlayNumber,
+            Layer = targetAll ? -1 : layerOverride ?? CurrentOverlayNumber,
             Project = quickProject,
             Transition = string.IsNullOrWhiteSpace(transition) ? "None" : transition,
             TransitionSeconds = Math.Clamp(transitionSeconds, .05, 5.0)
@@ -942,19 +979,43 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     {
         if (SelectedProject is null) return;
         var snapshot = BuildFullProjectSnapshot(SelectedProject);
+
+        var targetLayer = CurrentOverlayNumber;
+        var existingLayer = _programLayerSnapshots.FirstOrDefault(kv =>
+            kv.Value.Project.Id == SelectedProject.Id ||
+            string.Equals(kv.Value.Project.Name, SelectedProject.Name, StringComparison.OrdinalIgnoreCase)).Key;
+
+        if (existingLayer > 0)
+        {
+            targetLayer = existingLayer;
+            CurrentOverlayNumber = targetLayer;
+        }
+        else if (_programLayerSnapshots.TryGetValue(targetLayer, out var occupant) &&
+                 occupant.Project is not null &&
+                 occupant.Project.Id != SelectedProject.Id &&
+                 !string.Equals(occupant.Project.Name, SelectedProject.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            var freeLayer = 1;
+            while (_programLayerSnapshots.ContainsKey(freeLayer)) freeLayer++;
+            targetLayer = freeLayer;
+            if (!ActiveOverlayLayers.Contains(targetLayer)) ActiveOverlayLayers.Add(targetLayer);
+            CurrentOverlayNumber = targetLayer;
+        }
+
         snapshot.OnAir = true;
-        snapshot.ExternalLayer = CurrentOverlayNumber;
+        snapshot.ExternalLayer = targetLayer;
         _programPreviousSnapshot = null;
         _programTransitionMode = "None";
         _programSnapshot = snapshot;
         _programStartedUtc = DateTime.UtcNow;
-        _programLayerSnapshots[CurrentOverlayNumber] = (snapshot, DateTime.UtcNow);
+        _programLayerSnapshots[targetLayer] = (snapshot, DateTime.UtcNow);
         CopyProjectToProgramMonitor(snapshot);
-        _cgOutput.SetProgram(snapshot);
+        _cgOutput.SetProgramLayer(targetLayer, snapshot);
 
-        if (!await RouteAsync("PLAY", "PROGRAM", snapshot))
+        if (!await RouteAsync("PLAY", "PROGRAM", snapshot, layerOverride: targetLayer))
         {
-            _programLayerSnapshots.Remove(CurrentOverlayNumber);
+            _programLayerSnapshots.Remove(targetLayer);
+            _cgOutput.RemoveProgramLayer(targetLayer);
             if (_programSnapshot == snapshot)
             {
                 _programSnapshot = _programLayerSnapshots.Count > 0 ? _programLayerSnapshots.Values.Last().Project : null;
@@ -969,16 +1030,30 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     {
         var targetLayer = CurrentOverlayNumber;
         CgProject? targetProj = null;
-        if (_programLayerSnapshots.TryGetValue(targetLayer, out var active))
+
+        // If a project is selected that matches an active program overlay, target that specific layer
+        if (SelectedProject is not null)
+        {
+            var match = _programLayerSnapshots.FirstOrDefault(kv =>
+                kv.Value.Project.Id == SelectedProject.Id ||
+                string.Equals(kv.Value.Project.Name, SelectedProject.Name, StringComparison.OrdinalIgnoreCase));
+            if (match.Value.Project is not null)
+            {
+                targetLayer = match.Key;
+                targetProj = match.Value.Project;
+            }
+        }
+
+        if (targetProj is null && _programLayerSnapshots.TryGetValue(targetLayer, out var active))
         {
             targetProj = active.Project;
         }
-        else if (SelectedProject is not null)
+        else if (targetProj is null && SelectedProject is not null)
         {
             targetProj = SelectedProject;
         }
 
-        await RouteAsync("STOP", "PROGRAM", targetProj);
+        await RouteAsync("STOP", "PROGRAM", targetProj, layerOverride: targetLayer);
         LastOperation = "PROGRAM STOP (OUT ANIMATION)";
         LastDetail = targetProj != null
             ? $"Triggered out animation for {targetProj.Name} (Overlay {targetLayer})."
@@ -995,18 +1070,24 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
                 await Dispatcher.InvokeAsync(() =>
                 {
                     _programLayerSnapshots.Remove(targetLayer);
-                    if (_programSnapshot != null && _programSnapshot.ExternalLayer == targetLayer)
+                    _cgOutput.RemoveProgramLayer(targetLayer);
+                    // Only stop the specific layer. If other layers remain on program, keep them on-air!
+                    if (_programLayerSnapshots.Count > 0)
                     {
-                        _programSnapshot = _programLayerSnapshots.Count > 0 ? _programLayerSnapshots.Values.Last().Project : null;
-                        if (_programSnapshot == null)
-                        {
-                            ProgramCgImage.Source = null;
-                            _programMonitorBitmap = null;
-                            ProgramProjectName = "No CG on program";
-                            ProgramLayerName = "PROGRAM CLEAR";
-                            ProgramLayerText = "Program CG bus is clear.";
-                            _cgOutput.ClearProgram();
-                        }
+                        _programSnapshot = _programLayerSnapshots.Values.Last().Project;
+                        ProgramProjectName = _programSnapshot.Name;
+                        ProgramLayerName = $"OVERLAY {_programSnapshot.ExternalLayer} ACTIVE";
+                        ProgramLayerText = $"{_programLayerSnapshots.Count} layer(s) active on program.";
+                    }
+                    else
+                    {
+                        _programSnapshot = null;
+                        ProgramCgImage.Source = null;
+                        _programMonitorBitmap = null;
+                        ProgramProjectName = "No CG on program";
+                        ProgramLayerName = "PROGRAM CLEAR";
+                        ProgramLayerText = "Program CG bus is clear.";
+                        _cgOutput.ClearProgram();
                     }
                 });
             });
@@ -1021,41 +1102,45 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     {
         if (SelectedProject is null) return;
         var snapshot = BuildFullProjectSnapshot(SelectedProject);
-        if (await RouteAsync("UPDATE", "PROGRAM", snapshot))
+        var targetLayer = CurrentOverlayNumber;
+        var existingLayer = _programLayerSnapshots.FirstOrDefault(kv =>
+            kv.Value.Project.Id == SelectedProject.Id ||
+            string.Equals(kv.Value.Project.Name, SelectedProject.Name, StringComparison.OrdinalIgnoreCase)).Key;
+        if (existingLayer > 0) targetLayer = existingLayer;
+
+        if (await RouteAsync("UPDATE", "PROGRAM", snapshot, layerOverride: targetLayer))
         {
             snapshot.OnAir = true;
-            snapshot.ExternalLayer = CurrentOverlayNumber;
+            snapshot.ExternalLayer = targetLayer;
             _programPreviousSnapshot = null;
             _programTransitionMode = "None";
             _programTransitionStartedUtc = DateTime.MinValue;
             _programSnapshot = snapshot;
             if (_programStartedUtc == default) _programStartedUtc = DateTime.UtcNow;
-            _programLayerSnapshots[CurrentOverlayNumber] = (snapshot, _programStartedUtc);
+            _programLayerSnapshots[targetLayer] = (snapshot, _programStartedUtc);
             CopyProjectToProgramMonitor(snapshot);
-            _cgOutput.SetProgram(snapshot);
+            _cgOutput.SetProgramLayer(targetLayer, snapshot);
         }
     }
     private async void ProgramClear_Click(object s, RoutedEventArgs e)
     {
-        var targetLayer = CurrentOverlayNumber;
-        if (await RouteAsync("CLEAR", "PROGRAM"))
+        // CLEAR is the emergency/instant bus clear: remove every CG layer. STOP above
+        // remains the scoped operation and only animates the selected/current item out.
+        if (await RouteAsync("CLEAR", "PROGRAM", layerOverride: -1, targetAll: true))
         {
-            _programLayerSnapshots.Remove(targetLayer);
-            if (_programSnapshot != null && _programSnapshot.ExternalLayer == targetLayer)
-            {
-                _programSnapshot = _programLayerSnapshots.Count > 0 ? _programLayerSnapshots.Values.Last().Project : null;
-                if (_programSnapshot == null)
-                {
-                    ProgramCgImage.Source = null;
-                    _programMonitorBitmap = null;
-                    ProgramProjectName = "No CG on program";
-                    ProgramLayerName = "PROGRAM CLEAR";
-                    ProgramLayerText = "Program CG bus is clear.";
-                    _cgOutput.ClearProgram();
-                }
-            }
-            LastOperation = $"OVERLAY {targetLayer} CLEARED";
-            LastDetail = $"Overlay {targetLayer} cleared from program.";
+            _programLayerSnapshots.Clear();
+            _programSnapshot = null;
+            _programPreviousSnapshot = null;
+            _programTransitionMode = "None";
+            _programTransitionStartedUtc = DateTime.MinValue;
+            ProgramCgImage.Source = null;
+            _programMonitorBitmap = null;
+            ProgramProjectName = "No CG on program";
+            ProgramLayerName = "PROGRAM CLEAR";
+            ProgramLayerText = "All Program CG layers are clear.";
+            _cgOutput.ClearProgram();
+            LastOperation = "PROGRAM BUS CLEARED";
+            LastDetail = "All CG items and overlay layers were cleared instantly.";
         }
     }
     private async void TakeToProgram_Click(object s, RoutedEventArgs e) => await TakePreviewToProgramAsync(TakeTransition);
@@ -1075,16 +1160,40 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         }
         var transition = string.IsNullOrWhiteSpace(requestedTransition) ? "None" : requestedTransition;
         var transitionSeconds = Math.Clamp(TakeTransitionSeconds, .05, 5.0);
-        if (await RouteAsync("TAKE", "PROGRAM", _previewSnapshot, transition, transitionSeconds))
+
+        var targetLayer = CurrentOverlayNumber;
+        var existingLayer = _programLayerSnapshots.FirstOrDefault(kv =>
+            kv.Value.Project.Id == _previewSnapshot.Id ||
+            string.Equals(kv.Value.Project.Name, _previewSnapshot.Name, StringComparison.OrdinalIgnoreCase)).Key;
+
+        if (existingLayer > 0)
+        {
+            targetLayer = existingLayer;
+            CurrentOverlayNumber = targetLayer;
+        }
+        else if (_programLayerSnapshots.TryGetValue(targetLayer, out var occupant) &&
+                 occupant.Project is not null &&
+                 occupant.Project.Id != _previewSnapshot.Id &&
+                 !string.Equals(occupant.Project.Name, _previewSnapshot.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            var freeLayer = 1;
+            while (_programLayerSnapshots.ContainsKey(freeLayer)) freeLayer++;
+            targetLayer = freeLayer;
+            if (!ActiveOverlayLayers.Contains(targetLayer)) ActiveOverlayLayers.Add(targetLayer);
+            CurrentOverlayNumber = targetLayer;
+        }
+
+        if (await RouteAsync("TAKE", "PROGRAM", _previewSnapshot, transition, transitionSeconds, layerOverride: targetLayer))
         {
             _previewSnapshot.OnAir = true;
-            _previewSnapshot.ExternalLayer = CurrentOverlayNumber;
-            _programLayerSnapshots[CurrentOverlayNumber] = (_previewSnapshot, DateTime.UtcNow);
+            _previewSnapshot.ExternalLayer = targetLayer;
+            _programLayerSnapshots[targetLayer] = (_previewSnapshot, DateTime.UtcNow);
             _programPreviousSnapshot = !transition.Equals("None", StringComparison.OrdinalIgnoreCase) ? _programSnapshot : null;
             _programSnapshot = _previewSnapshot; _programStartedUtc = DateTime.UtcNow;
             _programTransitionMode = transition; _programTransitionSeconds = transitionSeconds;
             _programTransitionStartedUtc = transition.Equals("None", StringComparison.OrdinalIgnoreCase) ? DateTime.MinValue : DateTime.UtcNow;
-            CopyProjectToProgramMonitor(_previewSnapshot); _cgOutput.SetProgram(_previewSnapshot, transition, transitionSeconds);
+            CopyProjectToProgramMonitor(_previewSnapshot);
+            _cgOutput.SetProgramLayer(targetLayer, _previewSnapshot, transition, transitionSeconds);
             LastOperation = transition.Equals("None", StringComparison.OrdinalIgnoreCase) ? "CUT PREVIEW -> PROGRAM" : $"TAKE PREVIEW -> PROGRAM · {transition.ToUpperInvariant()}";
         }
     }
@@ -1109,7 +1218,15 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         _vm.Settings.CgDeckLinkKeyerLevel = Math.Clamp(_vm.Settings.CgDeckLinkKeyerLevel, 0, 255);
         _vm.SaveSettings();
         _cgOutput.Configure(_vm.Settings);
-        if (_programSnapshot is not null) _cgOutput.SetProgram(_programSnapshot);
+        if (_programLayerSnapshots.Count > 0)
+        {
+            foreach (var kvp in _programLayerSnapshots)
+                _cgOutput.SetProgramLayer(kvp.Key, kvp.Value.Project);
+        }
+        else if (_programSnapshot is not null)
+        {
+            _cgOutput.SetProgram(_programSnapshot);
+        }
         LastOperation = "CG OUTPUT APPLIED";
         LastDetail = $"{CgOutputSummary} · {CgDeckLinkDeviceName} · NDI alpha {(EnableCgNdiAlphaOutput ? "ON" : "OFF")} · DeckLink key/fill {(EnableCgDeckLinkKeyFill ? CgDeckLinkKeyerMode.ToUpperInvariant() : "OFF")}.";
     }
@@ -1304,7 +1421,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             {
                 var savedLayer = CurrentOverlayNumber;
                 CurrentOverlayNumber = item.OverlayLayer;
-                await RouteAsync("PLAY", "PROGRAM", proj);
+                await RouteAsync("PLAY", "PROGRAM", proj, layerOverride: item.OverlayLayer);
                 CurrentOverlayNumber = savedLayer;
                 LastOperation = $"SCHEDULER PLAY: {item.ProjectName}";
                 LastDetail = $"Triggered scheduled play at {DateTime.Now:HH:mm:ss} on layer {item.OverlayLayer}";
@@ -1320,9 +1437,11 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     {
         try
         {
+            var proj = _vm.CgProjects.FirstOrDefault(x => x.Name.Equals(item.ProjectName, StringComparison.OrdinalIgnoreCase))
+                ?? Projects.FirstOrDefault(x => x.Name.Equals(item.ProjectName, StringComparison.OrdinalIgnoreCase));
             var savedLayer = CurrentOverlayNumber;
             CurrentOverlayNumber = item.OverlayLayer;
-            await RouteAsync("STOP", "PROGRAM");
+            await RouteAsync("STOP", "PROGRAM", proj, layerOverride: item.OverlayLayer);
             CurrentOverlayNumber = savedLayer;
             LastOperation = $"SCHEDULER STOP: {item.ProjectName}";
             LastDetail = $"Triggered scheduled stop/clear at {DateTime.Now:HH:mm:ss} on layer {item.OverlayLayer}";

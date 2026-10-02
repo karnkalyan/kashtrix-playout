@@ -4,17 +4,17 @@
         Title="BROADCAST DYNAMIC FIELDS"
         Width="680" Height="560"
         WindowStartupLocation="CenterOwner" WindowStyle="None" ResizeMode="NoResize"
-        Background="#0E1217" Foreground="#F1F5F9" SnapsToDevicePixels="True">
+        Background="{StaticResource Bg0Brush}" Foreground="{StaticResource TextBrush}" SnapsToDevicePixels="True">
 
     <Window.Resources>
         <Style x:Key="FieldCheckStyle" TargetType="CheckBox">
             <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Style.Triggers>
                 <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Foreground" Value="#F59E0B"/>
+                    <Setter Property="Foreground" Value="#B78BE7"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
                 </Trigger>
             </Style.Triggers>
@@ -29,7 +29,7 @@
         </Style>
     </Window.Resources>
 
-    <Border BorderBrush="#0284C7" BorderThickness="1" Background="#0E1217">
+    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Background="{StaticResource Bg0Brush}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="42"/>
@@ -37,8 +37,8 @@
                 <RowDefinition Height="52"/>
             </Grid.RowDefinitions>
 
-            <!-- Blue Header Bar with Tab Buttons -->
-            <Border Grid.Row="0" Background="#0284C7" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <!-- Chrome Header Bar with Tab Buttons -->
+            <Border Grid.Row="0" Background="#181122" BorderBrush="{StaticResource AccentBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid Margin="12,0,8,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -51,9 +51,9 @@
                     <!-- Tab Switcher -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button x:Name="TabNowNextBtn" Content="NOW / NEXT FIELDS" Click="TabNowNext_Click"
-                                Background="#0369A1" BorderThickness="0" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="12,6" Margin="0,0,6,0" Cursor="Hand"/>
+                                Background="#3E2359" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="12,6" Margin="0,0,6,0" Cursor="Hand"/>
                         <Button x:Name="TabWeatherBtn" Content="WEATHER FIELDS" Click="TabWeather_Click"
-                                Background="#075985" BorderThickness="0" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="11" Padding="12,6" Cursor="Hand"/>
+                                Background="#251B31" BorderThickness="0" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11" Padding="12,6" Cursor="Hand"/>
                     </StackPanel>
 
                     <Button Grid.Column="2" Content="✕" Width="28" Height="26" Click="Close_Click"
@@ -79,7 +79,7 @@
 
                         <!-- NOW COLUMN -->
                         <StackPanel Grid.Column="0" Margin="10,0">
-                            <TextBlock Text="NOW PLAYING FIELDS" FontSize="14" FontWeight="Bold" Foreground="#0099FF" Margin="0,0,0,14"/>
+                            <TextBlock Text="NOW PLAYING FIELDS" FontSize="14" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,14"/>
                             <CheckBox x:Name="NowPlayingCheck" Content="Now Playing Item" IsChecked="True" Style="{StaticResource FieldCheckStyle}"/>
                             <CheckBox x:Name="NowDescriptionCheck" Content="Now Item Description" Style="{StaticResource FieldCheckStyle}"/>
                             <CheckBox x:Name="NowGenreCheck" Content="Now Item Genre" Style="{StaticResource FieldCheckStyle}"/>
@@ -89,11 +89,11 @@
                         </StackPanel>
 
                         <!-- Center Divider -->
-                        <Border Grid.Column="1" Background="#263140"/>
+                        <Border Grid.Column="1" Background="{StaticResource LineBrush}"/>
 
                         <!-- NEXT COLUMN -->
                         <StackPanel Grid.Column="2" Margin="20,0,10,0">
-                            <TextBlock Text="NEXT PROGRAM FIELDS" FontSize="14" FontWeight="Bold" Foreground="#0099FF" Margin="0,0,0,14"/>
+                            <TextBlock Text="NEXT PROGRAM FIELDS" FontSize="14" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,14"/>
                             <CheckBox x:Name="NextItemCheck" Content="Next Item" IsChecked="True" Style="{StaticResource FieldCheckStyle}"/>
                             <CheckBox x:Name="NextStartTimeCheck" Content="Start Time Of Next Item" IsChecked="True" Style="{StaticResource FieldCheckStyle}"/>
                             <CheckBox x:Name="NextDescriptionCheck" Content="Next Item Description" Style="{StaticResource FieldCheckStyle}"/>
@@ -105,7 +105,7 @@
                     </Grid>
 
                     <!-- Now/Next Quick Sync Buttons -->
-                    <Border Grid.Row="1" Background="#0C1017" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,12,0,0">
+                    <Border Grid.Row="1" Background="{StaticResource Bg1Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,12,0,0">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -114,16 +114,16 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Button Content="SELECT ALL NOW" Click="SelectAllNow_Click" Width="125" Height="26" Margin="0,0,8,0"
-                                        Background="#141B24" BorderBrush="#2A374A" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" Cursor="Hand"/>
+                                        Background="#251B31" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" Cursor="Hand"/>
                                 <Button Content="COPY TO NEXT" Click="SameInNext_Click" Width="120" Height="26"
-                                        Background="#141B24" BorderBrush="#2A374A" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" Cursor="Hand"/>
+                                        Background="#251B31" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" Cursor="Hand"/>
                             </StackPanel>
-                            <Border Grid.Column="1" Background="#263140"/>
+                            <Border Grid.Column="1" Background="{StaticResource LineBrush}"/>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Button Content="COPY TO NOW" Click="SameInCurrent_Click" Width="120" Height="26" Margin="0,0,8,0"
-                                        Background="#141B24" BorderBrush="#2A374A" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" Cursor="Hand"/>
+                                        Background="#251B31" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" Cursor="Hand"/>
                                 <Button Content="SELECT ALL NEXT" Click="SelectAllNext_Click" Width="125" Height="26"
-                                        Background="#141B24" BorderBrush="#2A374A" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" Cursor="Hand"/>
+                                        Background="#251B31" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" Cursor="Hand"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -145,7 +145,7 @@
 
                         <!-- Weather Column 1 -->
                         <StackPanel Grid.Column="0" Margin="10,0">
-                            <TextBlock Text="METEOROLOGICAL FIELDS" FontSize="14" FontWeight="Bold" Foreground="#0099FF" Margin="0,0,0,14"/>
+                            <TextBlock Text="METEOROLOGICAL FIELDS" FontSize="14" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,14"/>
                             <CheckBox x:Name="TemperatureCheck" Content="Temperature" IsChecked="True" Style="{StaticResource FieldCheckStyle}"/>
                             <CheckBox x:Name="TempMinCheck" Content="Temp Min" Style="{StaticResource FieldCheckStyle}"/>
                             <CheckBox x:Name="TempMaxCheck" Content="Temp Max" Style="{StaticResource FieldCheckStyle}"/>
@@ -155,11 +155,11 @@
                         </StackPanel>
 
                         <!-- Center Divider -->
-                        <Border Grid.Column="1" Background="#263140"/>
+                        <Border Grid.Column="1" Background="{StaticResource LineBrush}"/>
 
                         <!-- Weather Column 2 -->
                         <StackPanel Grid.Column="2" Margin="20,0,10,0">
-                            <TextBlock Text="CONDITIONS &amp; DATES" FontSize="14" FontWeight="Bold" Foreground="#0099FF" Margin="0,0,0,14"/>
+                            <TextBlock Text="CONDITIONS &amp; DATES" FontSize="14" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,14"/>
                             <CheckBox x:Name="ConditionCheck" Content="Condition" IsChecked="True" Style="{StaticResource FieldCheckStyle}"/>
                             <CheckBox x:Name="PressureCheck" Content="Pressure" Style="{StaticResource FieldCheckStyle}"/>
                             <CheckBox x:Name="HumidityCheck" Content="Humidity" Style="{StaticResource FieldCheckStyle}"/>
@@ -171,7 +171,7 @@
                     </Grid>
 
                     <!-- Multi-Day Section & Weather Select All -->
-                    <Border Grid.Row="1" Background="#0C1017" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,12,0,0">
+                    <Border Grid.Row="1" Background="{StaticResource Bg1Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,12,0,0">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -185,18 +185,18 @@
                                     <RadioButton x:Name="Days3Radio" Content="3" GroupName="WeatherDaysGroup" IsChecked="True" Style="{StaticResource DayRadioStyle}"/>
                                     <RadioButton x:Name="Days4Radio" Content="4" GroupName="WeatherDaysGroup" Style="{StaticResource DayRadioStyle}"/>
                                     <RadioButton x:Name="Days5Radio" Content="5" GroupName="WeatherDaysGroup" Style="{StaticResource DayRadioStyle}"/>
-                                    <TextBlock Text="days" Foreground="#94A3B8" FontSize="12.5" VerticalAlignment="Center" Margin="-6,0,0,0"/>
+                                    <TextBlock Text="days" Foreground="{StaticResource MutedBrush}" FontSize="12.5" VerticalAlignment="Center" Margin="-6,0,0,0"/>
                                 </StackPanel>
                             </StackPanel>
                             <Button Grid.Column="1" Content="SELECT ALL WEATHER" Click="SelectAllWeather_Click" Width="150" Height="28"
-                                    Background="#141B24" BorderBrush="#2A374A" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" VerticalAlignment="Center" Cursor="Hand"/>
+                                    Background="#251B31" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="10.5" VerticalAlignment="Center" Cursor="Hand"/>
                         </Grid>
                     </Border>
                 </Grid>
             </Grid>
 
             <!-- Bottom Action Footer -->
-            <Border Grid.Row="2" Background="#090D11" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="16,0">
+            <Border Grid.Row="2" Background="{StaticResource Bg1Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,0">
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -207,9 +207,9 @@
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Button Content="CANCEL" Click="Cancel_Click" Width="90" Height="32" Margin="0,0,8,0"
-                                Background="#182230" BorderBrush="#2F3E52" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11" Cursor="Hand"/>
+                                Background="#251B31" BorderBrush="{StaticResource LineBrush}" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11" Cursor="Hand"/>
                         <Button Content="APPLY &amp; SAVE" Click="ApplySave_Click" Width="125" Height="32"
-                                Background="#0284C7" BorderBrush="#0284C7" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Cursor="Hand"/>
+                                Background="#3E2359" BorderBrush="{StaticResource AccentBrush}" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Cursor="Hand"/>
                     </StackPanel>
                 </Grid>
             </Border>

@@ -15,7 +15,9 @@ public enum BroadcastOutputProtocol
     RTMP,
     HLS,
     MPD,
-    RTSP
+    RTSP,
+    CgOutput,
+    VirtualOutput
 }
 
 public enum OutputStatus
@@ -27,9 +29,45 @@ public enum OutputStatus
     Error
 }
 
+public enum OutputInputSource
+{
+    PlayoutProgram,
+    CgProgram,
+    Manual
+}
+
 public class OutputChannel : INotifyPropertyChanged
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    private OutputInputSource _inputSource = OutputInputSource.PlayoutProgram;
+    public OutputInputSource InputSource
+    {
+        get => _inputSource;
+        set
+        {
+            if (SetField(ref _inputSource, value))
+                OnPropertyChanged(nameof(InputSourceDisplayName));
+        }
+    }
+
+    private string _manualInputSource = string.Empty;
+    public string ManualInputSource
+    {
+        get => _manualInputSource;
+        set
+        {
+            if (SetField(ref _manualInputSource, value ?? string.Empty))
+                OnPropertyChanged(nameof(InputSourceDisplayName));
+        }
+    }
+
+    public string InputSourceDisplayName => InputSource switch
+    {
+        OutputInputSource.CgProgram => "CG PROGRAM BUS",
+        OutputInputSource.Manual => string.IsNullOrWhiteSpace(ManualInputSource) ? "MANUAL INPUT" : $"MANUAL · {ManualInputSource}",
+        _ => "PLAYOUT PROGRAM BUS"
+    };
 
     private string _name = "Output Channel";
     public string Name
@@ -48,7 +86,12 @@ public class OutputChannel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(ProtocolDisplayName));
                 OnPropertyChanged(nameof(IsHardwareDevice));
+                OnPropertyChanged(nameof(IsCardHardware));
+                OnPropertyChanged(nameof(RequiresGpuEncoder));
                 OnPropertyChanged(nameof(IsNetworkStream));
+                OnPropertyChanged(nameof(FormattedBitrate));
+                OnPropertyChanged(nameof(FormattedFps));
+                OnPropertyChanged(nameof(FormattedFrames));
             }
         }
     }
@@ -59,6 +102,8 @@ public class OutputChannel : INotifyPropertyChanged
         BroadcastOutputProtocol.NDI => "NDI 6 / HX BROADCAST",
         BroadcastOutputProtocol.Matrox => "MATROX DSX / X.MIO",
         BroadcastOutputProtocol.AJA => "AJA KONA / CORVID",
+        BroadcastOutputProtocol.CgOutput => "CG OUTPUT (FILL+KEY / NDI)",
+        BroadcastOutputProtocol.VirtualOutput => "VIRTUAL DIRECTSHOW OUTPUT",
         BroadcastOutputProtocol.DvbUdp => "DVB-TS UDP / RTP (CBR)",
         BroadcastOutputProtocol.SRT => "SRT (CALLER / LISTENER)",
         BroadcastOutputProtocol.RTMP => "RTMP / RTMPS LIVE",
@@ -68,9 +113,9 @@ public class OutputChannel : INotifyPropertyChanged
         _ => Protocol.ToString()
     };
 
-    public bool IsHardwareDevice => Protocol is BroadcastOutputProtocol.DeckLink or BroadcastOutputProtocol.Matrox or BroadcastOutputProtocol.AJA or BroadcastOutputProtocol.NDI;
+    public bool IsHardwareDevice => Protocol is BroadcastOutputProtocol.DeckLink or BroadcastOutputProtocol.Matrox or BroadcastOutputProtocol.AJA or BroadcastOutputProtocol.NDI or BroadcastOutputProtocol.CgOutput or BroadcastOutputProtocol.VirtualOutput;
     public bool IsCardHardware => Protocol is BroadcastOutputProtocol.DeckLink or BroadcastOutputProtocol.Matrox or BroadcastOutputProtocol.AJA;
-    public bool RequiresGpuEncoder => !IsCardHardware;
+    public bool RequiresGpuEncoder => !IsCardHardware && Protocol is not BroadcastOutputProtocol.VirtualOutput;
     public bool IsNetworkStream => !IsHardwareDevice;
 
     private string _destinationUri = "DeckLink 8K Pro (Device 1 - SDI 1)";
@@ -112,21 +157,39 @@ public class OutputChannel : INotifyPropertyChanged
     public double TargetFps
     {
         get => _targetFps;
-        set => SetField(ref _targetFps, value);
+        set
+        {
+            if (SetField(ref _targetFps, value))
+            {
+                OnPropertyChanged(nameof(FormattedFps));
+            }
+        }
     }
 
     private double _runningFps = 50.0;
     public double RunningFps
     {
         get => _runningFps;
-        set => SetField(ref _runningFps, value);
+        set
+        {
+            if (SetField(ref _runningFps, value))
+            {
+                OnPropertyChanged(nameof(FormattedFps));
+            }
+        }
     }
 
     private long _framesTransmitted;
     public long FramesTransmitted
     {
         get => _framesTransmitted;
-        set => SetField(ref _framesTransmitted, value);
+        set
+        {
+            if (SetField(ref _framesTransmitted, value))
+            {
+                OnPropertyChanged(nameof(FormattedFrames));
+            }
+        }
     }
 
     private long _droppedFrames;
@@ -140,8 +203,18 @@ public class OutputChannel : INotifyPropertyChanged
     public double BitrateMbps
     {
         get => _bitrateMbps;
-        set => SetField(ref _bitrateMbps, value);
+        set
+        {
+            if (SetField(ref _bitrateMbps, value))
+            {
+                OnPropertyChanged(nameof(FormattedBitrate));
+            }
+        }
     }
+
+    public string FormattedBitrate => IsCardHardware ? "Direct Baseband (Raw)" : $"{BitrateMbps:F2} Mbps";
+    public string FormattedFps => IsCardHardware ? $"{TargetFps:0.##} fps (HW Locked)" : $"{RunningFps:F2} fps";
+    public string FormattedFrames => IsCardHardware ? (Status == OutputStatus.Online ? $"{FramesTransmitted:N0} (HW)" : "—") : $"{FramesTransmitted:N0}";
 
     private double _pcrJitterNs = 12.4;
     public double PcrJitterNs
@@ -182,6 +255,7 @@ public class OutputChannel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(StatusColorBrush));
                 OnPropertyChanged(nameof(HasAlert));
                 OnPropertyChanged(nameof(StatusBadgeText));
+                OnPropertyChanged(nameof(FormattedFrames));
             }
         }
     }

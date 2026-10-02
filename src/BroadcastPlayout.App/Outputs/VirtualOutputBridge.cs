@@ -15,6 +15,8 @@ public sealed class VirtualOutputBridge : IDisposable
     public const string AudioMapName = "KashtrixPlayout.VirtualOutput.Audio.v1";
     public const string ProgramConfidenceVideoMapName = "KashtrixPlayout.ProgramConfidence.Video.v1";
     public const string ProgramConfidenceAudioMapName = "KashtrixPlayout.ProgramConfidence.Audio.v1";
+    public const string CgProgramVideoMapName = "KashtrixPlayout.CgProgram.Video.v1";
+    public const string CgProgramAudioMapName = "KashtrixPlayout.CgProgram.Audio.v1";
     private readonly object _sync = new();
     private readonly string _videoMapName;
     private readonly string _audioMapName;
@@ -41,7 +43,8 @@ public sealed class VirtualOutputBridge : IDisposable
             CloseCore();
             _width = Math.Clamp(width, 320, 7680); _height = Math.Clamp(height, 240, 4320); _fps = Math.Clamp(fps, 1, 120);
             var frameCapacity = (long)_width * _height * 4;
-            if (string.Equals(_videoMapName, ProgramConfidenceVideoMapName, StringComparison.Ordinal))
+            if (string.Equals(_videoMapName, ProgramConfidenceVideoMapName, StringComparison.Ordinal) ||
+                string.Equals(_videoMapName, CgProgramVideoMapName, StringComparison.Ordinal))
                 frameCapacity = Math.Max(frameCapacity, 3840L * 2160 * 4);
             var videoCapacity = 256L + frameCapacity;
             _videoMap = MemoryMappedFile.CreateOrOpen(_videoMapName, videoCapacity, MemoryMappedFileAccess.ReadWrite);

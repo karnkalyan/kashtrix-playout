@@ -91,15 +91,26 @@ public class BroadcastOutputEngine
             var framesThisTick = (long)Math.Round(ch.TargetFps * 0.2);
             ch.FramesTransmitted += framesThisTick;
 
-            // Microscopic cadence variance for realism
-            if (ch.Status != OutputStatus.Warning && ch.Status != OutputStatus.Error)
+            if (ch.IsCardHardware)
             {
-                var jitter = (_rand.NextDouble() - 0.5) * 0.04;
-                ch.RunningFps = Math.Round(ch.TargetFps + jitter, 2);
+                // Hardware SDI/HDMI baseband video cards (DeckLink, Matrox, AJA) output raw
+                // uncompressed video at exact hardware pixel clock / genlock cadence without software encoding jitter.
+                // Raw baseband does not carry an encoder compressed bitrate.
+                ch.RunningFps = ch.TargetFps;
+                ch.BitrateMbps = 0.0;
             }
             else
             {
-                ch.RunningFps = Math.Round(ch.TargetFps - 1.8 + (_rand.NextDouble() * 0.4), 2);
+                // Microscopic cadence variance for realism on IP / streaming encoders
+                if (ch.Status != OutputStatus.Warning && ch.Status != OutputStatus.Error)
+                {
+                    var jitter = (_rand.NextDouble() - 0.5) * 0.04;
+                    ch.RunningFps = Math.Round(ch.TargetFps + jitter, 2);
+                }
+                else
+                {
+                    ch.RunningFps = Math.Round(ch.TargetFps - 1.8 + (_rand.NextDouble() * 0.4), 2);
+                }
             }
         }
 
@@ -201,14 +212,17 @@ public class BroadcastOutputEngine
     {
         error = string.Empty;
         if (string.IsNullOrWhiteSpace(channel.Name)) { error = "Output name is required."; return false; }
+        if (channel.InputSource == OutputInputSource.Manual && string.IsNullOrWhiteSpace(channel.ManualInputSource))
+        { error = "A manual input source identifier is required."; return false; }
         var destination = channel.DestinationUri?.Trim() ?? string.Empty;
         if (destination.Length == 0) { error = "Destination/device is required."; return false; }
         if (!double.IsFinite(channel.TargetFps) || channel.TargetFps < 1 || channel.TargetFps > 120) { error = "Frame rate must be between 1 and 120 fps."; return false; }
-        if (!double.IsFinite(channel.BitrateMbps) || channel.BitrateMbps <= 0) { error = "Bitrate must be greater than zero."; return false; }
+        if (!channel.IsCardHardware && (!double.IsFinite(channel.BitrateMbps) || channel.BitrateMbps <= 0)) { error = "Bitrate must be greater than zero."; return false; }
 
         if (channel.IsCardHardware)
         {
             channel.GpuEncoder = "Direct Uncompressed (Raw PCIe DMA)";
+            channel.BitrateMbps = 0.0;
             if (channel.IsCustomResolution)
             {
                 if (channel.CustomWidth < 320 || channel.CustomWidth > 7680 ||
@@ -218,6 +232,12 @@ public class BroadcastOutputEngine
                     return false;
                 }
             }
+            return true;
+        }
+
+        if (channel.Protocol is BroadcastOutputProtocol.CgOutput or BroadcastOutputProtocol.VirtualOutput)
+        {
+            channel.GpuEncoder = channel.Protocol == BroadcastOutputProtocol.CgOutput ? "Fill + Key / NDI Engine" : "DirectShow Virtual Filter (.ax)";
             return true;
         }
 
@@ -255,4 +275,3 @@ public class BroadcastOutputEngine
         return true;
     }
 }
-

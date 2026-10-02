@@ -33,6 +33,9 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
     private int _gridColumns = 4;
     private int _gridRows = 4;
     private bool _inputsOnly;
+    private MultiviewSettings _monitorSettings = MultiviewSettings.Load();
+    private readonly HashSet<string> _activeMonitorAlerts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTime> _lastAlertEmailUtc = new(StringComparer.OrdinalIgnoreCase);
 
     public ObservableCollection<MultiviewTile> Tiles { get; } = [];
     public MultiviewTile? SelectedTile { get => _selected; set { _selected = value; Raise(); } }
@@ -42,12 +45,13 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
     public MultiviewWindow(MainViewModel vm)
     {
         InitializeComponent();
+        WindowChromeActions.ApplyCleanBorder(this);
         _vm = vm;
         DataContext = this;
         _vm.VideoFrameReady += OnProgram;
         _vm.PreviewFrameReady += OnPreview;
         _clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-        _clock.Tick += (_, _) => { ClockText.Text = DateTime.Now.ToString("HH:mm:ss"); UpdateUtilityTiles(); };
+        _clock.Tick += (_, _) => { ClockText.Text = DateTime.Now.ToString("HH:mm:ss"); UpdateUtilityTiles(); EvaluateMonitoringProfile(); };
         _clock.Start();
         _ = RefreshTilesAsync();
         Closed += (_, _) =>
@@ -113,7 +117,8 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
                     {
                         consecutiveFailures = 0;
                         var img = ToImage(f);
-                        var isBlack = IsBlackFrame(f);
+                        var isBlack = IsBlackFrame(f, _monitorSettings.BlackLumaThreshold);
+                        tile.ReportFrame(isBlack, ComputeFrameFingerprint(f), DateTime.UtcNow);
                         var isScte = (f.PtsSeconds > 0 && Math.Abs(Math.Sin(f.PtsSeconds * 0.15)) > 0.95);
                         var audio = Math.Clamp(0.55 + Math.Sin(DateTime.UtcNow.Ticks / 10000000.0 * 5.0) * 0.25, 0.0, 1.0);
                         Dispatcher.BeginInvoke(() =>
@@ -153,7 +158,7 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
         catch { Dispatcher.BeginInvoke(() => { tile.Status = "NO SIGNAL / SOURCE OFFLINE"; tile.Image = null; }); }
     }
 
-    private static bool IsBlackFrame(VideoFrameData f)
+    private static bool IsBlackFrame(VideoFrameData f, byte lumaThreshold)
     {
         if (f.Bgra.Length < 32) return false;
         long sum = 0;
@@ -161,7 +166,19 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
         var samples = 0;
         for (var i = 0; i < f.Bgra.Length && samples < 32; i += step, samples++)
             sum += f.Bgra[i] + f.Bgra[i + 1] + f.Bgra[i + 2];
-        return (sum / Math.Max(1, samples * 3)) < 12;
+        return (sum / Math.Max(1, samples * 3)) < lumaThreshold;
+    }
+
+    private static ulong ComputeFrameFingerprint(VideoFrameData frame)
+    {
+        unchecked
+        {
+            ulong hash = 1469598103934665603UL;
+            var step = Math.Max(4, frame.Bgra.Length / 128);
+            for (var i = 0; i < frame.Bgra.Length; i += step)
+                hash = (hash ^ frame.Bgra[i]) * 1099511628211UL;
+            return hash;
+        }
     }
 
     private void DecodeFilePosterFrame(MultiviewTile tile, CancellationToken ct)
@@ -314,6 +331,7 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
                 if (latest is null) return;
                 _program = Present(ProgramImage, _program, latest);
                 UpdateUtilityTiles();
+                Tiles.FirstOrDefault(x => x.Kind == "PROGRAM")?.ReportFrame(IsBlackFrame(latest, _monitorSettings.BlackLumaThreshold), ComputeFrameFingerprint(latest), DateTime.UtcNow);
             }
             finally { Interlocked.Exchange(ref _programPresentScheduled, 0); }
         }));
@@ -332,6 +350,7 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
                 if (latest is null) return;
                 _preview = Present(PreviewImage, _preview, latest);
                 UpdateUtilityTiles();
+                Tiles.FirstOrDefault(x => x.Kind == "PREVIEW")?.ReportFrame(IsBlackFrame(latest, _monitorSettings.BlackLumaThreshold), ComputeFrameFingerprint(latest), DateTime.UtcNow);
             }
             finally { Interlocked.Exchange(ref _previewPresentScheduled, 0); }
         }));
@@ -360,6 +379,9 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
         return b;
     }
 
+    private bool _isFullscreenWall;
+    private WindowState _prevWindowState = WindowState.Normal;
+
     private void LayoutPreset_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement btn && btn.Tag is string tag)
@@ -369,6 +391,8 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
                 case "2x2": GridColumns = 2; GridRows = 2; break;
                 case "3x3": GridColumns = 3; GridRows = 3; break;
                 case "4x4": GridColumns = 4; GridRows = 4; break;
+                case "1+5": GridColumns = 3; GridRows = 2; break;
+                case "1+7": GridColumns = 4; GridRows = 2; break;
                 case "5x6": GridColumns = 5; GridRows = 6; break;
                 case "7x10": GridColumns = 7; GridRows = 10; break;
             }
@@ -388,8 +412,151 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
     {
         _inputsOnly = !_inputsOnly;
         if (FindName("TopConfidencePanel") is FrameworkElement panel) panel.Visibility = _inputsOnly ? Visibility.Collapsed : Visibility.Visible;
-        if (FindName("TopConfidenceRow") is RowDefinition row) row.Height = _inputsOnly ? new GridLength(0) : new GridLength(220);
-        if (FindName("InputsOnlyButton") is Button btn) btn.Background = _inputsOnly ? new SolidColorBrush(Color.FromRgb(120, 71, 184)) : new SolidColorBrush(Color.FromRgb(15, 23, 31));
+        if (FindName("TopConfidenceRow") is RowDefinition row)
+        {
+            if (_inputsOnly)
+            {
+                row.MinHeight = 0;
+                row.Height = new GridLength(0);
+            }
+            else
+            {
+                row.MinHeight = 160;
+                row.Height = new GridLength(220);
+            }
+        }
+    }
+
+    public void ToggleFullscreenWall()
+    {
+        _isFullscreenWall = !_isFullscreenWall;
+        if (_isFullscreenWall)
+        {
+            _prevWindowState = WindowState;
+            if (FindName("TopNavBorder") is FrameworkElement nav) nav.Visibility = Visibility.Collapsed;
+            if (FindName("TopConfidencePanel") is FrameworkElement conf) conf.Visibility = Visibility.Collapsed;
+            if (FindName("TopConfidenceRow") is RowDefinition confRow)
+            {
+                confRow.MinHeight = 0;
+                confRow.Height = new GridLength(0);
+            }
+            if (FindName("BottomStatusBar") is FrameworkElement status) status.Visibility = Visibility.Collapsed;
+            WindowState = WindowState.Maximized;
+        }
+        else
+        {
+            if (FindName("TopNavBorder") is FrameworkElement nav) nav.Visibility = Visibility.Visible;
+            if (FindName("BottomStatusBar") is FrameworkElement status) status.Visibility = Visibility.Visible;
+            if (FindName("TopConfidencePanel") is FrameworkElement conf) conf.Visibility = _inputsOnly ? Visibility.Collapsed : Visibility.Visible;
+            if (FindName("TopConfidenceRow") is RowDefinition confRow)
+            {
+                confRow.MinHeight = _inputsOnly ? 0 : 160;
+                confRow.Height = _inputsOnly ? new GridLength(0) : new GridLength(220);
+            }
+            WindowState = _prevWindowState;
+        }
+    }
+
+    private void ToggleFullscreenWall_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleFullscreenWall();
+    }
+
+    private void OpenSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new MultiviewSettingsWindow { Owner = this };
+        if (win.ShowDialog() == true)
+        {
+            _monitorSettings = MultiviewSettings.Load();
+            var active = _monitorSettings.Profiles.FirstOrDefault(x => x.Id == _monitorSettings.ActiveProfileId);
+            FooterStatus.Text = $"Monitoring profile active · {active?.Name ?? "Broadcast Default"}";
+        }
+    }
+
+    private void EvaluateMonitoringProfile()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var tile in Tiles.Where(x => x.Kind is not "DIGITAL" and not "ANALOG" and not "SYSTEM"))
+        {
+            tile.EvaluateQc(_monitorSettings, now);
+            HandleMonitorAlert(tile, "BLACK", tile.BlackFrameDetected, _monitorSettings.AlertOnBlackFrame, now);
+            HandleMonitorAlert(tile, "FREEZE", tile.FreezeDetected, _monitorSettings.AlertOnFreeze, now);
+            HandleMonitorAlert(tile, "AUDIO SILENCE", tile.AudioSilenceDetected, _monitorSettings.AlertOnAudioSilence, now);
+            HandleMonitorAlert(tile, "SIGNAL LOSS", tile.SignalLossDetected, true, now);
+            HandleMonitorAlert(tile, "SCTE-35", tile.Scte35Detected, _monitorSettings.AlertOnScte35 && _monitorSettings.EnableScte35Detection, now);
+        }
+    }
+
+    private void HandleMonitorAlert(MultiviewTile tile, string type, bool active, bool enabled, DateTime now)
+    {
+        var key = $"{tile.Index}:{type}";
+        if (!enabled || !active)
+        {
+            if (_activeMonitorAlerts.Remove(key)) FooterStatus.Text = $"RESOLVED · {tile.Name} · {type}";
+            return;
+        }
+        if (!_activeMonitorAlerts.Add(key)) return;
+
+        var profile = _monitorSettings.Profiles.FirstOrDefault(x => x.Id == _monitorSettings.ActiveProfileId)?.Name ?? "Broadcast Default";
+        FooterStatus.Text = $"ALERT · {tile.Name} · {type} · PROFILE {profile}";
+        if (_monitorSettings.EnableDesktopNotifications)
+        {
+            try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
+        }
+        if (!_monitorSettings.EnableEmailAlerts) return;
+        var cooldown = TimeSpan.FromSeconds(Math.Max(5, _monitorSettings.AlertCooldownSeconds));
+        if (_lastAlertEmailUtc.TryGetValue(key, out var last) && now - last < cooldown) return;
+        _lastAlertEmailUtc[key] = now;
+        _ = _monitorSettings.SendAlertEmailAsync(
+            $"[KASHTRIX MULTIVIEW] {type} · {tile.Name}",
+            $"Active profile: {profile}\nSource: {tile.Name}\nEvent: {type}\nTimestamp: {now:yyyy-MM-dd HH:mm:ss} UTC\nAudio: {tile.AudioLeftDbfsText} / {tile.AudioRightDbfsText}\nStatus: {tile.Status}");
+    }
+
+    private void Tile_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement x && x.Tag is MultiviewTile t)
+        {
+            SelectedTile = t;
+            OpenTileFullscreen(t);
+            e.Handled = true;
+        }
+    }
+
+    private void TileFullscreenMonitor_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedTile != null)
+        {
+            OpenTileFullscreen(SelectedTile);
+        }
+    }
+
+    private void OpenTileFullscreen(MultiviewTile tile)
+    {
+        var monitor = new MultiviewTileFullscreenWindow(tile) { Owner = this };
+        monitor.Show();
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.F11)
+        {
+            ToggleFullscreenWall();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Escape)
+        {
+            if (_isFullscreenWall)
+            {
+                ToggleFullscreenWall();
+                e.Handled = true;
+                return;
+            }
+            // Suppress Escape so Multiviewer does not accidentally close
+            e.Handled = true;
+            return;
+        }
+        base.OnPreviewKeyDown(e);
     }
 
     private async void ScanMptsPrograms_Click(object sender, RoutedEventArgs e)
@@ -457,6 +624,15 @@ public sealed class MultiviewTile : INotifyPropertyChanged
     private bool _blackFrameDetected;
     private bool _freezeDetected;
     private bool _scte35Detected;
+    private bool _audioSilenceDetected;
+    private bool _signalLossDetected;
+    private bool _rawBlackFrameDetected;
+    private DateTime _blackSinceUtc = DateTime.MinValue;
+    private DateTime _silenceSinceUtc = DateTime.MinValue;
+    private DateTime _lastFrameUtc = DateTime.MinValue;
+    private DateTime _lastFrameChangedUtc = DateTime.MinValue;
+    private ulong _lastFrameFingerprint;
+    private readonly object _qcSync = new();
 
     public MultiviewTile(int index, string name, string format, string kind)
     {
@@ -475,13 +651,72 @@ public sealed class MultiviewTile : INotifyPropertyChanged
     public string Status { get => _status; set { if (_status == value) return; _status = value; PropertyChanged?.Invoke(this, new(nameof(Status))); } }
     public string OverlayText { get => _overlayText; set { if (_overlayText == value) return; _overlayText = value; PropertyChanged?.Invoke(this, new(nameof(OverlayText))); } }
     public ImageSource? Image { get => _image; set { if (ReferenceEquals(_image, value)) return; _image = value; PropertyChanged?.Invoke(this, new(nameof(Image))); } }
-    public double AudioLeft { get => _l; set { _l = value; PropertyChanged?.Invoke(this, new(nameof(AudioLeft))); } }
-    public double AudioRight { get => _r; set { _r = value; PropertyChanged?.Invoke(this, new(nameof(AudioRight))); } }
+    public double AudioLeft { get => _l; set { _l = value; PropertyChanged?.Invoke(this, new(nameof(AudioLeft))); PropertyChanged?.Invoke(this, new(nameof(AudioLeftDbfsText))); } }
+    public double AudioRight { get => _r; set { _r = value; PropertyChanged?.Invoke(this, new(nameof(AudioRight))); PropertyChanged?.Invoke(this, new(nameof(AudioRightDbfsText))); } }
+    public double AudioLeftDbfs => _l <= 0.000001 ? -96 : Math.Max(-96, 20 * Math.Log10(_l));
+    public double AudioRightDbfs => _r <= 0.000001 ? -96 : Math.Max(-96, 20 * Math.Log10(_r));
+    public string AudioLeftDbfsText => $"L {AudioLeftDbfs:0.0} dBFS";
+    public string AudioRightDbfsText => $"R {AudioRightDbfs:0.0} dBFS";
     public bool BlackFrameDetected { get => _blackFrameDetected; set { if (_blackFrameDetected == value) return; _blackFrameDetected = value; PropertyChanged?.Invoke(this, new(nameof(BlackFrameDetected))); PropertyChanged?.Invoke(this, new(nameof(BlackFrameAlertVisibility))); } }
     public bool FreezeDetected { get => _freezeDetected; set { if (_freezeDetected == value) return; _freezeDetected = value; PropertyChanged?.Invoke(this, new(nameof(FreezeDetected))); PropertyChanged?.Invoke(this, new(nameof(FreezeAlertVisibility))); } }
     public bool Scte35Detected { get => _scte35Detected; set { if (_scte35Detected == value) return; _scte35Detected = value; PropertyChanged?.Invoke(this, new(nameof(Scte35Detected))); PropertyChanged?.Invoke(this, new(nameof(Scte35AlertVisibility))); } }
+    public bool AudioSilenceDetected { get => _audioSilenceDetected; private set { if (_audioSilenceDetected == value) return; _audioSilenceDetected = value; PropertyChanged?.Invoke(this, new(nameof(AudioSilenceDetected))); PropertyChanged?.Invoke(this, new(nameof(AudioSilenceAlertVisibility))); } }
+    public bool SignalLossDetected { get => _signalLossDetected; private set { if (_signalLossDetected == value) return; _signalLossDetected = value; PropertyChanged?.Invoke(this, new(nameof(SignalLossDetected))); PropertyChanged?.Invoke(this, new(nameof(SignalLossAlertVisibility))); } }
     public Visibility BlackFrameAlertVisibility => _blackFrameDetected ? Visibility.Visible : Visibility.Collapsed;
     public Visibility FreezeAlertVisibility => _freezeDetected ? Visibility.Visible : Visibility.Collapsed;
     public Visibility Scte35AlertVisibility => _scte35Detected ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility AudioSilenceAlertVisibility => _audioSilenceDetected ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility SignalLossAlertVisibility => _signalLossDetected ? Visibility.Visible : Visibility.Collapsed;
+
+    public void ReportFrame(bool isBlack, ulong fingerprint, DateTime utcNow)
+    {
+        lock (_qcSync)
+        {
+            _lastFrameUtc = utcNow;
+            _rawBlackFrameDetected = isBlack;
+            if (isBlack)
+            {
+                if (_blackSinceUtc == DateTime.MinValue) _blackSinceUtc = utcNow;
+            }
+            else _blackSinceUtc = DateTime.MinValue;
+
+            if (_lastFrameFingerprint == 0 || _lastFrameFingerprint != fingerprint)
+            {
+                _lastFrameFingerprint = fingerprint;
+                _lastFrameChangedUtc = utcNow;
+            }
+        }
+    }
+
+    public void EvaluateQc(MultiviewSettings settings, DateTime utcNow)
+    {
+        DateTime blackSince;
+        DateTime lastFrame;
+        DateTime lastChanged;
+        bool rawBlack;
+        lock (_qcSync)
+        {
+            blackSince = _blackSinceUtc;
+            lastFrame = _lastFrameUtc;
+            lastChanged = _lastFrameChangedUtc;
+            rawBlack = _rawBlackFrameDetected;
+        }
+        BlackFrameDetected = rawBlack && blackSince != DateTime.MinValue &&
+            (utcNow - blackSince).TotalSeconds >= settings.BlackFrameThresholdSeconds;
+        FreezeDetected = lastFrame != DateTime.MinValue && lastChanged != DateTime.MinValue &&
+            (utcNow - lastFrame).TotalSeconds < settings.SignalLossThresholdSeconds &&
+            (utcNow - lastChanged).TotalSeconds >= settings.FreezeThresholdSeconds;
+        SignalLossDetected = lastFrame != DateTime.MinValue &&
+            (utcNow - lastFrame).TotalSeconds >= settings.SignalLossThresholdSeconds;
+
+        var silent = Math.Max(AudioLeftDbfs, AudioRightDbfs) <= settings.AudioLowThresholdDbfs;
+        if (silent)
+        {
+            if (_silenceSinceUtc == DateTime.MinValue) _silenceSinceUtc = utcNow;
+        }
+        else _silenceSinceUtc = DateTime.MinValue;
+        AudioSilenceDetected = silent && _silenceSinceUtc != DateTime.MinValue &&
+            (utcNow - _silenceSinceUtc).TotalSeconds >= settings.AudioSilenceThresholdSeconds;
+    }
     public event PropertyChangedEventHandler? PropertyChanged;
 }

@@ -2,11 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Kashtrix MAM" Width="1540" Height="900" MinWidth="1180" MinHeight="680"
-        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResizeWithGrip"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
         Background="{StaticResource Bg0Brush}" PreviewKeyDown="Window_PreviewKeyDown" Icon="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-mam.ico">
+    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Background="{StaticResource Bg0Brush}">
     <Grid>
         <Grid.RowDefinitions><RowDefinition Height="56"/><RowDefinition Height="50"/><RowDefinition Height="*"/><RowDefinition Height="34"/></Grid.RowDefinitions>
-        <Border Grid.Row="0" Background="#0A1118" BorderBrush="#26313A" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+        <Border Grid.Row="0" Background="#121519" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
             <Grid Margin="14,0,8,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <Grid VerticalAlignment="Center"><Grid.ColumnDefinitions><ColumnDefinition Width="42"/><ColumnDefinition/></Grid.ColumnDefinitions><Image Source="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-mam.png" Width="34" Height="34" Stretch="Uniform"/><StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="KASHTRIX MEDIA ASSET MANAGEMENT" FontSize="18" FontWeight="Bold"/><TextBlock Text="Asset GUID · versions · SHA-256 · proxy · QC · rights/workflow · archive/restore · drag to Playout / Ingest / CG" Foreground="{StaticResource MutedBrush}" FontSize="9"/></StackPanel></Grid>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="REFRESH" Click="Refresh_Click"/><Button Content="ADD ROOT" Click="AddRoot_Click"/><Button Content="FILE MANAGER" Click="FileManager_Click"/><Button Content="INGEST" Click="Ingest_Click"/><Button Content="CG EDITOR" Click="CgEditor_Click"/><Button Click="Minimize_Click" Style="{StaticResource WindowControlButton}"><TextBlock Style="{StaticResource WindowMinimizeGlyph}"/></Button><Button Click="Maximize_Click" Style="{StaticResource WindowControlButton}"><TextBlock Style="{StaticResource WindowMaximizeGlyph}"/></Button><Button Click="Close_Click" Style="{StaticResource WindowCloseButton}"><TextBlock Style="{StaticResource WindowCloseGlyph}"/></Button></StackPanel>
@@ -88,6 +89,7 @@
                 </StackPanel></ScrollViewer>
             </Border>
         </Grid>
-        <Border Grid.Row="3" Background="#080D12" BorderBrush="#26313A" BorderThickness="0,1,0,0"><Grid Margin="12,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock x:Name="StatusText" Text="Ready" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="MAM INDEX · LOCAL METADATA STORE" Foreground="#6F7C85" VerticalAlignment="Center"/></Grid></Border>
+        <Border Grid.Row="3" Background="{StaticResource Bg1Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0"><Grid Margin="12,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock x:Name="StatusText" Text="Ready" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="MAM INDEX · LOCAL METADATA STORE" Foreground="#6F7C85" VerticalAlignment="Center"/></Grid></Border>
     </Grid>
+    </Border>
 </Window>

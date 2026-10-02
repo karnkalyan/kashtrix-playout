@@ -26,8 +26,13 @@ public static class StandaloneAppDiagnostics
             EventManager.RegisterClassHandler(typeof(Window), Keyboard.PreviewKeyDownEvent, new KeyEventHandler((sender, e) =>
             {
                 if (e.Handled || e.Key != Key.Escape || sender is not Window window || !window.IsActive) return;
-                // MainWindow owns the engine/tray shutdown policy and handles Escape itself.
-                if (window.GetType().Name.Equals("MainWindow", StringComparison.Ordinal)) return;
+                var name = window.GetType().Name;
+                if (name is "MainWindow" or "SettingsWindow" or "MediaAssetManagementWindow" or "IngestServerWindow"
+                    or "FrameComparisonWindow" or "MultiviewWindow" or "CgEditorWindow" or "CgControllerWindow"
+                    or "SchedulerWindow" or "ChannelManagerWindow" or "ChannelControllerWindow" or "AuditLogWindow"
+                    or "VideoProcessorWindow" or "InputSourceWindow" or "AudioMixerWindow" or "QcControllerWindow"
+                    or "FileManagerWindow" or "UserManagementWindow" or "EpgOutputSettingsWindow" or "BroadcastTimersClockWindow")
+                    return;
                 try { window.Close(); e.Handled = true; } catch { }
             }));
         }

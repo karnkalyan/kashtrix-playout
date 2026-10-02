@@ -2,11 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Kashtrix CG Controller" Width="1360" Height="820" MinWidth="1100" MinHeight="680"
-        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResizeWithGrip" ShowInTaskbar="True" Icon="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-cgcontroller.ico">
+        WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize" ShowInTaskbar="True" Icon="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-cgcontroller.ico">
     <Window.Resources>
         <Style x:Key="BusButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Height" Value="42"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="FontSize" Value="11.5"/><Setter Property="Margin" Value="2"/></Style>
         <Style x:Key="BusPanel" TargetType="Border" BasedOn="{StaticResource PanelBorder}"><Setter Property="Padding" Value="6"/><Setter Property="CornerRadius" Value="3"/></Style>
     </Window.Resources>
+    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Background="{StaticResource Bg0Brush}">
     <Grid x:Name="ControllerShellGrid" Background="{StaticResource Bg0Brush}">
         <Grid.RowDefinitions><RowDefinition Height="54"/><RowDefinition x:Name="ControllerWorkspaceRow" Height="*"/><RowDefinition Height="36"/></Grid.RowDefinitions>
         <Border Grid.Row="0" Background="#0E1115" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
@@ -128,12 +129,16 @@
                                     <TextBlock Text="SELECT ACTIVE OVERLAY CHANNEL:" Style="{StaticResource SectionCaption}" Margin="0,2,0,4"/>
                                     <ItemsControl ItemsSource="{Binding ActiveOverlayLayers}">
                                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding StringFormat='OVERLAY {0}'}" Tag="{Binding}" Click="SelectOverlayLayer_Click" Margin="3" Padding="12,5" FontSize="10.5" FontWeight="SemiBold"/></DataTemplate></ItemsControl.ItemTemplate>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Content="{Binding StringFormat='OVERLAY {0}'}" Tag="{Binding}" Click="SelectOverlayLayer_Click" Width="110" Height="32" Margin="3" Padding="0" Background="#251B31" BorderBrush="{StaticResource AccentBrush}" Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <Button Content="+ ADD OVERLAY CHANNEL" Click="AddOverlayLayer_Click" Margin="0,8,0,0" Padding="10,5" Background="#142433" BorderBrush="#00E5FF" Foreground="#00E5FF" FontSize="10.5" FontWeight="SemiBold"/>
+                                    <Button Content="+ ADD OVERLAY CHANNEL" Click="AddOverlayLayer_Click" Width="190" Height="32" Margin="3,8,0,0" HorizontalAlignment="Left" Background="#3E2359" BorderBrush="{StaticResource AccentBrush}" Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold"/>
                                     <Separator Margin="0,10"/>
-                                    <Button Content="CLEAR CURRENT OVERLAY" Click="ProgramClear_Click" Margin="0,2" Padding="8,5" FontSize="10.5"/>
-                                    <Button Content="CLEAR ALL OVERLAYS" Click="ClearAllOverlays_Click" Margin="0,3" Padding="8,5" Background="#381519" BorderBrush="#FF4555" Foreground="#FF8888" FontSize="10.5" FontWeight="Bold"/>
+                                    <Button Content="CLEAR CURRENT OVERLAY" Click="ProgramClear_Click" Height="32" Margin="0,2" Background="#251B31" BorderBrush="{StaticResource LineBrush}" Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold"/>
+                                    <Button Content="CLEAR ALL OVERLAYS" Click="ClearAllOverlays_Click" Height="32" Margin="0,3" Background="#3E2359" BorderBrush="{StaticResource AccentBrush}" Foreground="#FFFFFF" FontSize="11" FontWeight="Bold"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -143,7 +148,7 @@
                                     <TextBlock Text="QUICK EDIT &amp; PROPERTIES" FontWeight="SemiBold" FontSize="13" Foreground="#DCC7F0" Margin="0,0,0,2"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                         <TextBlock Text="{Binding SelectedLayer.Name, TargetNullValue='No layer selected'}" Foreground="#B98CF1" FontWeight="Bold" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="180"/>
-                                        <TextBlock Text="{Binding SelectedLayerTypeBadge}" Foreground="#00E5FF" FontWeight="SemiBold" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding SelectedLayerTypeBadge}" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                     </StackPanel>
 
                                     <!-- Placeholder when no layer is selected -->
@@ -211,7 +216,7 @@
                                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                                 <TextBox Text="{Binding QuickEditBorderColorValue, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,4,0"/>
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                    <Button Content="CYAN" Tag="#FF00E5FF" Click="QuickBgSwatch_Click" Height="22" Padding="5,0" Margin="1,0"/>
+                                                    <Button Content="ACCENT" Tag="#FF8055B3" Click="QuickBgSwatch_Click" Height="22" Padding="5,0" Margin="1,0"/>
                                                     <Button Content="WHITE" Tag="#FFFFFFFF" Click="QuickBgSwatch_Click" Height="22" Padding="5,0" Margin="1,0"/>
                                                     <Button Content="CLEAR" Tag="#00000000" Click="QuickBgSwatch_Click" Height="22" Padding="5,0" Margin="1,0"/>
                                                 </StackPanel>
@@ -331,7 +336,7 @@
                                                 <TextBlock Text="RECURRENCE" FontSize="9" Foreground="#8FA3B8"/>
                                                 <ComboBox ItemsSource="{Binding ScheduleDaysOptions}" SelectedItem="{Binding NewScheduleDays, Mode=TwoWay}"/>
                                             </StackPanel>
-                                            <Button Grid.Column="2" Content="+ ADD SCHEDULE" Click="AddSchedule_Click" Padding="12,5" VerticalAlignment="Bottom" Background="#142433" BorderBrush="#00E5FF" Foreground="#00E5FF" FontWeight="SemiBold"/>
+                                            <Button Grid.Column="2" Content="+ ADD SCHEDULE" Click="AddSchedule_Click" Padding="14,6" Height="30" VerticalAlignment="Bottom" Background="#3E2359" BorderBrush="{StaticResource AccentBrush}" Foreground="#FFFFFF" FontWeight="SemiBold"/>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -340,7 +345,7 @@
                                 <ListBox Grid.Row="2" ItemsSource="{Binding Schedules}" x:Name="ScheduleListBox" Background="#0A0E13" BorderBrush="#253242" BorderThickness="1">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#161F2E" BorderBrush="#26354A" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                            <Border Background="#161222" BorderBrush="#352646" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto"/>
@@ -351,18 +356,18 @@
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF" TextTrimming="CharacterEllipsis"/>
                                                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                            <TextBlock Text="{Binding StartTime, StringFormat='⏱ {0}'}" FontSize="9.5" Foreground="#00E5FF" FontFamily="Consolas"/>
+                                                            <TextBlock Text="{Binding StartTime, StringFormat='⏱ {0}'}" FontSize="9.5" Foreground="#B78BE7" FontFamily="Consolas"/>
                                                             <TextBlock Text=" ➔ " FontSize="9" Foreground="#7B8894"/>
-                                                            <TextBlock Text="{Binding StopTime}" FontSize="9.5" Foreground="#FFA726" FontFamily="Consolas"/>
+                                                            <TextBlock Text="{Binding StopTime}" FontSize="9.5" Foreground="#E0D0F5" FontFamily="Consolas"/>
                                                             <TextBlock Text="{Binding Days, StringFormat=' • {0}'}" FontSize="9" Foreground="#B98CF1"/>
-                                                            <TextBlock Text="{Binding OverlayLayer, StringFormat=' • L{0}'}" FontSize="9" Foreground="#80D8FF"/>
+                                                            <TextBlock Text="{Binding OverlayLayer, StringFormat=' • L{0}'}" FontSize="9" Foreground="#8055B3"/>
                                                         </StackPanel>
-                                                        <TextBlock Text="{Binding Status}" FontSize="8.5" Foreground="#81C784" Margin="0,1,0,0"/>
+                                                        <TextBlock Text="{Binding Status}" FontSize="8.5" Foreground="#55C878" Margin="0,1,0,0"/>
                                                     </StackPanel>
                                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
-                                                        <Button Content="▶" Tag="{Binding}" Click="TriggerScheduleNow_Click" ToolTip="Trigger PLAY now" Padding="5,2" Margin="2,0" FontSize="9"/>
-                                                        <Button Content="⏹" Tag="{Binding}" Click="StopScheduleNow_Click" ToolTip="Trigger STOP now" Padding="5,2" Margin="2,0" FontSize="9"/>
-                                                        <Button Content="✕" Tag="{Binding}" Click="DeleteSchedule_Click" ToolTip="Delete schedule" Padding="5,2" Margin="2,0" Background="#381519" BorderBrush="#FF4555" Foreground="#FF8888" FontSize="9"/>
+                                                        <Button Content="▶" Tag="{Binding}" Click="TriggerScheduleNow_Click" ToolTip="Trigger PLAY now" Padding="6,2" Margin="2,0" FontSize="9"/>
+                                                        <Button Content="⏹" Tag="{Binding}" Click="StopScheduleNow_Click" ToolTip="Trigger STOP now" Padding="6,2" Margin="2,0" FontSize="9"/>
+                                                        <Button Content="✕" Tag="{Binding}" Click="DeleteSchedule_Click" ToolTip="Delete schedule" Padding="6,2" Margin="2,0" Background="#251B31" BorderBrush="{StaticResource LineBrush}" Foreground="#FFFFFF" FontSize="9"/>
                                                     </StackPanel>
                                                 </Grid>
                                             </Border>
@@ -374,7 +379,7 @@
                                 <Border Grid.Row="3" Background="#0A0E13" BorderBrush="#253242" BorderThickness="1" Padding="6,4" Margin="0,4,0,0">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="SCHEDULER ENGINE:" FontSize="9" Foreground="#7B8894"/>
-                                        <TextBlock Text=" ACTIVE (1s LOOP)" FontSize="9" Foreground="#00E5FF" FontWeight="SemiBold"/>
+                                        <TextBlock Text=" ACTIVE (1s LOOP)" FontSize="9" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
@@ -386,20 +391,15 @@
                     <TabControl>
                         <TabItem Header="TARGETS"><Grid Margin="5"><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="38"/></Grid.RowDefinitions><ListBox ItemsSource="{Binding Channels}"><ListBox.ItemTemplate><DataTemplate><Grid Margin="4"><Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"/><StackPanel Grid.Column="1"><TextBlock Text="{Binding ChannelName}" FontWeight="SemiBold"/><TextBlock Text="{Binding ChannelId}" Foreground="{StaticResource MutedBrush}" FontSize="9"/></StackPanel><TextBlock Grid.Column="2" Text="{Binding State}" Foreground="{StaticResource GoodBrush}"/></Grid></DataTemplate></ListBox.ItemTemplate></ListBox><Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><Button Content="SELECT ALL" Click="SelectAll_Click"/><Button Grid.Column="1" Content="CLEAR" Click="Clear_Click"/></Grid></Grid></TabItem>
                         <TabItem Header="OUTPUT"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="7">
-                            <CheckBox Content="NDI ALPHA OUT" IsChecked="{Binding EnableCgNdiAlphaOutput, Mode=TwoWay}"/>
-                            <TextBox Text="{Binding CgNdiAlphaSourceName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,7"/>
-                            <CheckBox Content="DECKLINK FILL + KEY" IsChecked="{Binding EnableCgDeckLinkKeyFill, Mode=TwoWay}"/>
-                            <TextBlock Text="DECKLINK CARD / PORT" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
-                            <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="78"/></Grid.ColumnDefinitions><ComboBox ItemsSource="{Binding CgDeckLinkDevices}" DisplayMemberPath="Label" SelectedValuePath="Index" SelectedValue="{Binding CgDeckLinkDeviceIndex, Mode=TwoWay}"/><Button Grid.Column="1" Content="REFRESH" Click="RefreshDeckLinkCards_Click"/></Grid>
-                            <TextBlock Text="KEYER MODE" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
-                            <ComboBox ItemsSource="{Binding DeckLinkKeyerModes}" SelectedItem="{Binding CgDeckLinkKeyerMode, Mode=TwoWay}"/>
+                            <TextBlock Text="CG PROGRAM BUS" Foreground="{StaticResource AccentBrush}" FontWeight="Bold"/>
+                            <TextBlock Text="This controller publishes a separate transparent CG Program bus. Route it to DeckLink fill/key, NDI, or streaming destinations from Kashtrix Output Engine." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,8"/>
                             <TextBlock Text="OUTPUT PRESET" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
                             <ComboBox ItemsSource="{Binding CgOutputPresets}" SelectedItem="{Binding CgOutputPreset, Mode=TwoWay}"/>
                             <TextBlock Text="SCAN / FIELD ORDER" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
                             <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox ItemsSource="{Binding CgFrameRates}" SelectedItem="{Binding CgOutputFrameRate, Mode=TwoWay}"/><ComboBox Grid.Column="1" ItemsSource="{Binding CgScanModes}" SelectedItem="{Binding CgOutputScanMode, Mode=TwoWay}"/></Grid>
                             <TextBlock Text="PREROLL FRAMES" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
                             <TextBox Text="{Binding CgOutputPrerollFrames, UpdateSourceTrigger=LostFocus}"/>
-                            <Button Content="APPLY CG OUTPUT" Click="ApplyCgOutput_Click" Margin="0,8,0,0"/>
+                            <Button Content="APPLY CG BUS FORMAT" Click="ApplyCgOutput_Click" Margin="0,8,0,0"/>
                             <TextBlock Text="{Binding CgOutputStatus}" Foreground="{StaticResource AccentBrush}" FontSize="9" TextWrapping="Wrap" Margin="0,5,0,0"/>
                         </StackPanel></ScrollViewer></TabItem>
                         <TabItem Header="STATUS"><StackPanel Margin="8"><TextBlock Text="LAST ROUTE" Style="{StaticResource SectionCaption}"/><TextBlock Text="{Binding LastOperation}" FontSize="15" FontWeight="SemiBold" Margin="0,5,0,0"/><TextBlock Text="{Binding LastDetail}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0"/><Separator Margin="0,10"/><TextBlock Text="{Binding CgOutputSummary}" Foreground="#B98CF1" TextWrapping="Wrap"/></StackPanel></TabItem>
@@ -409,4 +409,5 @@
         </Grid>
         <Border Grid.Row="2" Background="#0E1013" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0"><Grid Margin="12,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding StatusLine}" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/><TextBlock Grid.Column="1" Text="{Binding Endpoint}" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,18,0"/><TextBlock Grid.Column="2" Text="INDEPENDENT PREVIEW / PROGRAM" Foreground="#B98CF1" VerticalAlignment="Center"/></Grid></Border>
     </Grid>
+    </Border>
 </Window>

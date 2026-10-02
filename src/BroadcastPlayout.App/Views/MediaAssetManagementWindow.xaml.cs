@@ -35,6 +35,7 @@ public partial class MediaAssetManagementWindow : Window, INotifyPropertyChanged
         AssetsView = CollectionViewSource.GetDefaultView(Assets);
         AssetsView.Filter = FilterAsset;
         InitializeComponent();
+        WindowChromeActions.ApplyCleanBorder(this);
         DataContext = this;
         LoadRoots();
         _uiReady = true;
@@ -255,7 +256,7 @@ public partial class MediaAssetManagementWindow : Window, INotifyPropertyChanged
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.Minimize(this);
     private void Maximize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.ToggleMaximize(this);
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
-    private void Window_PreviewKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) Close(); }
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { e.Handled = true; return; } }
     public event PropertyChangedEventHandler? PropertyChanged;
     private void Raise([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

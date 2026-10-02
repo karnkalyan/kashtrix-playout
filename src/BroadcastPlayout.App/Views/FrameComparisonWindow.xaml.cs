@@ -38,6 +38,12 @@ public partial class FrameComparisonWindow : Window
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.Minimize(this);
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape) { e.Handled = true; return; }
+        base.OnPreviewKeyDown(e);
+    }
+
     private void Confirm_Click(object sender, RoutedEventArgs e)
     {
         var s = _vm.Settings.ProfessionalBroadcast;

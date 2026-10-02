@@ -28,6 +28,7 @@ namespace Kashtrix.OutputEngine
         private long _programPreviewSequence;
         private DateTime _lastProgramPreviewUtc = DateTime.MinValue;
         private bool _programIsLive;
+        private string _activePreviewMapName = string.Empty;
 
         public ObservableCollection<BroadcastEventLog> FilteredLogs { get; } = new();
 
@@ -67,7 +68,7 @@ namespace Kashtrix.OutputEngine
             int running = _engine.Outputs.Count(c => c.IsEnabled && c.Status == OutputStatus.Online);
             ActiveOutputsText.Text = $"{running} / {total} ONLINE";
 
-            double aggregateBitrate = _engine.Outputs.Where(c => c.IsEnabled).Sum(c => c.BitrateMbps);
+            double aggregateBitrate = _engine.Outputs.Where(c => c.IsEnabled && !c.IsCardHardware).Sum(c => c.BitrateMbps);
             AggregateBitrateText.Text = $"{aggregateBitrate:F2} Mbps";
 
             long totalFrames = _engine.Outputs.Sum(c => c.FramesTransmitted);
@@ -93,7 +94,32 @@ namespace Kashtrix.OutputEngine
             if (ProgramPreviewImage == null) return;
             try
             {
-                _programVideoMap ??= MemoryMappedFile.OpenExisting(VirtualOutputBridge.ProgramConfidenceVideoMapName, MemoryMappedFileRights.Read);
+                var selectedOutput = OutputsDataGrid?.SelectedItem as OutputChannel;
+                var source = selectedOutput?.InputSource ?? OutputInputSource.PlayoutProgram;
+                var requestedMap = source switch
+                {
+                    OutputInputSource.CgProgram => VirtualOutputBridge.CgProgramVideoMapName,
+                    OutputInputSource.Manual when string.Equals(selectedOutput?.ManualInputSource, "CG PROGRAM", StringComparison.OrdinalIgnoreCase) => VirtualOutputBridge.CgProgramVideoMapName,
+                    OutputInputSource.Manual when string.Equals(selectedOutput?.ManualInputSource, "PLAYOUT PROGRAM", StringComparison.OrdinalIgnoreCase) => VirtualOutputBridge.ProgramConfidenceVideoMapName,
+                    OutputInputSource.Manual => string.Empty,
+                    _ => VirtualOutputBridge.ProgramConfidenceVideoMapName
+                };
+                ProgramMonitorLabel.Text = source switch
+                {
+                    OutputInputSource.CgProgram => "CG PROGRAM BUS · ALPHA/FILL CONFIDENCE",
+                    OutputInputSource.Manual => $"MANUAL INPUT · {selectedOutput?.ManualInputSource}",
+                    _ => "PLAYOUT PROGRAM BUS · CONFIDENCE MONITOR"
+                };
+                if (!string.Equals(requestedMap, _activePreviewMapName, StringComparison.Ordinal))
+                {
+                    _programVideoView?.Dispose(); _programVideoView = null;
+                    _programVideoMap?.Dispose(); _programVideoMap = null;
+                    _programPreviewSequence = 0;
+                    _lastProgramPreviewUtc = DateTime.MinValue;
+                    _activePreviewMapName = requestedMap;
+                }
+                if (string.IsNullOrWhiteSpace(requestedMap)) return;
+                _programVideoMap ??= MemoryMappedFile.OpenExisting(requestedMap, MemoryMappedFileRights.Read);
                 _programVideoView ??= _programVideoMap.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
                 if (_programVideoView.ReadInt32(0) != 0x4B545856) return;
                 var width = _programVideoView.ReadInt32(8);

@@ -22,8 +22,22 @@ public static unsafe class FfmpegRuntime
         DynamicallyLoadedBindings.Initialize();
         // Device demuxers (Windows capture cards/webcams and desktop capture) are
         // registered explicitly. This is required by some shared Windows builds.
-        ffmpeg.avdevice_register_all();
-        ffmpeg.avformat_network_init();
+        try
+        {
+            ffmpeg.avdevice_register_all();
+        }
+        catch
+        {
+            // avdevice_register_all may throw NotSupportedException in dynamically loaded bindings if stubbed
+        }
+        try
+        {
+            ffmpeg.avformat_network_init();
+        }
+        catch
+        {
+            // avformat_network_init safe guard
+        }
         Version = ffmpeg.av_version_info() ?? "unknown";
         _initialized = true;
     }

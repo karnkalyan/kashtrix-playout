@@ -169,7 +169,47 @@ public sealed class AutomationGatewayService : IDisposable
                     if (message is not null)
                     {
                         Trace($"MOS RX · {message.Action} · {message.ItemId} · {message.Title}");
-                        try { MosMessageReceived?.Invoke(message); } catch { }
+
+                        // Parse multiple stories/items if present (e.g., standard roCreate / roStorySend)
+                        try
+                        {
+                            var doc = XDocument.Parse(xml, LoadOptions.None);
+                            var stories = doc.Descendants().Where(x => x.Name.LocalName.Equals("story", StringComparison.OrdinalIgnoreCase)).ToList();
+                            if (stories.Count > 0)
+                            {
+                                foreach (var story in stories)
+                                {
+                                    var storyId = Desc(story, "storyID") ?? Guid.NewGuid().ToString("N");
+                                    var storySlug = Desc(story, "storySlug") ?? "STORY";
+                                    var items = story.Descendants().Where(x => x.Name.LocalName.Equals("item", StringComparison.OrdinalIgnoreCase)).ToList();
+                                    if (items.Count > 0)
+                                    {
+                                        foreach (var itm in items)
+                                        {
+                                            var itmId = Desc(itm, "itemID") ?? Desc(itm, "objID") ?? storyId;
+                                            var itmSlug = Desc(itm, "itemSlug") ?? Desc(itm, "objSlug") ?? storySlug;
+                                            TimeSpan? d = null;
+                                            var dt = Desc(itm, "objDur") ?? Desc(itm, "duration");
+                                            if (int.TryParse(dt, out var fr) && fr > 0) d = TimeSpan.FromSeconds(fr / 25.0);
+                                            try { MosMessageReceived?.Invoke(new MosGatewayMessage(message.Action, itmId, itmSlug, d, xml, message.MessageId)); } catch { }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        try { MosMessageReceived?.Invoke(new MosGatewayMessage(message.Action, storyId, storySlug, null, xml, message.MessageId)); } catch { }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                try { MosMessageReceived?.Invoke(message); } catch { }
+                            }
+                        }
+                        catch
+                        {
+                            try { MosMessageReceived?.Invoke(message); } catch { }
+                        }
+
                         await writer.WriteAsync(BuildAck(message)).ConfigureAwait(false);
                         await writer.FlushAsync(ct).ConfigureAwait(false);
                     }
@@ -212,18 +252,32 @@ public sealed class AutomationGatewayService : IDisposable
             var doc = XDocument.Parse(xml, LoadOptions.None);
             var mos = doc.Root;
             if (mos is null || !mos.Name.LocalName.Equals("mos", StringComparison.OrdinalIgnoreCase)) return null;
+            var messageId = mos.Element(mos.Name.Namespace + "messageID")?.Value?.Trim() ?? mos.Descendants().FirstOrDefault(x => x.Name.LocalName.Equals("messageID", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
             var body = mos.Elements().FirstOrDefault(e =>
                 !e.Name.LocalName.Equals("mosID", StringComparison.OrdinalIgnoreCase) &&
                 !e.Name.LocalName.Equals("ncsID", StringComparison.OrdinalIgnoreCase) &&
                 !e.Name.LocalName.Equals("messageID", StringComparison.OrdinalIgnoreCase));
             if (body is null) return null;
             var action = body.Name.LocalName;
+
+            // Heartbeat
+            if (action.Equals("heartbeat", StringComparison.OrdinalIgnoreCase))
+            {
+                return new MosGatewayMessage("heartbeat", "heartbeat", "HEARTBEAT", null, xml, messageId);
+            }
+
+            // ReqAppInfo
+            if (action.Equals("mosReqAppInfo", StringComparison.OrdinalIgnoreCase))
+            {
+                return new MosGatewayMessage("mosReqAppInfo", "appInfo", "KASHTRIX MOS APP INFO", null, xml, messageId);
+            }
+
             var itemId = Desc(body, "itemID") ?? Desc(body, "objID") ?? Desc(body, "storyID") ?? Desc(body, "roID") ?? Guid.NewGuid().ToString("N");
             var title = Desc(body, "itemSlug") ?? Desc(body, "objSlug") ?? Desc(body, "storySlug") ?? Desc(body, "roSlug") ?? "MOS ITEM";
             TimeSpan? duration = null;
             var durText = Desc(body, "objDur") ?? Desc(body, "duration");
             if (int.TryParse(durText, out var frames) && frames > 0) duration = TimeSpan.FromSeconds(frames / 25.0);
-            return new MosGatewayMessage(action, itemId, title, duration, xml);
+            return new MosGatewayMessage(action, itemId, title, duration, xml, messageId);
         }
         catch { return null; }
     }
@@ -235,13 +289,26 @@ public sealed class AutomationGatewayService : IDisposable
         var safe = System.Security.SecurityElement.Escape(message.Action) ?? "MOS";
         var mosId = System.Security.SecurityElement.Escape(Profile.MosId) ?? "KASHTRIX.PLAYOUT";
         var ncsId = System.Security.SecurityElement.Escape(Profile.NcsId) ?? "KASHTRIX.NCS";
-        return $"<mos><mosID>{mosId}</mosID><ncsID>{ncsId}</ncsID><mosAck><status>ACK</status><statusDescription>{safe} accepted</statusDescription></mosAck></mos>";
+        var msgIdXml = string.IsNullOrWhiteSpace(message.MessageId) ? string.Empty : $"<messageID>{System.Security.SecurityElement.Escape(message.MessageId)}</messageID>";
+
+        if (message.Action.Equals("heartbeat", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"<mos><mosID>{mosId}</mosID><ncsID>{ncsId}</ncsID>{msgIdXml}<heartbeat/></mos>";
+        }
+
+        if (message.Action.Equals("mosReqAppInfo", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"<mos><mosID>{mosId}</mosID><ncsID>{ncsId}</ncsID>{msgIdXml}<mosAppInfo><ncsID>{ncsId}</ncsID><ncsApp>Kashtrix Playout</ncsApp><ncsVersion>4.9H</ncsVersion><supportedProfiles><mosProfile number=\"0\"/><mosProfile number=\"1\"/><mosProfile number=\"2\"/></supportedProfiles></mosAppInfo></mos>";
+        }
+
+        return $"<mos><mosID>{mosId}</mosID><ncsID>{ncsId}</ncsID>{msgIdXml}<mosAck><status>ACK</status><statusDescription>{safe} accepted</statusDescription></mosAck></mos>";
     }
 
-    private string BuildNack(string description)
+    private string BuildNack(string description, string? messageId = null)
     {
         var safe = System.Security.SecurityElement.Escape(description) ?? "Invalid MOS XML";
-        return $"<mos><mosID>{Profile.MosId}</mosID><ncsID>{Profile.NcsId}</ncsID><mosAck><status>NACK</status><statusDescription>{safe}</statusDescription></mosAck></mos>";
+        var msgIdXml = string.IsNullOrWhiteSpace(messageId) ? string.Empty : $"<messageID>{System.Security.SecurityElement.Escape(messageId)}</messageID>";
+        return $"<mos><mosID>{Profile.MosId}</mosID><ncsID>{Profile.NcsId}</ncsID>{msgIdXml}<mosAck><status>NACK</status><statusDescription>{safe}</statusDescription></mosAck></mos>";
     }
 
     public async Task<string> SendTcpAsync(string host, int port, string command, CancellationToken ct = default)
@@ -288,7 +355,7 @@ public sealed class AutomationGatewayService : IDisposable
     }
 }
 
-public sealed record MosGatewayMessage(string Action, string ItemId, string Title, TimeSpan? Duration, string RawXml);
+public sealed record MosGatewayMessage(string Action, string ItemId, string Title, TimeSpan? Duration, string RawXml, string? MessageId = null);
 
 public sealed record AutomationGatewayProfile
 {

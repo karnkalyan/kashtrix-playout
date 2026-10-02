@@ -46,7 +46,7 @@ public sealed class CgCompositor : IDisposable
         var dynamicTickerDuration = CgDataSourceService.ResolveEffectiveTickerCycleDuration(project);
         var hasDynamicTicker = dynamicTickerDuration > 0.5;
         var pausePoint = hasDynamicTicker ? Math.Min(holdPoint, CgDataSourceService.ResolveEffectiveHoldPoint(project)) : holdPoint;
-        var categoryIntroLead = hasDynamicTicker ? Math.Min(CgDataSourceService.CategoryIntroSeconds, pausePoint) : 0;
+        var categoryIntroLead = hasDynamicTicker ? Math.Min(CgDataSourceService.ResolveEffectiveCategoryIntroDuration(project), pausePoint) : 0;
         var tickerHoldDuration = hasDynamicTicker ? Math.Max(0.05, dynamicTickerDuration - categoryIntroLead) : 0;
         double tickerTimelineSeconds = timelineSeconds;
 
@@ -75,20 +75,18 @@ public sealed class CgCompositor : IDisposable
                 if (cycleTime < pausePoint)
                 {
                     t = cycleTime;
-                    // Start the category plate/text before the PAUSE marker.  At the
-                    // marker the intro is complete and the first news item can move.
-                    tickerTimelineSeconds = Math.Max(0, categoryIntroLead - (pausePoint - cycleTime));
+                    tickerTimelineSeconds = cycleTime;
                 }
                 else if (cycleTime < pausePoint + tickerHoldDuration)
                 {
                     t = pausePoint;
-                    tickerTimelineSeconds = categoryIntroLead + cycleTime - pausePoint;
+                    tickerTimelineSeconds = cycleTime;
                 }
                 else
                 {
                     var outElapsed = cycleTime - (pausePoint + tickerHoldDuration);
                     t = Math.Min(project.DurationSeconds, (project.DurationSeconds - maxOutDuration) + outElapsed);
-                    tickerTimelineSeconds = dynamicTickerDuration;
+                    tickerTimelineSeconds = cycleTime;
                 }
             }
             else
@@ -96,12 +94,12 @@ public sealed class CgCompositor : IDisposable
                 if (timelineSeconds < pausePoint)
                 {
                     t = timelineSeconds;
-                    tickerTimelineSeconds = Math.Max(0, categoryIntroLead - (pausePoint - timelineSeconds));
+                    tickerTimelineSeconds = timelineSeconds;
                 }
                 else if (timelineSeconds < pausePoint + tickerHoldDuration)
                 {
                     t = pausePoint;
-                    tickerTimelineSeconds = categoryIntroLead + timelineSeconds - pausePoint;
+                    tickerTimelineSeconds = timelineSeconds;
                 }
                 else
                 {
@@ -112,7 +110,7 @@ public sealed class CgCompositor : IDisposable
                         return source;
                     }
                     t = Math.Min(project.DurationSeconds, (project.DurationSeconds - maxOutDuration) + outElapsed);
-                    tickerTimelineSeconds = dynamicTickerDuration;
+                    tickerTimelineSeconds = timelineSeconds;
                 }
             }
         }
@@ -155,7 +153,7 @@ public sealed class CgCompositor : IDisposable
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            g.TextRenderingHint = alphaSurface ? TextRenderingHint.AntiAliasGridFit : TextRenderingHint.ClearTypeGridFit;
+            g.TextRenderingHint = TextRenderingHint.AntiAlias;
             if (alphaSurface) g.CompositingMode = CompositingMode.SourceOver;
 
             if (squeeze is not null)
@@ -412,8 +410,9 @@ public sealed class CgCompositor : IDisposable
     private void DrawLayerCore(Graphics g, byte[] targetBytes, int targetWidth, int targetHeight, int targetStride, CgProject project, CgLayer layer, double t, double sx, double sy, bool forceNormalBlend, double continuousSeconds = 0)
     {
         if (continuousSeconds <= 0) continuousSeconds = t;
-        var motion = CgAnimationEngine.EvaluateLayer(project, layer, t);
-        var visualLayer = CgAnimationEngine.CreateVisualLayer(layer, t);
+        var motionTime = CgDataSourceService.ResolveCategoryLayerTimelineSeconds(project, layer, continuousSeconds, t);
+        var motion = CgAnimationEngine.EvaluateLayer(project, layer, motionTime);
+        var visualLayer = CgAnimationEngine.CreateVisualLayer(layer, motionTime);
         var isTextType = string.Equals(visualLayer.Type, "Text", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(visualLayer.Type, "Ticker", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(visualLayer.Type, "Roll", StringComparison.OrdinalIgnoreCase);
@@ -432,11 +431,11 @@ public sealed class CgCompositor : IDisposable
         var h = Math.Max(2, motion.Height * sy);
         var opacity = Math.Clamp(motion.Opacity * AnimationOpacity(project, visualLayer, t, continuousSeconds), 0, 1);
         if (opacity <= .0001) return;
-        ApplyMotion(project, visualLayer, t, ref x, ref y, ref w, ref h, sx, sy, continuousSeconds);
+        ApplyMotion(project, visualLayer, motionTime, ref x, ref y, ref w, ref h, sx, sy, continuousSeconds);
         var layerType = (visualLayer.Type ?? "Text").Trim().ToUpperInvariant();
         CgAnimationEngine.TextVisualState? activeTextVisual = null;
         var textEvalTime = visualLayer.DataSourceId != Guid.Empty ? continuousSeconds : t;
-        var categoryDriven = project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, visualLayer, continuousSeconds, out _, out _, out _, out _);
+        var categoryDriven = CgDataSourceService.TryGetActiveCategoryTiming(project, visualLayer, continuousSeconds, out _, out _, out _, out _, out _, out _);
         // Ticker/category motion is controlled by the category schedule. Applying the
         // generic per-item text OUT fade as well made both badge and news blink.
         if (layerType is not "TICKER" && !categoryDriven &&
@@ -807,14 +806,19 @@ public sealed class CgCompositor : IDisposable
 
     private static void ApplyMotion(CgProject? project, CgLayer layer, double t, ref double x, ref double y, ref double w, ref double h, double sx, double sy, double continuousSeconds = -1)
     {
-        if (string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase)) return;
+        var evalTime = continuousSeconds >= 0 ? continuousSeconds : t;
+        var categoryElapsed = 0.0;
+        var categoryDuration = 0.0;
+        var categoryIntro = 0.0;
+        var categoryOutro = 0.0;
+        var categoryDriven = project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, evalTime,
+            out _, out categoryElapsed, out categoryDuration, out _, out categoryIntro, out categoryOutro);
+        if (string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase) && !categoryDriven) return;
         var hasAnyTicker = project?.Layers?.Any(l => string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase)) == true;
         var isBadgeText = string.Equals(layer.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
                           (layer.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false && string.Equals(layer.Type, "Text", StringComparison.OrdinalIgnoreCase));
 
         var delay = Math.Max(0, layer.TextAnimationDelaySeconds);
-        var evalTime = continuousSeconds >= 0 ? continuousSeconds : t;
-
         if (hasAnyTicker && !isBadgeText && layer.DataSourceId == Guid.Empty)
         {
             var layerName = layer.Name ?? "";
@@ -848,7 +852,12 @@ public sealed class CgCompositor : IDisposable
                                (layer.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false)) ||
                               layer.TickerCategoriesEnabled;
 
-        if (isCategoryBadge && project != null)
+        if (categoryDriven)
+        {
+            CgDataSourceService.GetCategoryAnimationProgress(categoryElapsed, categoryDuration, categoryIntro, categoryOutro,
+                out _, out _, out inProgress, out outProgress);
+        }
+        else if (isCategoryBadge && project != null)
         {
             var pausePoint = CgDataSourceService.ResolveEffectiveHoldPoint(project);
             var maxOutDuration = project.Layers.Where(x => x.Visible).Select(x => x.AnimationOutSeconds).DefaultIfEmpty(0.5).Max();
@@ -934,9 +943,23 @@ public sealed class CgCompositor : IDisposable
     {
         var hasAnyTicker = project?.Layers?.Any(l => string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase)) == true;
         var isTicker = string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase);
+        var timeToEval = continuousSeconds >= 0 ? continuousSeconds : t;
+        if (project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, timeToEval,
+                out _, out var categoryElapsed, out var categoryDuration, out _, out var categoryIntro, out var categoryOutro))
+        {
+            CgDataSourceService.GetCategoryAnimationProgress(categoryElapsed, categoryDuration, categoryIntro, categoryOutro,
+                out var isIntro, out var isOutro, out var inProgress, out var outProgress);
+            var animation = isOutro ? layer.AnimationOut : layer.AnimationIn;
+            var affectsOpacity = string.Equals(animation, "Fade", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(animation, "Blur", StringComparison.OrdinalIgnoreCase) ||
+                                 (animation?.Contains("Scale", StringComparison.OrdinalIgnoreCase) ?? false);
+            if (isIntro) return affectsOpacity ? inProgress : 1.0;
+            if (isOutro) return affectsOpacity ? outProgress : 1.0;
+            return 1.0;
+        }
         if (isTicker)
         {
-            var evalTime = continuousSeconds >= 0 ? continuousSeconds : t;
+            var evalTime = timeToEval;
             if (evalTime < layer.StartSeconds) return 0;
             if (layer.AnimationInSeconds > 0.01)
             {
@@ -964,8 +987,6 @@ public sealed class CgCompositor : IDisposable
                             (layer.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false))) ||
                           layer.TickerCategoriesEnabled;
         var delay = Math.Max(0, layer.TextAnimationDelaySeconds);
-        var timeToEval = continuousSeconds >= 0 ? continuousSeconds : t;
-
         if (isBadgeText && project != null)
         {
             var pausePoint = CgDataSourceService.ResolveEffectiveHoldPoint(project);
@@ -1005,7 +1026,7 @@ public sealed class CgCompositor : IDisposable
 
         double a, b;
         var isTickerLayer = string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase);
-        if (isTickerLayer && project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, timeToEval, out _, out var catElapsed, out var catDur, out _))
+        if (isTickerLayer && project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, timeToEval, out _, out var catElapsed, out var catDur, out _, out _, out _))
         {
             if (catElapsed < delay) return 0;
             a = Math.Clamp((catElapsed - delay) / Math.Max(.05, layer.AnimationInSeconds), 0, 1);
@@ -1737,7 +1758,7 @@ public sealed class CgCompositor : IDisposable
             var crawlWindowWidth = Math.Max(100f, rect.Width - badgeWidthEstimate);
             var schedule = CgDataSourceService.BuildCategoryFeedSchedule(project ?? new CgProject(), layer, rows, crawlWindowWidth, speed);
             var (activeCategory, categoryElapsed, _) = schedule.Evaluate(elapsed);
-            var newsElapsed = Math.Max(0, categoryElapsed - CgDataSourceService.CategoryIntroSeconds);
+            var newsElapsed = Math.Max(0, categoryElapsed - activeCategory.IntroDuration);
             var segments = activeCategory.Items
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => new TickerSegment(activeCategory.Category, x, false))
@@ -1757,9 +1778,7 @@ public sealed class CgCompositor : IDisposable
                 contentRect = new RectangleF(badgeRect.Right + badgeGap, rect.Top, Math.Max(1f, rect.Right - badgeRect.Right - badgeGap), rect.Height);
             }
 
-            // During this short deterministic phase only the category is visible. News
-            // starts afterwards, eliminating the old late-load flash and badge/text race.
-            if (categoryElapsed < CgDataSourceService.CategoryIntroSeconds || segments.Count == 0)
+            if (segments.Count == 0)
             {
                 g.ResetClip();
                 return;
@@ -2009,6 +2028,11 @@ public sealed class CgCompositor : IDisposable
 
     private static void DrawTickerStream(Graphics g, RectangleF rect, Font font, Font badgeFont, Brush textBrush, Brush badgeTextBrush, Brush badgeBgBrush, Image? sepLogo, List<(TickerSegment Seg, float Width)> measured, bool hasSepLogo, float logoSize, float logoPad, string separatorText, SizeF sepTextSize, float gap, float startX, bool isRight)
     {
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+
         var curX = startX;
         var centerY = rect.Top + rect.Height / 2f;
         var fontH = font.GetHeight(g);
@@ -2042,7 +2066,7 @@ public sealed class CgCompositor : IDisposable
                 }
                 else
                 {
-                    g.DrawString(seg.Text, font, textBrush, curX, textY);
+                    g.DrawString(seg.Text, font, textBrush, curX, textY, StringFormat.GenericTypographic);
                 }
             }
 
@@ -2069,7 +2093,7 @@ public sealed class CgCompositor : IDisposable
                 {
                     if (curX + sepTextSize.Width >= rect.Left - 20 && curX <= rect.Right + 20)
                     {
-                        g.DrawString(separatorText, font, textBrush, curX, textY);
+                        g.DrawString(separatorText, font, textBrush, curX, textY, StringFormat.GenericTypographic);
                     }
                     curX += sepTextSize.Width;
                 }

@@ -4,17 +4,17 @@
         Title="WEATHER FIELDS"
         Width="380" Height="520"
         WindowStartupLocation="CenterOwner" WindowStyle="None" ResizeMode="NoResize"
-        Background="#0E1217" Foreground="#F1F5F9" SnapsToDevicePixels="True">
+        Background="{StaticResource Bg0Brush}" Foreground="{StaticResource TextBrush}" SnapsToDevicePixels="True">
 
     <Window.Resources>
         <Style x:Key="WeatherCheckStyle" TargetType="CheckBox">
             <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Margin" Value="0,0,0,14"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Style.Triggers>
                 <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Foreground" Value="#F59E0B"/>
+                    <Setter Property="Foreground" Value="#B78BE7"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
                 </Trigger>
             </Style.Triggers>
@@ -29,17 +29,17 @@
         </Style>
     </Window.Resources>
 
-    <Border BorderBrush="#0284C7" BorderThickness="1" Background="#0E1217">
+    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Background="{StaticResource Bg0Brush}">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="36"/>
+                <RowDefinition Height="38"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="52"/>
             </Grid.RowDefinitions>
 
-            <!-- Blue Header Bar -->
-            <Border Grid.Row="0" Background="#0284C7" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <!-- Custom Chrome Header Bar -->
+            <Border Grid.Row="0" Background="#181122" BorderBrush="{StaticResource AccentBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid Margin="14,0,8,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -90,12 +90,12 @@
                     <RadioButton x:Name="Days3Radio" Content="3" GroupName="WeatherDays" IsChecked="True" Style="{StaticResource DayRadioStyle}"/>
                     <RadioButton x:Name="Days4Radio" Content="4" GroupName="WeatherDays" Style="{StaticResource DayRadioStyle}"/>
                     <RadioButton x:Name="Days5Radio" Content="5" GroupName="WeatherDays" Style="{StaticResource DayRadioStyle}"/>
-                    <TextBlock Text="days" Foreground="#94A3B8" FontSize="13" VerticalAlignment="Center" Margin="-6,0,0,0"/>
+                    <TextBlock Text="days" Foreground="{StaticResource MutedBrush}" FontSize="13" VerticalAlignment="Center" Margin="-6,0,0,0"/>
                 </StackPanel>
             </StackPanel>
 
             <!-- Bottom Action Bar with SELECT ALL and APPLY -->
-            <Border Grid.Row="3" Background="#090D11" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="16,0">
+            <Border Grid.Row="3" Background="{StaticResource Bg1Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,0">
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -103,10 +103,10 @@
                     </Grid.ColumnDefinitions>
                     
                     <Button Grid.Column="0" Content="APPLY &amp; SAVE" Click="Apply_Click" Width="120" Height="30" HorizontalAlignment="Left"
-                            Background="#0284C7" BorderBrush="#0284C7" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Cursor="Hand"/>
+                            Background="#3E2359" BorderBrush="{StaticResource AccentBrush}" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Cursor="Hand"/>
 
                     <Button Grid.Column="1" Content="SELECT ALL" Click="SelectAll_Click" Width="110" Height="30"
-                            Background="#182230" BorderBrush="#2F3E52" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11" Cursor="Hand"/>
+                            Background="#251B31" BorderBrush="{StaticResource AccentBrush}" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11" Cursor="Hand"/>
                 </Grid>
             </Border>
         </Grid>

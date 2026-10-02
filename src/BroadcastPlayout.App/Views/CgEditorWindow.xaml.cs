@@ -80,7 +80,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             {
                 var maxOutDuration = project.Layers.Where(x => x.Visible).Select(x => x.AnimationOutSeconds).DefaultIfEmpty(0.5).Max();
                 var pausePoint = Math.Min(Math.Max(0.1, ProjectDuration - maxOutDuration - 0.05), CgDataSourceService.ResolveEffectiveHoldPoint(project));
-                var categoryIntroLead = Math.Min(CgDataSourceService.CategoryIntroSeconds, pausePoint);
+                var categoryIntroLead = Math.Min(CgDataSourceService.ResolveEffectiveCategoryIntroDuration(SelectedProject), pausePoint);
                 var tickerHoldDuration = Math.Max(0.05, dynamicTickerDuration - categoryIntroLead);
                 var totalCycle = pausePoint + tickerHoldDuration + maxOutDuration;
                 if (_playing)
@@ -267,7 +267,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             {
                 var maxOutDuration = project.Layers.Where(x => x.Visible).Select(x => x.AnimationOutSeconds).DefaultIfEmpty(0.5).Max();
                 var pausePoint = Math.Min(Math.Max(0.1, ProjectDuration - maxOutDuration - 0.05), CgDataSourceService.ResolveEffectiveHoldPoint(project));
-                var categoryIntroLead = Math.Min(CgDataSourceService.CategoryIntroSeconds, pausePoint);
+                var categoryIntroLead = Math.Min(CgDataSourceService.ResolveEffectiveCategoryIntroDuration(SelectedProject), pausePoint);
                 var tickerHoldDuration = Math.Max(0.05, dynamicTickerDuration - categoryIntroLead);
                 var totalCycle = pausePoint + tickerHoldDuration + maxOutDuration;
                 var rawElapsed = _playbackBaseSeconds + _playbackClock.Elapsed.TotalSeconds;
@@ -551,7 +551,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var key = SelectedLayer.DataField;
             if (rows.Count == 0) return $"{ds.Name} · {ds.Status}";
 
-            if (SelectedProject != null && CgDataSourceService.TryGetActiveCategoryTiming(SelectedProject, SelectedLayer, ContinuousPlaybackSeconds, out var catName, out var catElapsed, out var catDur, out var catIdx))
+            if (SelectedProject != null && CgDataSourceService.TryGetActiveCategoryTiming(SelectedProject, SelectedLayer, ContinuousPlaybackSeconds, out var catName, out var catElapsed, out var catDur, out var catIdx, out _, out _))
             {
                 var schedule = CgDataSourceService.BuildCategoryFeedSchedule(SelectedProject, SelectedLayer, rows);
                 var totalCats = schedule.Categories.Count;
@@ -3207,9 +3207,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                     : (Playhead >= x.StartSeconds && Playhead <= x.EndSeconds)
         )))
         {
-            var motion=CgAnimationEngine.EvaluateLayer(project,layer,Playhead);
+            var previewMotionTime = CgDataSourceService.ResolveCategoryLayerTimelineSeconds(project, layer, ContinuousPlaybackSeconds, Playhead);
+            var motion=CgAnimationEngine.EvaluateLayer(project,layer,previewMotionTime);
             if(motion.Opacity<=.0001)continue;
-            var visualLayer=CgAnimationEngine.CreateVisualLayer(layer,Playhead);
+            var visualLayer=CgAnimationEngine.CreateVisualLayer(layer,previewMotionTime);
             var isOverlayCycle = CgDataSourceService.IsOverlayActiveForItem(project, layer, ContinuousPlaybackSeconds);
             if (isOverlayCycle && visualLayer.TextAnimationDelaySeconds <= 0.001 && visualLayer.StartSeconds <= 0.001)
             {
@@ -3988,7 +3989,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                             .ToList();
                         if (list.Count == 0 && !string.IsNullOrWhiteSpace(activeCategory.CombinedItemsText))
                             list.Add((activeCategory.Category, activeCategory.CombinedItemsText, false));
-                        pushElapsed = Math.Max(0, categoryElapsed - CgDataSourceService.CategoryIntroSeconds);
+                        pushElapsed = Math.Max(0, categoryElapsed - activeCategory.IntroDuration);
                     }
                 }
             }
@@ -4210,7 +4211,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             if (schedule.Categories.Count > 0)
             {
                 var (activeCat, categoryElapsed, _) = schedule.Evaluate(Math.Max(0, ContinuousPlaybackSeconds));
-                var newsElapsed = Math.Max(0, categoryElapsed - CgDataSourceService.CategoryIntroSeconds);
+                var newsElapsed = Math.Max(0, categoryElapsed - activeCat.IntroDuration);
                 var segments = activeCat.Items
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .Select(x => new CgTickerSegment(activeCat.Category, x, false))
@@ -4722,7 +4723,14 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     private void ApplyPreviewAnimation(CgLayer layer,ref double x,ref double y,ref double w,ref double h,FrameworkElement el)
     {
-        if (string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase))
+        var project = SelectedProject;
+        var categoryElapsed = 0.0;
+        var categoryDuration = 0.0;
+        var categoryIntro = 0.0;
+        var categoryOutro = 0.0;
+        var categoryDriven = project != null && CgDataSourceService.TryGetActiveCategoryTiming(project, layer, ContinuousPlaybackSeconds,
+            out _, out categoryElapsed, out categoryDuration, out _, out categoryIntro, out categoryOutro);
+        if (string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase) && !categoryDriven)
         {
             el.Opacity = Math.Clamp(layer.Opacity, 0, 1);
             return;
@@ -4731,8 +4739,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var isDataItem = layer.DataSourceId != Guid.Empty && layer.DataItemDurationSeconds > 0;
         var isSequenceType = string.Equals(layer.Type, "ImageSequence", StringComparison.OrdinalIgnoreCase);
         var delay = !isSequenceType ? Math.Max(0, layer.TextAnimationDelaySeconds) : 0;
-        var project = SelectedProject;
-
         var hasAnyTicker = project?.Layers?.Any(l => string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase)) == true;
         var isCategoryBadge = string.Equals(layer.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
                               string.Equals(layer.Role, "Badge", StringComparison.OrdinalIgnoreCase) ||
@@ -4777,7 +4783,12 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
         double a, b;
         var isTickerLayer = string.Equals(layer.Type, "Ticker", StringComparison.OrdinalIgnoreCase);
-        if (isCategoryBadge && project != null)
+        if (categoryDriven)
+        {
+            CgDataSourceService.GetCategoryAnimationProgress(categoryElapsed, categoryDuration, categoryIntro, categoryOutro,
+                out _, out _, out a, out b);
+        }
+        else if (isCategoryBadge && project != null)
         {
             var pausePoint = CgDataSourceService.ResolveEffectiveHoldPoint(project);
             var maxOutDuration = project.Layers.Where(x => x.Visible).Select(x => x.AnimationOutSeconds).DefaultIfEmpty(0.5).Max();
@@ -6628,7 +6639,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         var sx = (PreviewCanvas.Width > 1 ? PreviewCanvas.Width : 960.0) / Math.Max(1.0, project.Width);
         var sy = (PreviewCanvas.Height > 1 ? PreviewCanvas.Height : 540.0) / Math.Max(1.0, project.Height);
-        var motion = CgAnimationEngine.EvaluateLayer(project, layer, Playhead);
+        var previewMotionTime = CgDataSourceService.ResolveCategoryLayerTimelineSeconds(project, layer, ContinuousPlaybackSeconds, Playhead);
+        var motion = CgAnimationEngine.EvaluateLayer(project, layer, previewMotionTime);
         var baseW = Math.Max(2, motion.Width * sx);
         var baseH = Math.Max(2, motion.Height * sy);
         var rawX = motion.X * sx; var rawY = motion.Y * sy;
@@ -6647,7 +6659,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (_previewLayerVisuals.TryGetValue(layer, out var visual))
         {
             var x = rawX; var y = rawY; var w = baseW; var h = baseH;
-            var visualLayer = CgAnimationEngine.CreateVisualLayer(layer, Playhead);
+            var visualLayer = CgAnimationEngine.CreateVisualLayer(layer, previewMotionTime);
             ApplyPreviewAnimation(visualLayer, ref x, ref y, ref w, ref h, visual);
             var previewType = (visualLayer.Type ?? "Text").ToUpperInvariant();
             var isTickerOrBadge = previewType is "TICKER" ||

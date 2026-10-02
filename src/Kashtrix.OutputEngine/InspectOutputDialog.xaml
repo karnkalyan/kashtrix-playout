@@ -78,11 +78,11 @@
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="RUNNING FPS" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
-                                <TextBlock Text="{Binding RunningFps, StringFormat={}{0:0.00} fps}" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource GoodBrush}"/>
+                                <TextBlock Text="{Binding FormattedFps}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource GoodBrush}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="TARGET FPS" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
-                                <TextBlock Text="{Binding TargetFps, StringFormat={}{0:0.00} fps}" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBlock Text="{Binding TargetFps, StringFormat={}{0:0.00} fps}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}"/>
                             </StackPanel>
                         </Grid>
 
@@ -90,7 +90,7 @@
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="FRAMES SENT" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
-                                <TextBlock Text="{Binding FramesTransmitted, StringFormat={}{0:N0}}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
+                                <TextBlock Text="{Binding FormattedFrames}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="DROPPED FRAMES" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
@@ -101,8 +101,8 @@
                         <Grid Margin="0,8">
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="ENCODER BITRATE" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
-                                <TextBlock Text="{Binding BitrateMbps, StringFormat={}{0:0.0} Mbps}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock Text="OUTPUT BITRATE" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBlock Text="{Binding FormattedBitrate}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="PCR JITTER" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
@@ -163,7 +163,7 @@
                     <TextBlock Text="SIGNALING &amp; REALTIME EVENT LOG" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,0,0,8"/>
 
                     <!-- Action Controls for this Output -->
-                    <Border Grid.Row="1" Background="#1B2432" BorderBrush="#2B394E" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,0,0,10">
+                    <Border Grid.Row="1" Background="#261A35" BorderBrush="#3E2A54" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,0,0,10">
                         <WrapPanel>
                             <Button Content="SEND MOS CUE" Click="SendMos_Click" Background="{DynamicResource Bg3Brush}" Foreground="{DynamicResource TextBrush}" Height="26" Padding="10,0" Margin="0,0,8,0"/>
                             <Button Content="CLEAR ALERTS" Click="ClearAlert_Click" Background="{DynamicResource Bg3Brush}" Foreground="{DynamicResource TextBrush}" Height="26" Padding="10,0"/>

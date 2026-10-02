@@ -40,6 +40,7 @@ public partial class IngestServerWindow : Window
     public IngestServerWindow()
     {
         InitializeComponent();
+        WindowChromeActions.ApplyCleanBorder(this);
         DataContext = this;
         var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Kashtrix Ingest");
         Directory.CreateDirectory(folder);
@@ -971,6 +972,11 @@ public partial class IngestServerWindow : Window
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.Minimize(this);
     private void Maximize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.ToggleMaximize(this);
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape) { e.Handled = true; return; }
+        base.OnPreviewKeyDown(e);
+    }
 }
 
 public sealed class IngestSlot : INotifyPropertyChanged

@@ -48,7 +48,7 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#253242"/>
+                    <Setter Property="Background" Value="#38264A"/>
                     <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                 </Trigger>
             </Style.Triggers>
@@ -86,7 +86,7 @@
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="KASHTRIX" FontWeight="Black" FontSize="17" Foreground="{DynamicResource TextBrush}"/>
                             <TextBlock Text=" OUTPUT ENGINE" FontWeight="Bold" FontSize="17" Foreground="{DynamicResource AccentBrush}"/>
-                            <Border Background="#16222E" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="10,0,0,0">
+                            <Border Background="#251B31" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="10,0,0,0">
                                 <TextBlock Text="DVB SI/PSI COMPLIANT" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource GoodBrush}"/>
                             </Border>
                         </StackPanel>
@@ -211,7 +211,7 @@
                                     </Border>
                                     <!-- Bottom Label -->
                                     <Border VerticalAlignment="Bottom" Background="#CC090D11" Padding="0,2">
-                                        <TextBlock Text="PROGRAM CONFIDENCE MONITOR" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="8" FontWeight="SemiBold" Foreground="#DCC7F0"/>
+                                        <TextBlock x:Name="ProgramMonitorLabel" Text="PLAYOUT PROGRAM BUS · CONFIDENCE MONITOR" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="8" FontWeight="SemiBold" Foreground="#DCC7F0"/>
                                     </Border>
                                 </Grid>
                             </Border>
@@ -228,7 +228,7 @@
                               SelectionMode="Single"
                               Background="{DynamicResource Bg1Brush}"
                               RowBackground="{DynamicResource Bg1Brush}"
-                              AlternatingRowBackground="#141E33"
+                              AlternatingRowBackground="#1D1629"
                               Foreground="{DynamicResource TextBrush}"
                               BorderThickness="0"
                               GridLinesVisibility="Horizontal"
@@ -302,6 +302,14 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
+                            <DataGridTemplateColumn Header="INPUT SOURCE" Width="155">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate DataType="models:OutputChannel">
+                                        <TextBlock Text="{Binding InputSourceDisplayName}" FontWeight="SemiBold" FontSize="10" Foreground="#D7B8F9" VerticalAlignment="Center" Margin="6,0" TextTrimming="CharacterEllipsis"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
                             <!-- Protocol Badge -->
                             <DataGridTemplateColumn Header="PROTOCOL / TYPE" Width="130">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -344,20 +352,16 @@
                             </DataGridTemplateColumn>
 
                             <!-- FPS -->
-                            <DataGridTemplateColumn Header="FPS (ACT / TGT)" Width="110">
+                            <DataGridTemplateColumn Header="FPS (ACT / TGT)" Width="135">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate DataType="models:OutputChannel">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0">
-                                            <TextBlock Text="{Binding RunningFps, StringFormat={}{0:F2}}" FontWeight="Bold" Foreground="{DynamicResource GoodBrush}"/>
-                                            <TextBlock Text=" / " Foreground="{DynamicResource MutedBrush}"/>
-                                            <TextBlock Text="{Binding TargetFps, StringFormat={}{0:F2}}" Foreground="{DynamicResource MutedBrush}"/>
-                                        </StackPanel>
+                                        <TextBlock Text="{Binding FormattedFps}" FontWeight="Bold" Foreground="{DynamicResource GoodBrush}" VerticalAlignment="Center" Margin="6,0"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
                             <!-- Total Frames -->
-                            <DataGridTextColumn Header="FRAMES SENT" Binding="{Binding FramesTransmitted, StringFormat={}{0:N0}}" Width="100"/>
+                            <DataGridTextColumn Header="FRAMES SENT" Binding="{Binding FormattedFrames, Mode=OneWay}" Width="105"/>
 
                             <!-- Dropped Frames -->
                             <DataGridTemplateColumn Header="DROPPED" Width="80">
@@ -380,7 +384,7 @@
                             </DataGridTemplateColumn>
 
                             <!-- Bitrate -->
-                            <DataGridTextColumn Header="BITRATE" Binding="{Binding BitrateMbps, StringFormat={}{0:F2} Mbps}" Width="105"/>
+                            <DataGridTextColumn Header="BITRATE" Binding="{Binding FormattedBitrate, Mode=OneWay}" Width="150"/>
 
                             <!-- PCR Jitter -->
                             <DataGridTextColumn Header="PCR JITTER" Binding="{Binding PcrJitterNs, StringFormat={}{0:F1} ns}" Width="95"/>
@@ -390,8 +394,8 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate DataType="models:OutputChannel">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border CornerRadius="2" Padding="4,1" Margin="0,0,4,0" Background="#1E3A8A">
-                                                <TextBlock Text="DVB" FontSize="10" FontWeight="Bold" Foreground="#60A5FA"/>
+                                            <Border CornerRadius="2" Padding="4,1" Margin="0,0,4,0" Background="#3E2359">
+                                                <TextBlock Text="DVB" FontSize="10" FontWeight="Bold" Foreground="#DCC7F0"/>
                                             </Border>
                                             <Border CornerRadius="2" Padding="4,1" Background="#581C87">
                                                 <TextBlock Text="SCTE-35" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource PinkBrush}"/>

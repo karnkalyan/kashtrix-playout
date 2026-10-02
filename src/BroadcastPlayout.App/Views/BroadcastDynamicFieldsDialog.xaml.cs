@@ -46,17 +46,17 @@ public partial class BroadcastDynamicFieldsDialog : Window
 
         if (showNowNext)
         {
-            TabNowNextBtn.Background = new SolidColorBrush(Color.FromRgb(3, 105, 161));
+            TabNowNextBtn.Background = new SolidColorBrush(Color.FromRgb(62, 35, 89));
             TabNowNextBtn.Foreground = Brushes.White;
-            TabWeatherBtn.Background = new SolidColorBrush(Color.FromRgb(7, 89, 133));
-            TabWeatherBtn.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+            TabWeatherBtn.Background = new SolidColorBrush(Color.FromRgb(37, 27, 49));
+            TabWeatherBtn.Foreground = new SolidColorBrush(Color.FromRgb(183, 139, 231));
         }
         else
         {
-            TabWeatherBtn.Background = new SolidColorBrush(Color.FromRgb(3, 105, 161));
+            TabWeatherBtn.Background = new SolidColorBrush(Color.FromRgb(62, 35, 89));
             TabWeatherBtn.Foreground = Brushes.White;
-            TabNowNextBtn.Background = new SolidColorBrush(Color.FromRgb(7, 89, 133));
-            TabNowNextBtn.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+            TabNowNextBtn.Background = new SolidColorBrush(Color.FromRgb(37, 27, 49));
+            TabNowNextBtn.Foreground = new SolidColorBrush(Color.FromRgb(183, 139, 231));
         }
     }
 

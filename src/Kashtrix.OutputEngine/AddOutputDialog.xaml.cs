@@ -25,7 +25,9 @@ namespace Kashtrix.OutputEngine
 
         private void ProtocolComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (DestinationTextBox == null || ProtocolComboBox.SelectedItem is not ComboBoxItem item)
+            var destBox = DestinationTextBox;
+            var bitrateBox = BitrateTextBox;
+            if (destBox == null || bitrateBox == null || ProtocolComboBox?.SelectedItem is not ComboBoxItem item)
                 return;
 
             string tag = item.Tag?.ToString() ?? "DeckLink";
@@ -37,71 +39,94 @@ namespace Kashtrix.OutputEngine
                 CardHardwareNotice.Visibility = isCard ? Visibility.Visible : Visibility.Collapsed;
             }
 
+            if (BitrateBasebandNotice != null)
+            {
+                bitrateBox.Visibility = isCard ? Visibility.Collapsed : Visibility.Visible;
+                BitrateBasebandNotice.Visibility = isCard ? Visibility.Visible : Visibility.Collapsed;
+            }
+
             switch (tag)
             {
                 case "DeckLink":
-                    DestinationTextBox.Text = "DeckLink SDI Output Device 1";
-                    BitrateTextBox.Text = "1500.0";
+                    destBox.Text = "DeckLink SDI Output Device 1";
+                    bitrateBox.Text = "0.0";
+                    break;
+                case "CgOutput":
+                    destBox.Text = "Kashtrix CG Engine Channel 1 (Fill + Key)";
+                    bitrateBox.Text = "150.0";
+                    break;
+                case "VirtualOutput":
+                    destBox.Text = "Kashtrix Virtual Broadcast Bridge (.ax DirectShow)";
+                    bitrateBox.Text = "50.0";
                     break;
                 case "NDI":
-                    DestinationTextBox.Text = "Kashtrix-Master-NDI-PGM";
-                    BitrateTextBox.Text = "125.0";
+                    destBox.Text = "Kashtrix-Master-NDI-PGM";
+                    bitrateBox.Text = "125.0";
                     break;
                 case "Matrox":
-                    DestinationTextBox.Text = "Matrox DSX.core Channel A (BNC 1)";
-                    BitrateTextBox.Text = "1500.0";
+                    destBox.Text = "Matrox DSX.core Channel A (BNC 1)";
+                    bitrateBox.Text = "0.0";
                     break;
                 case "AJA":
-                    DestinationTextBox.Text = "AJA Kona 5 [Out Port 1 SDI]";
-                    BitrateTextBox.Text = "1500.0";
+                    destBox.Text = "AJA Kona 5 [Out Port 1 SDI]";
+                    bitrateBox.Text = "0.0";
                     break;
                 case "UDP_DVB":
-                    DestinationTextBox.Text = "udp://239.255.10.1:5000?pkt_size=1316&bitrate=15000000&ttl=32";
-                    BitrateTextBox.Text = "15.0";
+                    destBox.Text = "udp://239.255.10.1:5000?pkt_size=1316&bitrate=15000000&ttl=32";
+                    bitrateBox.Text = "15.0";
                     break;
                 case "UDP_UNICAST":
-                    DestinationTextBox.Text = "udp://192.168.1.100:5000?pkt_size=1316&bitrate=15000000";
-                    BitrateTextBox.Text = "15.0";
+                    destBox.Text = "udp://192.168.1.100:5000?pkt_size=1316&bitrate=15000000";
+                    bitrateBox.Text = "15.0";
                     break;
                 case "SRT":
-                    DestinationTextBox.Text = "srt://192.168.1.50:9000?mode=caller&latency=120";
-                    BitrateTextBox.Text = "8.5";
+                    destBox.Text = "srt://192.168.1.50:9000?mode=caller&latency=120";
+                    bitrateBox.Text = "8.5";
                     break;
                 case "RTMP_YouTube":
-                    DestinationTextBox.Text = "rtmp://a.rtmp.youtube.com/live2/xxxx-xxxx-xxxx-xxxx-xxxx";
-                    BitrateTextBox.Text = "6.0";
+                    destBox.Text = "rtmp://a.rtmp.youtube.com/live2/xxxx-xxxx-xxxx-xxxx-xxxx";
+                    bitrateBox.Text = "6.0";
                     break;
                 case "RTMP_Facebook":
-                    DestinationTextBox.Text = "rtmps://live-api-s.facebook.com:443/rtmp/FB-xxxx-xxxx-xxxx";
-                    BitrateTextBox.Text = "4.5";
+                    destBox.Text = "rtmps://live-api-s.facebook.com:443/rtmp/FB-xxxx-xxxx-xxxx";
+                    bitrateBox.Text = "4.5";
                     break;
                 case "RTMP_Twitch":
-                    DestinationTextBox.Text = "rtmp://live.twitch.tv/app/live_xxxxxxxx_xxxxxxxxxx";
-                    BitrateTextBox.Text = "6.0";
+                    destBox.Text = "rtmp://live.twitch.tv/app/live_xxxxxxxx_xxxxxxxxxx";
+                    bitrateBox.Text = "6.0";
                     break;
                 case "RTMP_TikTok":
-                    DestinationTextBox.Text = "rtmp://push-rtmp-f5-tt.tiktokcdn.com/stage/stream-xxxxxxxxxxxx";
-                    BitrateTextBox.Text = "4.0";
+                    destBox.Text = "rtmp://push-rtmp-f5-tt.tiktokcdn.com/stage/stream-xxxxxxxxxxxx";
+                    bitrateBox.Text = "4.0";
                     break;
                 case "RTMP":
-                    DestinationTextBox.Text = "rtmp://your-server.com/live/stream_key";
-                    BitrateTextBox.Text = "6.0";
+                    destBox.Text = "rtmp://your-server.com/live/stream_key";
+                    bitrateBox.Text = "6.0";
                     break;
                 case "HLS":
-                    DestinationTextBox.Text = "https://edge-dvb.kashtrix.net/live/master.m3u8";
-                    BitrateTextBox.Text = "7.5";
+                    destBox.Text = "https://edge-dvb.kashtrix.net/live/master.m3u8";
+                    bitrateBox.Text = "7.5";
                     break;
                 case "MPD":
-                    DestinationTextBox.Text = "https://dash-origin.kashtrix.net/dash/stream.mpd";
-                    BitrateTextBox.Text = "7.0";
+                    destBox.Text = "https://dash-origin.kashtrix.net/dash/stream.mpd";
+                    bitrateBox.Text = "7.0";
                     break;
                 case "RTSP":
-                    DestinationTextBox.Text = "rtsp://10.0.0.10:8554/live/feed";
-                    BitrateTextBox.Text = "8.0";
+                    destBox.Text = "rtsp://10.0.0.10:8554/live/feed";
+                    bitrateBox.Text = "8.0";
                     break;
             }
 
             UpdateHardwareOptions();
+        }
+
+        private void InputSourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ManualInputSourceTextBox == null) return;
+            var tag = (InputSourceComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            ManualInputSourceTextBox.Visibility = string.Equals(tag, "Manual", StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void UpdateHardwareOptions()
@@ -109,7 +134,6 @@ namespace Kashtrix.OutputEngine
             if (ResolutionComboBox == null || ProtocolComboBox == null) return;
             var item = ProtocolComboBox.SelectedItem as ComboBoxItem;
             string tag = item?.Tag?.ToString() ?? "DeckLink";
-
             if (tag is "DeckLink")
             {
                 // Query hardware display modes dynamically from card
@@ -173,11 +197,27 @@ namespace Kashtrix.OutputEngine
 
             var item = ProtocolComboBox.SelectedItem as ComboBoxItem;
             string tag = item?.Tag?.ToString() ?? "DeckLink";
+            var inputTag = (InputSourceComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "PlayoutProgram";
+            var inputSource = Enum.TryParse<OutputInputSource>(inputTag, true, out var parsedInput)
+                ? parsedInput
+                : OutputInputSource.PlayoutProgram;
+            var manualInput = ManualInputSourceTextBox.Text.Trim();
+            if (inputSource == OutputInputSource.Manual && string.IsNullOrWhiteSpace(manualInput))
+            {
+                ThemedMessageBox.Show(this, "Enter a manual input source name, URL, or device identifier.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             BroadcastOutputProtocol protocol;
             string streamPreset = string.Empty;
             switch (tag)
             {
+                case "CgOutput":
+                    protocol = BroadcastOutputProtocol.CgOutput;
+                    break;
+                case "VirtualOutput":
+                    protocol = BroadcastOutputProtocol.VirtualOutput;
+                    break;
                 case "UDP_DVB":
                 case "UDP_UNICAST":
                     protocol = BroadcastOutputProtocol.DvbUdp;
@@ -232,9 +272,12 @@ namespace Kashtrix.OutputEngine
                 resolutionStr = $"{customW}x{customH} (Custom)";
             }
 
-            double bitrate = 12.0;
-            double.TryParse(BitrateTextBox.Text, out bitrate);
-            if (bitrate <= 0) bitrate = isCard ? 1500.0 : 12.0;
+            double bitrate = 0.0;
+            if (!isCard)
+            {
+                double.TryParse(BitrateTextBox.Text, out bitrate);
+                if (bitrate <= 0) bitrate = 12.0;
+            }
 
             string gpuEncoder = isCard
                 ? "Direct Uncompressed (Raw PCIe DMA)"
@@ -254,6 +297,8 @@ namespace Kashtrix.OutputEngine
             ResultChannel = new OutputChannel
             {
                 Name = NameTextBox.Text.Trim(),
+                InputSource = inputSource,
+                ManualInputSource = manualInput,
                 Protocol = protocol,
                 DestinationUri = DestinationTextBox.Text.Trim(),
                 RasterFormat = resolutionStr,

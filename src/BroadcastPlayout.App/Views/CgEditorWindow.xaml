@@ -70,6 +70,8 @@
                         <MenuItem Header="Take On Air" Click="TakeOnAir_Click"/>
                         <MenuItem Header="CG Controller..." Click="OpenCgController_Click"/>
                         <Separator/>
+                        <MenuItem Header="Select Now / Next Fields..." Click="OpenNowNextFields_Click"/>
+                        <MenuItem Header="Select Weather Fields..." Click="OpenWeatherFields_Click"/>
                         <MenuItem Header="Dynamic Broadcast Fields (Now/Next &amp; Weather)..." Click="DynamicFields_Click"/>
                     </MenuItem>
                 </Menu>
@@ -227,7 +229,7 @@
                                 <ListBox ItemsSource="{Binding DataSources}" SelectedItem="{Binding SelectedDataSource, Mode=TwoWay}" Height="120" DisplayMemberPath="Name"/>
                                 <WrapPanel Margin="0,5,0,0">
                                     <Button Content="URL JSON" Click="AddUrlJsonData_Click" Width="82"/><Button Content="JSON" Click="AddJsonData_Click" Width="62"/><Button Content="XML/RSS" Click="AddXmlRssData_Click" Width="78"/>
-                                    <Button Content="EXCEL" Click="AddExcelData_Click" Width="68"/><Button Content="TXT" Click="AddTxtData_Click" Width="58"/><Button Content="WEATHER" Click="AddWeatherData_Click" Width="78"/><Button Content="WEATHER FIELDS..." Click="OpenWeatherFields_Click" Width="105" Background="#162736" BorderBrush="#00E5FF" Foreground="#00E5FF" ToolTip="Broadcast Weather Fields (temperature, min/max, feels like, pressure, humidity, clouds, image, multi-day)"/><Button Content="NOW/NEXT..." Click="OpenNowNextFields_Click" Width="82" Background="#162736" BorderBrush="#00E5FF" Foreground="#00E5FF" ToolTip="Broadcast Now/Next Fields Modal"/><Button Content="REFRESH" Click="RefreshData_Click" Width="78"/><Button Content="DELETE" Click="DeleteData_Click" Width="68"/>
+                                    <Button Content="EXCEL" Click="AddExcelData_Click" Width="68"/><Button Content="TXT" Click="AddTxtData_Click" Width="58"/><Button Content="WEATHER" Click="AddWeatherData_Click" Width="78"/><Button Content="WEATHER FIELDS..." Click="OpenWeatherFields_Click" Width="105" Background="#2A1B3D" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2D5F5" ToolTip="Broadcast Weather Fields (temperature, min/max, feels like, pressure, humidity, clouds, image, multi-day)"/><Button Content="NOW/NEXT..." Click="OpenNowNextFields_Click" Width="82" Background="#2A1B3D" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2D5F5" ToolTip="Broadcast Now/Next Fields Modal"/><Button Content="REFRESH" Click="RefreshData_Click" Width="78"/><Button Content="DELETE" Click="DeleteData_Click" Width="68"/>
                                 </WrapPanel>
                                 <TextBlock Text="Name" Style="{StaticResource SectionCaption}" Margin="0,7,0,2"/><TextBox Text="{Binding SelectedDataSource.Name, UpdateSourceTrigger=LostFocus}" LostFocus="DataInspector_LostFocus"/>
                                 <TextBlock Text="Source type" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/><ComboBox ItemsSource="{Binding DataSourceTypes}" SelectedItem="{Binding SelectedDataSource.SourceType}" SelectionChanged="DataInspector_SelectionChanged"/>

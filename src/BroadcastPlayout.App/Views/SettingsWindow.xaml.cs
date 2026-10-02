@@ -12,7 +12,18 @@ namespace BroadcastPlayout.Views;
 public partial class SettingsWindow : Window
 {
     private readonly MainViewModel _vm;
-    public SettingsWindow(MainViewModel vm){InitializeComponent();_vm=vm;DataContext=vm;}
+    public SettingsWindow(MainViewModel vm)
+    {
+        InitializeComponent();
+        WindowChromeActions.ApplyCleanBorder(this);
+        _vm = vm;
+        DataContext = vm;
+    }
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape) { e.Handled = true; return; }
+        base.OnPreviewKeyDown(e);
+    }
     private void NavList_SelectionChanged(object sender,System.Windows.Controls.SelectionChangedEventArgs e){if(SettingsTabs is not null&&NavList.SelectedIndex>=0&&NavList.SelectedIndex<SettingsTabs.Items.Count)SettingsTabs.SelectedIndex=NavList.SelectedIndex;}
     private void Save_Click(object sender,RoutedEventArgs e){try{_vm.SaveSettings();_vm.SaveSchedules();MessageBox.Show("Settings saved for all Kashtrix applications.","Kashtrix Settings");}catch(Exception ex){MessageBox.Show(ex.Message,"Settings",MessageBoxButton.OK,MessageBoxImage.Error);}}
     private void LoadDemo_Click(object sender,RoutedEventArgs e){_vm.LoadDemoWorkspace();ChannelRegistryStore.Save(DemoDataFactory.CreateChannels());MessageBox.Show("Demo workspace loaded.","Kashtrix");}

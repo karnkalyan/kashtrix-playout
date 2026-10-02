@@ -12,12 +12,10 @@ namespace BroadcastPlayout.Services;
 /// <summary>Loads and normalizes CG text/data sources into JSON object rows.</summary>
 public static class CgDataSourceService
 {
-    // Keep category changes broadcast-clean without holding an empty ticker body.
-    // The old 550 ms intro plus 450 ms outro made a cached ticker look as if it
-    // was still loading and left a noticeable blank pause after the last pixel
-    // had already left the canvas.
-    public const double CategoryIntroSeconds = 0.20;
-    public const double CategoryOutroSeconds = 0.0;
+    // Fallback transition windows. Authored layer animation durations override these
+    // when a category feed is built, so every category repeats the same IN/OUT motion.
+    public const double CategoryIntroSeconds = 0.35;
+    public const double CategoryOutroSeconds = 0.35;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (string Signature, CategoryFeedSchedule Schedule)> CategoryScheduleCache = new();
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) };
 
@@ -1147,12 +1145,29 @@ public static class CgDataSourceService
 
         tickerLayer ??= tickerOrBadgeLayer;
 
+        var categoryAnimatedLayers = (project.Layers ?? [])
+            .Where(x => x.Visible &&
+                (string.Equals(x.Type, "Ticker", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(x.DataField, "category", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(x.Role, "Badge", StringComparison.OrdinalIgnoreCase) ||
+                 (x.Name?.Contains("Badge", StringComparison.OrdinalIgnoreCase) ?? false) ||
+                 (x.Name?.Contains("Category", StringComparison.OrdinalIgnoreCase) ?? false) ||
+                 x.TickerCategoriesEnabled) &&
+                (x.DataSourceId == tickerLayer.DataSourceId || x.GroupId == tickerLayer.GroupId || x.Id == tickerLayer.Id))
+            .ToArray();
+        var categoryIntroDuration = Math.Clamp(
+            categoryAnimatedLayers.Select(x => x.AnimationInSeconds).DefaultIfEmpty(CategoryIntroSeconds).Max(),
+            CategoryIntroSeconds, 5.0);
+        var categoryOutroDuration = Math.Clamp(
+            categoryAnimatedLayers.Select(x => x.AnimationOutSeconds).DefaultIfEmpty(CategoryOutroSeconds).Max(),
+            CategoryOutroSeconds, 5.0);
+
         var sourceStamp = project.DataSources?.FirstOrDefault(x => x.Id == tickerLayer.DataSourceId)?.LastRefreshUtc.Ticks ?? 0;
         var cacheSignature = string.Join("|", sourceStamp, rows.Count, windowWidth.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
             speed.ToString("R", System.Globalization.CultureInfo.InvariantCulture), tickerLayer.Width, tickerLayer.Speed, tickerLayer.TickerSpeed,
             tickerLayer.FontSize, tickerLayer.FontFamily, tickerLayer.Bold, tickerLayer.Italic, tickerLayer.TickerMode,
             tickerLayer.DataField, tickerLayer.DataItemDurationSeconds, tickerLayer.TickerGap, tickerLayer.TickerSeparator,
-            tickerLayer.TickerSeparatorLogo);
+            tickerLayer.TickerSeparatorLogo, categoryIntroDuration, categoryOutroDuration);
         if (CategoryScheduleCache.TryGetValue(tickerLayer.Id, out var cached) && cached.Signature == cacheSignature)
             return cached.Schedule;
 
@@ -1235,7 +1250,7 @@ public static class CgDataSourceService
                 // This lead is part of the schedule so category changes remain perfectly
                 // aligned across the badge, crawl and push renderers.
                 var crawlDuration = isPush ? pushDuration : scrollDuration;
-                var effectiveDur = CategoryIntroSeconds + crawlDuration + CategoryOutroSeconds;
+                var effectiveDur = categoryIntroDuration + crawlDuration + categoryOutroDuration;
 
                 var feedItem = new CategoryFeedItem
                 {
@@ -1246,9 +1261,9 @@ public static class CgDataSourceService
                     TravelDistance = travelDist,
                     ScrollDuration = scrollDuration,
                     PushDuration = pushDuration,
-                    IntroDuration = CategoryIntroSeconds,
+                    IntroDuration = categoryIntroDuration,
                     CrawlDuration = crawlDuration,
-                    OutroDuration = CategoryOutroSeconds,
+                    OutroDuration = categoryOutroDuration,
                     PushGapDuration = pushGapSeconds,
                     EffectiveDuration = effectiveDur,
                     StartTime = cumulativeTime
@@ -1438,6 +1453,18 @@ public static class CgDataSourceService
         return Math.Max(0.5, maxIn);
     }
 
+    public static double ResolveEffectiveCategoryIntroDuration(CgProject? project)
+    {
+        if (project?.Layers is null) return CategoryIntroSeconds;
+        var ticker = project.Layers.FirstOrDefault(x => x.Visible && string.Equals(x.Type, "Ticker", StringComparison.OrdinalIgnoreCase));
+        if (ticker is null || ticker.DataSourceId == Guid.Empty) return CategoryIntroSeconds;
+        var source = project.DataSources?.FirstOrDefault(x => x.Id == ticker.DataSourceId);
+        IReadOnlyList<Dictionary<string, string>> rows = source is null ? [] : CgDataRuntime.Shared.GetRows(source);
+        if (rows.Count == 0) return CategoryIntroSeconds;
+        var schedule = BuildCategoryFeedSchedule(project, ticker, rows, ticker.Width, ticker.Speed);
+        return schedule.Categories.FirstOrDefault()?.IntroDuration ?? CategoryIntroSeconds;
+    }
+
     public static double ResolveCategoryDrivenTimelineSeconds(CgProject project, double categoryCycleSeconds)
     {
         var hold = ResolveEffectiveHoldPoint(project);
@@ -1446,9 +1473,10 @@ public static class CgDataSourceService
         var source = project.DataSources?.FirstOrDefault(x => x.Id == ticker.DataSourceId);
         IReadOnlyList<Dictionary<string, string>> rows = source is null ? [] : CgDataRuntime.Shared.GetRows(source);
         var schedule = BuildCategoryFeedSchedule(project, ticker, rows);
-        var (_, local, _) = schedule.Evaluate(Math.Max(0, categoryCycleSeconds));
-        return local < CategoryIntroSeconds
-            ? Math.Max(0, hold - CategoryIntroSeconds + local)
+        var (active, local, _) = schedule.Evaluate(Math.Max(0, categoryCycleSeconds));
+        var intro = active.IntroDuration > 0 ? active.IntroDuration : CategoryIntroSeconds;
+        return local < intro
+            ? Math.Max(0, hold - intro + local)
             : hold;
     }
 
@@ -1459,12 +1487,16 @@ public static class CgDataSourceService
         out string categoryName,
         out double localElapsed,
         out double categoryDuration,
-        out int categoryIndex)
+        out int categoryIndex,
+        out double introDuration,
+        out double outroDuration)
     {
         categoryName = string.Empty;
         localElapsed = 0;
         categoryDuration = 0;
         categoryIndex = 0;
+        introDuration = 0;
+        outroDuration = 0;
         if (project is null || layer is null) return false;
 
         CgDataSource? ds = null;
@@ -1506,7 +1538,30 @@ public static class CgDataSourceService
         localElapsed = catElapsed;
         categoryDuration = activeCat.EffectiveDuration;
         categoryIndex = idx;
+        introDuration = activeCat.IntroDuration;
+        outroDuration = activeCat.OutroDuration;
         return true;
+    }
+
+    public static double ResolveCategoryLayerTimelineSeconds(CgProject project, CgLayer layer, double continuousSeconds, double fallbackSeconds)
+    {
+        if (!TryGetActiveCategoryTiming(project, layer, continuousSeconds, out _, out var local, out var duration, out _, out var intro, out var outro))
+            return fallbackSeconds;
+
+        intro = Math.Max(0.05, intro);
+        outro = Math.Max(0.05, outro);
+        if (local < intro)
+        {
+            var progress = Math.Clamp(local / intro, 0, 1);
+            return layer.StartSeconds + progress * Math.Max(0.05, layer.AnimationInSeconds);
+        }
+        if (local >= duration - outro)
+        {
+            var progress = Math.Clamp((local - (duration - outro)) / outro, 0, 1);
+            var outDuration = Math.Max(0.05, layer.AnimationOutSeconds);
+            return Math.Max(layer.StartSeconds, layer.EndSeconds - outDuration) + progress * outDuration;
+        }
+        return Math.Min(layer.EndSeconds, layer.StartSeconds + Math.Max(0.05, layer.AnimationInSeconds));
     }
 
     public static void GetCategoryAnimationProgress(
