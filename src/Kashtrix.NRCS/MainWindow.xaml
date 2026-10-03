@@ -31,10 +31,16 @@
 
                 <!-- STATUS PILLS / ON AIR INDICATOR -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border x:Name="OnAirBadge" Background="#331A1A" BorderBrush="#882222" BorderThickness="1" CornerRadius="4" Padding="12,4" Margin="0,0,12,0">
+                    <Border x:Name="OnAirBadge" Background="#331A1A" BorderBrush="#882222" BorderThickness="1" CornerRadius="4" Padding="12,4" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse x:Name="OnAirLed" Width="8" Height="8" Fill="#FF4444" Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock x:Name="OnAirText" Text="OFF AIR" Foreground="#FF9999" FontWeight="Bold" FontSize="11"/>
+                        </StackPanel>
+                    </Border>
+                    <!-- NEPALI CALENDAR DATE BADGE -->
+                    <Border Background="#161C26" BorderBrush="#253245" BorderThickness="1" CornerRadius="4" Padding="10,4" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="TopNepaliDateText" Text="📅 २०८१ असोज १७, बिहिबार" Foreground="#79C0FF" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
                     <Border Background="#161C26" BorderBrush="#253245" BorderThickness="1" CornerRadius="4" Padding="10,4">
@@ -44,9 +50,10 @@
 
                 <!-- TOP QUICK ACTIONS -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="🇳🇵 NEPALI CALENDAR" Click="OpenNepaliCalendar_Click" Margin="4,0" Background="#1C2128" BorderBrush="#388BFD" Foreground="#79C0FF" FontWeight="Bold"/>
                     <Button Content="+ ASSIGNMENT" Click="NewAssignment_Click" Margin="4,0"/>
                     <Button Content="+ STORY" Click="NewStory_Click" Margin="4,0"/>
-                    <Button Content="+ RUNDOWN" Click="NewRundown_Click" Margin="4,0"/>
+                    <Button Content="+ RUNDOWN" Click="NewRundown_Click" Margin="4,0" Background="#1F6FEB" Foreground="White" FontWeight="Bold"/>
                     <Button Content="LOAD PROFESSIONAL DEMO" Click="LoadProfessionalDemo_Click" Margin="4,0" BorderBrush="{StaticResource AccentBrush}"/>
                     <Button Content="PROMPTER" Click="OpenPrompter_Click" Margin="4,0"/>
                     <Button Content="REFRESH" Click="Refresh_Click" Margin="4,0"/>
@@ -400,14 +407,24 @@
                                     <!-- WORD-LIKE FORMATTING TOOLBAR & SCRIPT TIMING -->
                                     <Border Background="#121720" BorderBrush="#263445" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
                                         <WrapPanel VerticalAlignment="Center">
-                                            <!-- FONT FAMILY -->
+                                            <!-- FONT FAMILY & SEARCH INPUT -->
                                             <TextBlock Text="Font:" Foreground="#8D969E" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12" FontWeight="SemiBold"/>
-                                            <ComboBox x:Name="EditorFontFamilyBox" Width="230" Height="28"
+                                            <TextBox x:Name="EditorFontSearchBox" Width="95" Height="28" ToolTip="Type to search font..." TextChanged="EditorFontSearchBox_TextChanged" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                            <ComboBox x:Name="EditorFontFamilyBox" Width="260" Height="28"
                                                       SelectionChanged="EditorFontFamily_SelectionChanged"
-                                                      Margin="0,0,10,0" ToolTip="Installed System Fonts">
+                                                      Margin="0,0,10,0" ToolTip="Select font family">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding Source}" FontFamily="{Binding}" FontSize="12" VerticalAlignment="Center"/>
+                                                        <Grid Margin="2,1">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="130"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <!-- Clean system font for Name (never garbled, even for legacy 0001 ARAP BK / Preeti) -->
+                                                            <TextBlock Text="{Binding Name}" FontFamily="Segoe UI" FontSize="12" Foreground="#F1F5F9" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                            <!-- Separate Style Preview in Actual Font -->
+                                                            <TextBlock Grid.Column="1" Text="Aa Bb 123 · समाचार" FontFamily="{Binding Family}" FontSize="12" Foreground="#94A3B8" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
@@ -510,53 +527,334 @@
             <!-- TAB 5: RUNDOWN & LIVE PRODUCTION -->
             <TabItem Header="RUNDOWN / LIVE">
                 <Grid Margin="8">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="*"/><ColumnDefinition Width="330"/></Grid.ColumnDefinitions>
-                    <Border Style="{StaticResource PanelBorder}" Padding="10" Margin="0,0,8,0"><DockPanel><TextBlock DockPanel.Dock="Top" Text="RUNDOWNS" FontWeight="Bold" Margin="0,0,0,8"/><ListBox x:Name="RundownList" DisplayMemberPath="Name" SelectionChanged="RundownList_SelectionChanged"/></DockPanel></Border>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="*"/><ColumnDefinition Width="340"/></Grid.ColumnDefinitions>
+                    
+                    <!-- LEFT: RUNDOWNS LIST & ACTIONS -->
+                    <Border Style="{StaticResource PanelBorder}" Padding="10" Margin="0,0,8,0">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <DockPanel>
+                                    <TextBlock Text="RUNDOWNS" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <Button DockPanel.Dock="Right" Content="+ NEW" Click="NewRundown_Click" Padding="8,2" Background="#1F6FEB" Foreground="White" FontWeight="Bold"/>
+                                </DockPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button Content="SAVE TPL" Click="SaveRundownTemplate_Click" Padding="6,2" FontSize="11" Margin="0,0,4,0" ToolTip="Save current rundown arrangement as reusable template"/>
+                                    <Button Content="LOAD TPL" Click="LoadRundownTemplate_Click" Padding="6,2" FontSize="11" Margin="0,0,4,0" ToolTip="Load a saved rundown template"/>
+                                    <Button Content="DELETE" Click="DeleteRundown_Click" Padding="6,2" FontSize="11" Foreground="#FF7B72" ToolTip="Delete selected rundown"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <ListBox x:Name="RundownList" DisplayMemberPath="Name" SelectionChanged="RundownList_SelectionChanged"/>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- CENTER: RUNDOWN ITEMS GRID -->
                     <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Padding="10" Margin="0,0,8,0">
                         <DockPanel>
-                            <Grid DockPanel.Dock="Top" Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock x:Name="RundownHeader" Text="SELECT A RUNDOWN" FontWeight="Bold"/><TextBlock x:Name="RundownTimingText" Foreground="{StaticResource MutedBrush}"/></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="▲" Width="42" Click="MoveUp_Click"/><Button Content="▼" Width="42" Margin="5,0,0,0" Click="MoveDown_Click"/><Button Content="REMOVE" Margin="5,0,0,0" Click="RemoveRundownItem_Click"/></StackPanel></Grid>
+                            <!-- RUNDOWN HEADER & CONTROLS -->
+                            <Border DockPanel.Dock="Top" Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock x:Name="RundownHeader" Text="SELECT A RUNDOWN" FontWeight="Bold" FontSize="14" Foreground="#F0F6FC"/>
+                                            <Border x:Name="RundownProgramBadge" Background="#1E3A8A" CornerRadius="3" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock x:Name="RundownProgramText" Text="CUSTOM" FontSize="10" FontWeight="Bold" Foreground="#93C5FD"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock x:Name="RundownTimingText" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- PROGRAM OPENING & CLOSING QUICK INFO -->
+                                    <TextBlock Grid.Row="1" Grid.Column="0" x:Name="RundownOpenCloseInfoText" Text="Program Opening &amp; Closing: None" Foreground="#8B949E" FontSize="10" Margin="0,4,0,0"/>
+
+                                    <!-- ARRANGER ACTION BUTTONS -->
+                                    <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Content="+ STORY" Click="AddStoryToRundownManual_Click" Padding="8,4" Margin="3,0" ToolTip="Add new story draft to rundown" Background="#1F6FEB" Foreground="White" FontWeight="SemiBold"/>
+                                        <Button Content="+ BREAK" Click="AddBreakToRundown_Click" Padding="8,4" Margin="3,0" ToolTip="Insert commercial or sponsor break" Background="#D97706" Foreground="White" FontWeight="SemiBold"/>
+                                        <Button Content="+ SEGMENT" Click="AddSegmentToRundown_Click" Padding="8,4" Margin="3,0" ToolTip="Insert segment header (e.g. International, Sports)" Background="#4F46E5" Foreground="White" FontWeight="SemiBold"/>
+                                        <Separator Margin="4,2"/>
+                                        <Button Content="▲" Width="32" Height="26" Click="MoveUp_Click" ToolTip="Move Item Up"/>
+                                        <Button Content="▼" Width="32" Height="26" Margin="3,0" Click="MoveDown_Click" ToolTip="Move Item Down"/>
+                                        <Button Content="✕" Width="32" Height="26" Click="RemoveRundownItem_Click" Foreground="#FF7B72" ToolTip="Remove from Rundown"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- DATA GRID -->
                             <DataGrid x:Name="RundownGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="RundownGrid_SelectionChanged">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="38"/>
-                                    <DataGridTextColumn Header="START" Binding="{Binding PlannedStartUtc, StringFormat={}{0:HH:mm:ss}}" Width="75"/>
-                                    <DataGridTextColumn Header="END" Binding="{Binding PlannedEndUtc, StringFormat={}{0:HH:mm:ss}}" Width="75"/>
-                                    <DataGridTextColumn Header="SEG" Binding="{Binding Segment}" Width="48"/>
-                                    <DataGridTextColumn Header="SLUG" Binding="{Binding Slug}" Width="*"/>
-                                    <DataGridTextColumn Header="TYPE" Binding="{Binding StoryType}" Width="65"/>
-                                    <DataGridTextColumn Header="PRESENTER" Binding="{Binding Presenter}" Width="105"/>
-                                    <DataGridTextColumn Header="DUR" Binding="{Binding DurationSeconds}" Width="55"/>
-                                    <DataGridCheckBoxColumn Header="SKIP" Binding="{Binding IsSkipped}" Width="55"/>
-                                    <DataGridCheckBoxColumn Header="LIVE" Binding="{Binding IsLive}" Width="50"/>
-                                    <DataGridTextColumn Header="MODE" Binding="{Binding StartMode}" Width="80"/>
+                                    <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="36"/>
+                                    <DataGridTextColumn Header="START" Binding="{Binding PlannedStartUtc, StringFormat={}{0:HH:mm:ss}}" Width="70"/>
+                                    <DataGridTextColumn Header="END" Binding="{Binding PlannedEndUtc, StringFormat={}{0:HH:mm:ss}}" Width="70"/>
+                                    <DataGridTextColumn Header="SEG" Binding="{Binding Segment}" Width="42"/>
+                                    <DataGridTextColumn Header="SLUG / BLOCK" Binding="{Binding Slug}" Width="*"/>
+                                    <DataGridTextColumn Header="TYPE" Binding="{Binding StoryType}" Width="80"/>
+                                    <DataGridTextColumn Header="PRESENTER" Binding="{Binding Presenter}" Width="95"/>
+                                    <DataGridTextColumn Header="DUR" Binding="{Binding DurationSeconds}" Width="50"/>
+                                    <DataGridCheckBoxColumn Header="SKIP" Binding="{Binding IsSkipped}" Width="50"/>
+                                    <DataGridCheckBoxColumn Header="LIVE" Binding="{Binding IsLive}" Width="48"/>
+                                    <DataGridTextColumn Header="MODE" Binding="{Binding StartMode}" Width="75"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </DockPanel>
                     </Border>
+
+                    <!-- RIGHT: RUNDOWN ITEM DETAILS & PROGRAM SETTINGS & AUTOMATION -->
                     <Border Grid.Column="2" Style="{StaticResource PanelBorder}" Padding="12">
-                        <StackPanel>
-                            <TextBlock Text="RUNDOWN ITEM" FontSize="17" FontWeight="Bold"/>
-                            <TextBlock x:Name="RundownItemSlug" Text="No item selected" Foreground="#E6C4FF" FontSize="15" Margin="0,8,0,10" TextWrapping="Wrap"/>
-                            <TextBlock Text="SEGMENT"/><TextBox x:Name="SegmentBox" Text="A"/>
-                            <TextBlock Text="START MODE" Margin="0,8,0,0"/><ComboBox x:Name="StartModeBox"/>
-                            <TextBlock Text="ITEM STATUS" Margin="0,8,0,0"/><ComboBox x:Name="ItemStatusBox"/>
-                            <CheckBox x:Name="SkipCheck" Content="SKIP / CLOAK FROM AIR" Margin="0,12,0,0"/>
-                            <CheckBox x:Name="LockCheck" Content="LOCK RUNDOWN ITEM" Margin="0,8,0,0"/>
-                            <Button Content="SAVE ITEM SETTINGS" Click="SaveRundownItem_Click" Margin="0,12,0,0"/>
-                            <Separator Margin="0,14"/>
-                            <Button Content="TAKE SELECTED STORY LIVE" Click="TakeLive_Click"/>
-                            <CheckBox x:Name="AutoAirCheck" Content="AUTO PLAYOUT + PROGRAM CG ON LIVE" IsChecked="True" Foreground="#E6C4FF" Margin="0,8,0,0"/>
-                            <Button Content="NEXT STORY LIVE" Click="NextLive_Click" Margin="0,8,0,0"/>
-                            <Button Content="CLEAR ON-AIR STATE" Click="ClearLive_Click" Margin="0,8,0,0"/>
-                            <TextBlock x:Name="LiveStateText" Text="OFF AIR" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-                            <Separator Margin="0,14"/>
-                            <Button Content="PUBLISH TO PLAYOUT" Click="PublishPlayout_Click"/>
-                            <Button Content="PUBLISH MOS / NCS" Click="PublishMos_Click" Margin="0,8,0,0"/>
-                        </StackPanel>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="RUNDOWN ITEM" FontSize="16" FontWeight="Bold"/>
+                                <TextBlock x:Name="RundownItemSlug" Text="No item selected" Foreground="#E6C4FF" FontSize="14" Margin="0,6,0,8" TextWrapping="Wrap"/>
+                                
+                                <TextBlock Text="TITLE / SLUG"/><TextBox x:Name="RundownItemTitleBox"/>
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,4,0"><TextBlock Text="SEGMENT"/><TextBox x:Name="SegmentBox" Text="A"/></StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="4,0,0,0"><TextBlock Text="DURATION (SEC)"/><TextBox x:Name="RundownItemDurBox" Text="30"/></StackPanel>
+                                </Grid>
+                                
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,4,0"><TextBlock Text="START MODE"/><ComboBox x:Name="StartModeBox"/></StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="4,0,0,0"><TextBlock Text="ITEM STATUS"/><ComboBox x:Name="ItemStatusBox"/></StackPanel>
+                                </Grid>
+
+                                <CheckBox x:Name="SkipCheck" Content="SKIP / CLOAK FROM AIR" Margin="0,10,0,0"/>
+                                <CheckBox x:Name="LockCheck" Content="LOCK RUNDOWN ITEM" Margin="0,6,0,0"/>
+                                <Button Content="SAVE ITEM SETTINGS" Click="SaveRundownItem_Click" Margin="0,10,0,0" Background="#238636" Foreground="White" FontWeight="Bold"/>
+
+                                <!-- PROGRAM OPENING & CLOSING SETTINGS CARD -->
+                                <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,14,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="PROGRAM SETUP FOR RUNDOWN" FontWeight="Bold" FontSize="11" Foreground="#79C0FF"/>
+                                        <TextBlock Text="OPENING CG TEMPLATE:" FontSize="10" Foreground="#8B949E" Margin="0,4,0,2"/>
+                                        <ComboBox x:Name="RundownOpenCgBox" Height="26"/>
+                                        <TextBlock Text="CLOSING CG TEMPLATE:" FontSize="10" Foreground="#8B949E" Margin="0,6,0,2"/>
+                                        <ComboBox x:Name="RundownCloseCgBox" Height="26"/>
+                                        <Button Content="APPLY OPEN/CLOSE SETTINGS" Click="ApplyRundownProgramSettings_Click" Margin="0,8,0,0" Padding="6,3" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Separator Margin="0,12"/>
+
+                                <!-- LIVE AUTOMATION -->
+                                <TextBlock Text="LIVE AUTOMATION &amp; TRANSMIT" FontWeight="Bold" FontSize="12" Foreground="#FF9999"/>
+                                <Button Content="TAKE SELECTED STORY LIVE" Click="TakeLive_Click" Margin="0,8,0,0" Background="#991B1B" Foreground="White" FontWeight="Bold"/>
+                                <CheckBox x:Name="AutoAirCheck" Content="AUTO PLAYOUT + PROGRAM CG ON LIVE" IsChecked="True" Foreground="#E6C4FF" Margin="0,8,0,0"/>
+                                <Button Content="NEXT STORY LIVE" Click="NextLive_Click" Margin="0,8,0,0"/>
+                                <Button Content="CLEAR ON-AIR STATE" Click="ClearLive_Click" Margin="0,8,0,0"/>
+                                <TextBlock x:Name="LiveStateText" Text="OFF AIR" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                
+                                <Separator Margin="0,12"/>
+                                <Button Content="PUBLISH TO PLAYOUT" Click="PublishPlayout_Click"/>
+                                <Button Content="PUBLISH MOS / NCS" Click="PublishMos_Click" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Border>
                 </Grid>
             </TabItem>
 
-            <!-- TAB 6: INTEGRATION / STATUS -->
+            <!-- TAB 6: PROGRAMS & PRESETS (CRUD) -->
+            <TabItem Header="PROGRAMS &amp; PRESETS">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="380"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- LEFT: PROGRAMS LIST & EDITOR -->
+                    <Border Style="{StaticResource PanelBorder}" Padding="12" Margin="0,0,8,0">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                <DockPanel>
+                                    <TextBlock Text="PROGRAMS SETUP" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
+                                    <Button DockPanel.Dock="Right" Content="+ NEW PROGRAM" Click="NewProgram_Click" Padding="8,3" Background="#1F6FEB" Foreground="White" FontWeight="Bold"/>
+                                </DockPanel>
+                                <TextBlock Text="Define show presets, default anchors, durations &amp; opening/closing media." Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
+                            </StackPanel>
+
+                            <ListBox x:Name="ProgramListBox" DockPanel.Dock="Top" Height="140" DisplayMemberPath="Name" SelectionChanged="ProgramList_SelectionChanged" Margin="0,0,0,10"/>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <TextBlock Text="PROGRAM DETAILS" FontWeight="Bold" Foreground="#79C0FF" Margin="0,0,0,8"/>
+                                    <TextBlock Text="PROGRAM NAME"/><TextBox x:Name="ProgNameBox"/>
+                                    
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,4,0"><TextBlock Text="CATEGORY"/><ComboBox x:Name="ProgCategoryBox"/></StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="4,0,0,0"><TextBlock Text="DURATION (MIN)"/><TextBox x:Name="ProgDurationBox" Text="30"/></StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="DEFAULT ANCHOR / PRESENTER" Margin="0,8,0,0"/><TextBox x:Name="ProgAnchorBox"/>
+                                    
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,4,0"><TextBlock Text="CHANNEL ID"/><TextBox x:Name="ProgChannelBox" Text="KTX-PLAYOUT-01"/></StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="4,0,0,0"><TextBlock Text="STUDIO"/><TextBox x:Name="ProgStudioBox" Text="STUDIO-A"/></StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="OPENING MEDIA MASTER PATH" Margin="0,8,0,0"/>
+                                    <DockPanel><Button Content="BROWSE" DockPanel.Dock="Right" Click="BrowseProgOpenMedia_Click" Margin="6,0,0,0"/><TextBox x:Name="ProgOpenMediaBox"/></DockPanel>
+                                    
+                                    <TextBlock Text="OPENING CG TEMPLATE" Margin="0,8,0,0"/>
+                                    <ComboBox x:Name="ProgOpenCgBox" IsEditable="True"/>
+
+                                    <TextBlock Text="CLOSING MEDIA MASTER PATH" Margin="0,8,0,0"/>
+                                    <DockPanel><Button Content="BROWSE" DockPanel.Dock="Right" Click="BrowseProgCloseMedia_Click" Margin="6,0,0,0"/><TextBox x:Name="ProgCloseMediaBox"/></DockPanel>
+
+                                    <TextBlock Text="CLOSING CG TEMPLATE" Margin="0,8,0,0"/>
+                                    <ComboBox x:Name="ProgCloseCgBox" IsEditable="True"/>
+
+                                    <TextBlock Text="DESCRIPTION" Margin="0,8,0,0"/><TextBox x:Name="ProgDescBox" Height="45" TextWrapping="Wrap" AcceptsReturn="True"/>
+                                    <CheckBox x:Name="ProgActiveCheck" Content="Program is Active" IsChecked="True" Margin="0,8,0,10"/>
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="SAVE PROGRAM" Click="SaveProgram_Click" Padding="14,6" Background="#238636" Foreground="White" FontWeight="Bold"/>
+                                        <Button Content="DELETE PROGRAM" Click="DeleteProgram_Click" Padding="10,6" Margin="8,0,0,0" Foreground="#FF7B72"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- RIGHT: BREAK POINTS & SEGMENT PRESETS (CRUD) -->
+                    <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="1.2*"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                <DockPanel>
+                                    <TextBlock Text="BREAK POINTS &amp; SEGMENT PRESETS" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
+                                    <Button DockPanel.Dock="Right" Content="+ NEW BREAK PRESET" Click="NewBreakPreset_Click" Padding="8,3" Background="#D97706" Foreground="White" FontWeight="Bold"/>
+                                </DockPanel>
+                                <TextBlock Text="Break time, sponsor tags, international news blocks, and sports blocks configured per program or globally." Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,6"/>
+                                <DockPanel>
+                                    <TextBlock Text="FILTER BY TARGET:" VerticalAlignment="Center" FontSize="11" Foreground="#8B949E" Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="BreakFilterBox" SelectionChanged="BreakFilterBox_SelectionChanged"/>
+                                </DockPanel>
+                            </StackPanel>
+
+                            <!-- PRESETS DATAGRID -->
+                            <DataGrid Grid.Row="1" x:Name="BreakPresetGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="BreakPresetGrid_SelectionChanged" Margin="0,0,0,10">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="ORDER" Binding="{Binding OrderSeq}" Width="55"/>
+                                    <DataGridTextColumn Header="TITLE" Binding="{Binding Title}" Width="*"/>
+                                    <DataGridTextColumn Header="TYPE" Binding="{Binding BreakType}" Width="100"/>
+                                    <DataGridTextColumn Header="DUR (S)" Binding="{Binding DefaultDurationSeconds}" Width="65"/>
+                                    <DataGridTextColumn Header="SEG" Binding="{Binding Segment}" Width="45"/>
+                                    <DataGridTextColumn Header="SCOPE" Binding="{Binding ProgramId}" Width="100"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!-- EDITOR SECTION HEADER -->
+                            <TextBlock Grid.Row="2" Text="PRESET EDITOR" FontWeight="Bold" Foreground="#F59E0B" Margin="0,0,0,6"/>
+
+                            <!-- PRESET EDITOR FORM -->
+                            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,6,0">
+                                            <TextBlock Text="TARGET PROGRAM (OR GLOBAL)"/><ComboBox x:Name="BreakTargetProgBox"/>
+                                            <TextBlock Text="TITLE / BLOCK NAME" Margin="0,8,0,0"/><TextBox x:Name="BreakPresetTitleBox"/>
+                                            <TextBlock Text="CLASSIFICATION" Margin="0,8,0,0"/>
+                                            <ComboBox x:Name="BreakPresetTypeBox">
+                                                <ComboBoxItem Content="COMMERCIAL" IsSelected="True"/>
+                                                <ComboBoxItem Content="SEGMENT"/>
+                                                <ComboBoxItem Content="SPONSOR"/>
+                                                <ComboBoxItem Content="TEASER"/>
+                                                <ComboBoxItem Content="STATION_ID"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                            <TextBlock Text="DEFAULT DURATION (SEC)"/><TextBox x:Name="BreakPresetDurBox" Text="60"/>
+                                            <TextBlock Text="SEGMENT (A, B, C, D...)" Margin="0,8,0,0"/><TextBox x:Name="BreakPresetSegBox" Text="A"/>
+                                            <TextBlock Text="ORDER SEQUENCE" Margin="0,8,0,0"/><TextBox x:Name="BreakPresetOrderBox" Text="1"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="NOTES / SPONSOR INFO" Margin="0,8,0,0"/><TextBox x:Name="BreakPresetNotesBox" Height="40" TextWrapping="Wrap"/>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <Button Content="SAVE BREAK PRESET" Click="SaveBreakPreset_Click" Padding="14,5" Background="#238636" Foreground="White" FontWeight="Bold"/>
+                                        <Button Content="DELETE BREAK PRESET" Click="DeleteBreakPreset_Click" Padding="10,5" Margin="8,0,0,0" Foreground="#FF7B72"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 7: CATEGORIES (CRUD) -->
+            <TabItem Header="CATEGORIES">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- CATEGORIES TABLE -->
+                    <Border Style="{StaticResource PanelBorder}" Padding="12" Margin="0,0,8,0">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                <DockPanel>
+                                    <TextBlock Text="NEWSROOM CATEGORIES &amp; DESKS" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
+                                    <Button DockPanel.Dock="Right" Content="+ NEW CATEGORY" Click="NewCategory_Click" Padding="8,3" Background="#1F6FEB" Foreground="White" FontWeight="Bold"/>
+                                </DockPanel>
+                                <TextBlock Text="Manage editorial departments, topic beats, and visual color codes." Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,0"/>
+                            </StackPanel>
+
+                            <DataGrid x:Name="CategoryGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="CategoryGrid_SelectionChanged">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="CODE" Binding="{Binding Code}" Width="110"/>
+                                    <DataGridTextColumn Header="NAME" Binding="{Binding Name}" Width="160"/>
+                                    <DataGridTextColumn Header="COLOR" Binding="{Binding ColorHex}" Width="85"/>
+                                    <DataGridCheckBoxColumn Header="DEFAULT" Binding="{Binding IsDefault}" Width="70"/>
+                                    <DataGridTextColumn Header="DESCRIPTION" Binding="{Binding Description}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- CATEGORY DETAIL EDITOR -->
+                    <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Padding="14">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="CATEGORY EDITOR" FontSize="16" FontWeight="Bold" Foreground="#79C0FF"/>
+                                <TextBlock Text="Configure category code, label and broadcast ribbon badge color." Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,2,0,12"/>
+
+                                <TextBlock Text="CATEGORY CODE (e.g. NEWS, SPORTS, POLITICS)"/><TextBox x:Name="CatCodeBox"/>
+                                <TextBlock Text="DISPLAY NAME" Margin="0,10,0,0"/><TextBox x:Name="CatNameBox"/>
+                                <TextBlock Text="COLOR HEX CODE (e.g. #3B82F6, #EF4444)" Margin="0,10,0,0"/><TextBox x:Name="CatColorBox" Text="#3B82F6"/>
+                                <TextBlock Text="DESCRIPTION" Margin="0,10,0,0"/><TextBox x:Name="CatDescBox" Height="70" TextWrapping="Wrap" AcceptsReturn="True"/>
+                                <CheckBox x:Name="CatDefaultCheck" Content="Is Default Category" Margin="0,10,0,14"/>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="SAVE CATEGORY" Click="SaveCategory_Click" Padding="14,6" Background="#238636" Foreground="White" FontWeight="Bold"/>
+                                    <Button Content="DELETE CATEGORY" Click="DeleteCategory_Click" Padding="10,6" Margin="8,0,0,0" Foreground="#FF7B72"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 8: INTEGRATION / STATUS -->
             <TabItem Header="INTEGRATION / STATUS">
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
@@ -574,7 +872,7 @@
                     <Border Grid.Column="1" Style="{StaticResource PanelBorder}" Padding="14">
                         <StackPanel>
                             <TextBlock Text="NEWSROOM WORKFLOW CAPABILITIES" FontSize="18" FontWeight="Bold"/>
-                            <TextBlock Text="• Role-based Dashboard with KPI tracking and live bulletin status&#x0a;• Planning Diary for forward events and one-click assignment creation&#x0a;• Multi-agency Wire Ingest (Reuters, AP, National Desk) with story conversion&#x0a;• AI Editorial Assistant for headlines, summaries, and keyword tags&#x0a;• Production cues ([ANCHOR], [PKG], [SOT], [VO], [LIVE], [CG])&#x0a;• Script reading speed calculation (WPM &amp; duration estimation)&#x0a;• English and Nepali/Devanagari Unicode multilingual workflow&#x0a;• Live-story state shared with Prompter engine and Playout bus" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Text="• Role-based Dashboard with KPI tracking and live bulletin status&#x0a;• Planning Diary for forward events and one-click assignment creation&#x0a;• Multi-agency Wire Ingest (Reuters, AP, National Desk) with story conversion&#x0a;• AI Editorial Assistant for headlines, summaries, and keyword tags&#x0a;• Production cues ([ANCHOR], [PKG], [SOT], [VO], [LIVE], [CG])&#x0a;• Script reading speed calculation (WPM &amp; duration estimation)&#x0a;• English and Nepali/Devanagari Unicode multilingual workflow&#x0a;• Live-story state shared with Prompter engine and Playout bus&#x0a;• Precision Nepali Bikram Sambat (BS) calendar engine with AD/BS toggle&#x0a;• Program presets, opening/closing graphics &amp; commercial break structure" Margin="0,12,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
                 </Grid>

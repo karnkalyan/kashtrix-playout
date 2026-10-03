@@ -246,6 +246,137 @@ public static class NepaliCalendarService
     }
 
     /// <summary>
+    /// Returns the number of days in a given BS month (1 to 12) for a given BS year.
+    /// </summary>
+    public static int GetBsDaysInMonth(int bsYear, int bsMonth)
+    {
+        if (BsDaysInMonth.TryGetValue(bsYear, out var days))
+        {
+            var idx = Math.Clamp(bsMonth - 1, 0, 11);
+            return days[idx];
+        }
+        return 30; // fallback standard month length
+    }
+
+    /// <summary>
+    /// Convert Bikram Sambat (BS) date back to Gregorian (AD) DateTime.
+    /// Uses reference epoch: 2000-09-17 BS = 1944-01-01 AD.
+    /// </summary>
+    public static DateTime ConvertBsToAd(int bsYear, int bsMonth, int bsDay)
+    {
+        var baseAd = new DateTime(1944, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        int days = 0;
+
+        if (bsYear > 2000 || (bsYear == 2000 && (bsMonth > 9 || (bsMonth == 9 && bsDay >= 17))))
+        {
+            for (var y = 2000; y < bsYear; y++)
+            {
+                if (BsDaysInMonth.TryGetValue(y, out var mDays))
+                {
+                    var startM = (y == 2000) ? 9 : 1;
+                    for (var m = startM; m <= 12; m++)
+                    {
+                        var totalM = mDays[m - 1];
+                        var startD = (y == 2000 && m == 9) ? 17 : 1;
+                        days += (totalM - startD + 1);
+                    }
+                }
+                else
+                {
+                    days += 365;
+                }
+            }
+
+            if (BsDaysInMonth.TryGetValue(bsYear, out var curMDays))
+            {
+                var startM = (bsYear == 2000) ? 9 : 1;
+                for (var m = startM; m < bsMonth; m++)
+                {
+                    var totalM = curMDays[m - 1];
+                    var startD = (bsYear == 2000 && m == 9) ? 17 : 1;
+                    days += (totalM - startD + 1);
+                }
+                var startDay = (bsYear == 2000 && bsMonth == 9) ? 17 : 1;
+                days += (bsDay - startDay);
+            }
+            else
+            {
+                days += (bsMonth - 1) * 30 + bsDay - 1;
+            }
+
+            return baseAd.AddDays(days);
+        }
+        else
+        {
+            for (var y = bsYear; y <= 2000; y++)
+            {
+                if (BsDaysInMonth.TryGetValue(y, out var mDays))
+                {
+                    var startM = (y == bsYear) ? bsMonth : 1;
+                    var endM = (y == 2000) ? 9 : 12;
+                    for (var m = startM; m <= endM; m++)
+                    {
+                        var totalM = mDays[m - 1];
+                        var startD = (y == bsYear && m == bsMonth) ? bsDay : 1;
+                        var endD = (y == 2000 && m == 9) ? 17 : totalM;
+                        days += (endD - startD + 1);
+                    }
+                }
+                else
+                {
+                    days += 365;
+                }
+            }
+            return baseAd.AddDays(-(days - 1));
+        }
+    }
+
+    /// <summary>
+    /// Formats a DateTime according to the active DateSystem setting ("BS", "AD", or "DUAL").
+    /// </summary>
+    public static string FormatDisplayDate(DateTime adDate, string dateSystem = "BS", bool devnagariDigits = true)
+    {
+        var mode = (dateSystem ?? "BS").ToUpperInvariant();
+        var bs = ConvertToBs(adDate);
+        var bsText = devnagariDigits
+            ? $"{ToNepaliDigits(bs.Year.ToString("0000"))}-{ToNepaliDigits(bs.Month.ToString("00"))}-{ToNepaliDigits(bs.Day.ToString("00"))} ({bs.MonthNameNp} {ToNepaliDigits(bs.Day.ToString())})"
+            : $"{bs.Year:0000}-{bs.Month:00}-{bs.Day:00} BS ({bs.MonthNameEn})";
+
+        var adText = adDate.ToString("yyyy-MM-dd");
+
+        return mode switch
+        {
+            "AD" => adText,
+            "DUAL" => $"{bsText} / {adText} AD",
+            _ => bsText // "BS" default
+        };
+    }
+
+    /// <summary>
+    /// Formats date and time according to active DateSystem setting.
+    /// </summary>
+    public static string FormatDisplayDateTime(DateTime adDate, string dateSystem = "BS", bool devnagariDigits = true)
+    {
+        var mode = (dateSystem ?? "BS").ToUpperInvariant();
+        var bs = ConvertToBs(adDate);
+        var timeStr = adDate.ToString("HH:mm");
+        var nepTime = devnagariDigits ? ToNepaliDigits(timeStr) : timeStr;
+
+        var bsText = devnagariDigits
+            ? $"{ToNepaliDigits(bs.Year.ToString("0000"))}-{ToNepaliDigits(bs.Month.ToString("00"))}-{ToNepaliDigits(bs.Day.ToString("00"))} {nepTime}"
+            : $"{bs.Year:0000}-{bs.Month:00}-{bs.Day:00} {timeStr} BS";
+
+        var adText = adDate.ToString("yyyy-MM-dd HH:mm");
+
+        return mode switch
+        {
+            "AD" => adText,
+            "DUAL" => $"{bsText} ({adText})",
+            _ => bsText
+        };
+    }
+
+    /// <summary>
     /// Convert any number or digit string to Devnagari numerals (०, १, २, ३, ४, ५, ६, ७, ८, ९).
     /// </summary>
     public static string ToNepaliDigits(string input)

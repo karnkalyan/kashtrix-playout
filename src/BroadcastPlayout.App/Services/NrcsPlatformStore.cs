@@ -8,8 +8,50 @@ namespace BroadcastPlayout.Services;
 public sealed record NrcsRundown(string Id, string Name, string ChannelId, DateTime AirDateUtc, string Status)
 {
     public string Studio { get; init; } = "STUDIO-A";
+    public string ProgramId { get; init; } = "";
+    public string ProgramName { get; init; } = "";
+    public string OpeningMedia { get; init; } = "";
+    public string ClosingMedia { get; init; } = "";
+    public string OpeningCg { get; init; } = "";
+    public string ClosingCg { get; init; } = "";
     public DateTime UpdatedUtc { get; init; } = DateTime.UtcNow;
 }
+
+public sealed record NrcsProgram(
+    string Id,
+    string Name,
+    string Category,
+    int DefaultDurationMinutes,
+    string DefaultAnchor,
+    string ChannelId,
+    string Studio,
+    string OpeningMedia,
+    string ClosingMedia,
+    string OpeningCg,
+    string ClosingCg,
+    string Description,
+    bool IsActive,
+    DateTime UpdatedUtc);
+
+public sealed record NrcsCategory(
+    string Id,
+    string Name,
+    string Code,
+    string ColorHex,
+    string Description,
+    bool IsDefault,
+    DateTime UpdatedUtc);
+
+public sealed record NrcsBreakTemplate(
+    string Id,
+    string ProgramId, // empty = GLOBAL
+    string Title,     // e.g. "Commercial Break 1", "Sports News"
+    string BreakType, // "COMMERCIAL", "SEGMENT", "SPONSOR", "TEASER", "STATION_ID"
+    int DefaultDurationSeconds,
+    string Segment,   // "A", "B", "C"...
+    int OrderSeq,
+    string Notes,
+    DateTime UpdatedUtc);
 
 public sealed record NrcsStory(string Id, string RundownId, int Sequence, string Slug, string Presenter, int DurationSeconds, string Body, string MediaPath, string CgTemplate, int CgLayer, string CgDataJson, DateTime UpdatedUtc)
 {
@@ -99,15 +141,189 @@ public sealed class NrcsPlatformStore
               rundown_id TEXT PRIMARY KEY, story_id TEXT NOT NULL DEFAULT '',
               rundown_item_id TEXT NOT NULL DEFAULT '', on_air INTEGER NOT NULL DEFAULT 0,
               updated_utc TEXT NOT NULL);
+
+            CREATE TABLE IF NOT EXISTS nrcs_programs(
+              id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'NEWS',
+              default_duration_min INTEGER NOT NULL DEFAULT 30, default_anchor TEXT NOT NULL DEFAULT '',
+              channel_id TEXT NOT NULL DEFAULT 'KTX-PLAYOUT-01', studio TEXT NOT NULL DEFAULT 'STUDIO-A',
+              opening_media TEXT NOT NULL DEFAULT '', closing_media TEXT NOT NULL DEFAULT '',
+              opening_cg TEXT NOT NULL DEFAULT '', closing_cg TEXT NOT NULL DEFAULT '',
+              description TEXT NOT NULL DEFAULT '', is_active INTEGER NOT NULL DEFAULT 1,
+              updated_utc TEXT NOT NULL);
+
+            CREATE TABLE IF NOT EXISTS nrcs_categories(
+              id TEXT PRIMARY KEY, name TEXT NOT NULL, code TEXT NOT NULL,
+              color_hex TEXT NOT NULL DEFAULT '#3B82F6', description TEXT NOT NULL DEFAULT '',
+              is_default INTEGER NOT NULL DEFAULT 0, updated_utc TEXT NOT NULL);
+
+            CREATE TABLE IF NOT EXISTS nrcs_break_templates(
+              id TEXT PRIMARY KEY, program_id TEXT NOT NULL DEFAULT '',
+              title TEXT NOT NULL, break_type TEXT NOT NULL DEFAULT 'COMMERCIAL',
+              default_duration_sec INTEGER NOT NULL DEFAULT 60, segment TEXT NOT NULL DEFAULT 'A',
+              order_seq INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '',
+              updated_utc TEXT NOT NULL);
+
+            CREATE TABLE IF NOT EXISTS nrcs_settings(
+              key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """;
         cmd.ExecuteNonQuery();
         TryAlter(c, "ALTER TABLE nrcs_story_bank ADD COLUMN story_type TEXT NOT NULL DEFAULT 'PKG'");
         TryAlter(c, "ALTER TABLE nrcs_story_bank ADD COLUMN body_rich_xaml TEXT NOT NULL DEFAULT ''");
         TryAlter(c, "ALTER TABLE nrcs_stories ADD COLUMN body_rich_xaml TEXT NOT NULL DEFAULT ''");
+        TryAlter(c, "ALTER TABLE nrcs_rundowns ADD COLUMN program_id TEXT NOT NULL DEFAULT ''");
+        TryAlter(c, "ALTER TABLE nrcs_rundowns ADD COLUMN opening_media TEXT NOT NULL DEFAULT ''");
+        TryAlter(c, "ALTER TABLE nrcs_rundowns ADD COLUMN closing_media TEXT NOT NULL DEFAULT ''");
+        TryAlter(c, "ALTER TABLE nrcs_rundowns ADD COLUMN opening_cg TEXT NOT NULL DEFAULT ''");
+        TryAlter(c, "ALTER TABLE nrcs_rundowns ADD COLUMN closing_cg TEXT NOT NULL DEFAULT ''");
         MigrateLegacyStories(c);
+        SeedDefaultCategoriesAndPrograms(c);
     }
 
     private SqliteConnection Open() { var c = new SqliteConnection(ConnectionString); c.Open(); return c; }
+
+    private static void SeedDefaultCategoriesAndPrograms(SqliteConnection c)
+    {
+        // 1. Categories
+        using (var countCmd = c.CreateCommand())
+        {
+            countCmd.CommandText = "SELECT COUNT(*) FROM nrcs_categories";
+            var count = Convert.ToInt64(countCmd.ExecuteScalar());
+            if (count == 0)
+            {
+                var now = DateTime.UtcNow.ToString("O");
+                var defs = new (string Code, string Name, string Color, string Desc)[]
+                {
+                    ("NEWS", "General News", "#3B82F6", "Main national and municipal news"),
+                    ("POLITICS", "Politics & Governance", "#EF4444", "Parliament, Cabinet & Policy updates"),
+                    ("BUSINESS", "Economy & Finance", "#10B981", "Markets, Banking, Commerce & Currency"),
+                    ("SPORTS", "Sports Desk", "#F59E0B", "Cricket, Football, Athletics & Tournaments"),
+                    ("INTERNATIONAL", "World / Foreign", "#8B5CF6", "Diplomacy, Geopolitics & Global Affairs"),
+                    ("ENTERTAINMENT", "Entertainment & Arts", "#EC4899", "Cinema, Music, Literature & Culture"),
+                    ("WEATHER", "Weather & Climate", "#06B6D4", "Hydrology, Forecasts & Weather Alerts"),
+                    ("SPECIAL", "Special Bulletin", "#6366F1", "Breaking, Investigative & Primetime Specials"),
+                    ("DIGITAL", "Digital / Social", "#14B8A6", "Social Media, Viral & Online coverage")
+                };
+                foreach (var d in defs)
+                {
+                    using var ins = c.CreateCommand();
+                    ins.CommandText = "INSERT INTO nrcs_categories(id,name,code,color_hex,description,is_default,updated_utc) VALUES($id,$name,$code,$color,$desc,$def,$u)";
+                    ins.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("N"));
+                    ins.Parameters.AddWithValue("$name", d.Name);
+                    ins.Parameters.AddWithValue("$code", d.Code);
+                    ins.Parameters.AddWithValue("$color", d.Color);
+                    ins.Parameters.AddWithValue("$desc", d.Desc);
+                    ins.Parameters.AddWithValue("$def", d.Code == "NEWS" ? 1 : 0);
+                    ins.Parameters.AddWithValue("$u", now);
+                    ins.ExecuteNonQuery();
+                }
+            }
+        }
+
+        // 2. Programs
+        using (var progCmd = c.CreateCommand())
+        {
+            progCmd.CommandText = "SELECT COUNT(*) FROM nrcs_programs";
+            var pCount = Convert.ToInt64(progCmd.ExecuteScalar());
+            if (pCount == 0)
+            {
+                var now = DateTime.UtcNow.ToString("O");
+                var defPrograms = new (string Name, string Cat, int Dur, string Anchor, string OpenCg, string CloseCg, string Desc)[]
+                {
+                    ("Morning News Bulletin", "NEWS", 30, "Morning Anchor", "Morning Bulletin Open", "Bulletin Close Credits", "Standard morning broadcast 07:00 AM"),
+                    ("Evening Prime Time 8PM", "POLITICS", 45, "Chief News Anchor", "Prime Time 8PM Intro", "Prime Time Credits", "Main flagship primetime news broadcast 08:00 PM"),
+                    ("Sports Round-Up", "SPORTS", 20, "Sports Presenter", "Sports Round Intro", "Sports Credits", "Daily sports round-up and match highlights"),
+                    ("Special Focus / In-Depth", "SPECIAL", 30, "Senior Editor", "Special Focus Header", "Special Focus Credits", "Investigative reporting, deep-dives and studio interviews")
+                };
+                foreach (var p in defPrograms)
+                {
+                    var pid = Guid.NewGuid().ToString("N");
+                    using var ins = c.CreateCommand();
+                    ins.CommandText = """
+                        INSERT INTO nrcs_programs(id,name,category,default_duration_min,default_anchor,channel_id,studio,opening_media,closing_media,opening_cg,closing_cg,description,is_active,updated_utc)
+                        VALUES($id,$name,$cat,$dur,$anchor,'KTX-PLAYOUT-01','STUDIO-A','','',$ocg,$ccg,$desc,1,$u)
+                        """;
+                    ins.Parameters.AddWithValue("$id", pid);
+                    ins.Parameters.AddWithValue("$name", p.Name);
+                    ins.Parameters.AddWithValue("$cat", p.Cat);
+                    ins.Parameters.AddWithValue("$dur", p.Dur);
+                    ins.Parameters.AddWithValue("$anchor", p.Anchor);
+                    ins.Parameters.AddWithValue("$ocg", p.OpenCg);
+                    ins.Parameters.AddWithValue("$ccg", p.CloseCg);
+                    ins.Parameters.AddWithValue("$desc", p.Desc);
+                    ins.Parameters.AddWithValue("$u", now);
+                    ins.ExecuteNonQuery();
+
+                    // Seed default break templates for the prime program
+                    if (p.Name.Contains("Prime Time"))
+                    {
+                        var bks = new (string Title, string Type, int Dur, string Seg, int Seq)[]
+                        {
+                            ("Commercial Break 1", "COMMERCIAL", 60, "A", 1),
+                            ("International News Block", "SEGMENT", 0, "B", 2),
+                            ("Commercial Break 2", "COMMERCIAL", 60, "B", 3),
+                            ("Sports News Block", "SEGMENT", 0, "C", 4),
+                            ("Sponsor Break", "SPONSOR", 30, "C", 5)
+                        };
+                        foreach (var b in bks)
+                        {
+                            using var bcmd = c.CreateCommand();
+                            bcmd.CommandText = "INSERT INTO nrcs_break_templates(id,program_id,title,break_type,default_duration_sec,segment,order_seq,notes,updated_utc) VALUES($id,$pid,$t,$bt,$d,$seg,$seq,'',$u)";
+                            bcmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("N"));
+                            bcmd.Parameters.AddWithValue("$pid", pid);
+                            bcmd.Parameters.AddWithValue("$t", b.Title);
+                            bcmd.Parameters.AddWithValue("$bt", b.Type);
+                            bcmd.Parameters.AddWithValue("$d", b.Dur);
+                            bcmd.Parameters.AddWithValue("$seg", b.Seg);
+                            bcmd.Parameters.AddWithValue("$seq", b.Seq);
+                            bcmd.Parameters.AddWithValue("$u", now);
+                            bcmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Global Break Templates
+        using (var bCountCmd = c.CreateCommand())
+        {
+            bCountCmd.CommandText = "SELECT COUNT(*) FROM nrcs_break_templates WHERE program_id=''";
+            var bCount = Convert.ToInt64(bCountCmd.ExecuteScalar());
+            if (bCount == 0)
+            {
+                var now = DateTime.UtcNow.ToString("O");
+                var globalBreaks = new (string Title, string Type, int Dur, string Seg, int Seq)[]
+                {
+                    ("Commercial Break (60s)", "COMMERCIAL", 60, "A", 1),
+                    ("Commercial Break (90s)", "COMMERCIAL", 90, "B", 2),
+                    ("Sponsor Break (30s)", "SPONSOR", 30, "B", 3),
+                    ("Station ID / Promo (15s)", "STATION_ID", 15, "A", 4),
+                    ("International News Block", "SEGMENT", 0, "B", 5),
+                    ("Sports News Block", "SEGMENT", 0, "C", 6),
+                    ("Weather Report Block", "SEGMENT", 0, "D", 7)
+                };
+                foreach (var gb in globalBreaks)
+                {
+                    using var bcmd = c.CreateCommand();
+                    bcmd.CommandText = "INSERT INTO nrcs_break_templates(id,program_id,title,break_type,default_duration_sec,segment,order_seq,notes,updated_utc) VALUES($id,'',$t,$bt,$d,$seg,$seq,'',$u)";
+                    bcmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("N"));
+                    bcmd.Parameters.AddWithValue("$t", gb.Title);
+                    bcmd.Parameters.AddWithValue("$bt", gb.Type);
+                    bcmd.Parameters.AddWithValue("$d", gb.Dur);
+                    bcmd.Parameters.AddWithValue("$seg", gb.Seg);
+                    bcmd.Parameters.AddWithValue("$seq", gb.Seq);
+                    bcmd.Parameters.AddWithValue("$u", now);
+                    bcmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        // 4. Default Settings
+        using (var sCmd = c.CreateCommand())
+        {
+            sCmd.CommandText = "INSERT OR IGNORE INTO nrcs_settings(key,value) VALUES('DateSystem','BS')";
+            sCmd.ExecuteNonQuery();
+        }
+    }
 
     private static void MigrateLegacyStories(SqliteConnection c)
     {
@@ -124,22 +340,361 @@ public sealed class NrcsPlatformStore
         tx.Commit();
     }
 
-    public IReadOnlyList<NrcsRundown> ListRundowns()
+    // --- SETTINGS (CRUD) ---
+    public string GetSetting(string key, string defaultValue = "")
     {
-        var list = new List<NrcsRundown>(); using var c = Open(); using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id,name,channel_id,air_date_utc,status,updated_utc FROM nrcs_rundowns ORDER BY air_date_utc DESC,name";
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT value FROM nrcs_settings WHERE key=$k";
+        cmd.Parameters.AddWithValue("$k", key);
+        var res = cmd.ExecuteScalar();
+        return res is null ? defaultValue : Convert.ToString(res) ?? defaultValue;
+    }
+
+    public void SetSetting(string key, string value)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "INSERT INTO nrcs_settings(key,value) VALUES($k,$v) ON CONFLICT(key) DO UPDATE SET value=$v";
+        cmd.Parameters.AddWithValue("$k", key);
+        cmd.Parameters.AddWithValue("$v", value ?? "");
+        cmd.ExecuteNonQuery();
+    }
+
+    // --- CATEGORIES (CRUD) ---
+    public IReadOnlyList<NrcsCategory> ListCategories()
+    {
+        var list = new List<NrcsCategory>();
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,name,code,color_hex,description,is_default,updated_utc FROM nrcs_categories ORDER BY is_default DESC,code";
         using var r = cmd.ExecuteReader();
-        while (r.Read()) list.Add(new(r.GetString(0), r.GetString(1), r.GetString(2), ParseUtc(r.GetString(3)), r.GetString(4)) { UpdatedUtc = ParseUtc(r.GetString(5)) });
+        while (r.Read())
+        {
+            list.Add(new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), r.GetInt32(5) != 0, ParseUtc(r.GetString(6))));
+        }
         return list;
     }
 
-    public NrcsRundown CreateRundown(string name, string channelId, DateTime airDateUtc)
+    public void SaveCategory(NrcsCategory cat)
     {
-        var row = new NrcsRundown(Guid.NewGuid().ToString("N"), string.IsNullOrWhiteSpace(name) ? "New Rundown" : name.Trim(), string.IsNullOrWhiteSpace(channelId) ? "KTX-PLAYOUT-01" : channelId.Trim(), airDateUtc.ToUniversalTime(), "DRAFT");
         using var c = Open(); using var cmd = c.CreateCommand();
-        cmd.CommandText = "INSERT INTO nrcs_rundowns(id,name,channel_id,air_date_utc,status,updated_utc) VALUES($id,$n,$ch,$air,$s,$u)";
-        cmd.Parameters.AddWithValue("$id", row.Id); cmd.Parameters.AddWithValue("$n", row.Name); cmd.Parameters.AddWithValue("$ch", row.ChannelId); cmd.Parameters.AddWithValue("$air", row.AirDateUtc.ToString("O")); cmd.Parameters.AddWithValue("$s", row.Status); cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O")); cmd.ExecuteNonQuery();
+        cmd.CommandText = """
+            INSERT INTO nrcs_categories(id,name,code,color_hex,description,is_default,updated_utc)
+            VALUES($id,$name,$code,$color,$desc,$def,$u)
+            ON CONFLICT(id) DO UPDATE SET name=$name,code=$code,color_hex=$color,description=$desc,is_default=$def,updated_utc=$u
+            """;
+        cmd.Parameters.AddWithValue("$id", cat.Id);
+        cmd.Parameters.AddWithValue("$name", cat.Name);
+        cmd.Parameters.AddWithValue("$code", cat.Code.ToUpperInvariant().Trim());
+        cmd.Parameters.AddWithValue("$color", string.IsNullOrWhiteSpace(cat.ColorHex) ? "#3B82F6" : cat.ColorHex);
+        cmd.Parameters.AddWithValue("$desc", cat.Description ?? "");
+        cmd.Parameters.AddWithValue("$def", cat.IsDefault ? 1 : 0);
+        cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O"));
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteCategory(string id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "DELETE FROM nrcs_categories WHERE id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    // --- PROGRAMS (CRUD) ---
+    public IReadOnlyList<NrcsProgram> ListPrograms()
+    {
+        var list = new List<NrcsProgram>();
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,name,category,default_duration_min,default_anchor,channel_id,studio,opening_media,closing_media,opening_cg,closing_cg,description,is_active,updated_utc FROM nrcs_programs ORDER BY name";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt32(3), r.GetString(4), r.GetString(5), r.GetString(6), r.GetString(7), r.GetString(8), r.GetString(9), r.GetString(10), r.GetString(11), r.GetInt32(12) != 0, ParseUtc(r.GetString(13))));
+        }
+        return list;
+    }
+
+    public NrcsProgram? GetProgram(string id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,name,category,default_duration_min,default_anchor,channel_id,studio,opening_media,closing_media,opening_cg,closing_cg,description,is_active,updated_utc FROM nrcs_programs WHERE id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetInt32(3), r.GetString(4), r.GetString(5), r.GetString(6), r.GetString(7), r.GetString(8), r.GetString(9), r.GetString(10), r.GetString(11), r.GetInt32(12) != 0, ParseUtc(r.GetString(13))) : null;
+    }
+
+    public void SaveProgram(NrcsProgram p)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO nrcs_programs(id,name,category,default_duration_min,default_anchor,channel_id,studio,opening_media,closing_media,opening_cg,closing_cg,description,is_active,updated_utc)
+            VALUES($id,$n,$cat,$dur,$a,$ch,$st,$om,$cm,$ocg,$ccg,$desc,$act,$u)
+            ON CONFLICT(id) DO UPDATE SET name=$n,category=$cat,default_duration_min=$dur,default_anchor=$a,channel_id=$ch,studio=$st,opening_media=$om,closing_media=$cm,opening_cg=$ocg,closing_cg=$ccg,description=$desc,is_active=$act,updated_utc=$u
+            """;
+        cmd.Parameters.AddWithValue("$id", p.Id);
+        cmd.Parameters.AddWithValue("$n", p.Name);
+        cmd.Parameters.AddWithValue("$cat", p.Category);
+        cmd.Parameters.AddWithValue("$dur", Math.Max(1, p.DefaultDurationMinutes));
+        cmd.Parameters.AddWithValue("$a", p.DefaultAnchor ?? "");
+        cmd.Parameters.AddWithValue("$ch", string.IsNullOrWhiteSpace(p.ChannelId) ? "KTX-PLAYOUT-01" : p.ChannelId);
+        cmd.Parameters.AddWithValue("$st", string.IsNullOrWhiteSpace(p.Studio) ? "STUDIO-A" : p.Studio);
+        cmd.Parameters.AddWithValue("$om", p.OpeningMedia ?? "");
+        cmd.Parameters.AddWithValue("$cm", p.ClosingMedia ?? "");
+        cmd.Parameters.AddWithValue("$ocg", p.OpeningCg ?? "");
+        cmd.Parameters.AddWithValue("$ccg", p.ClosingCg ?? "");
+        cmd.Parameters.AddWithValue("$desc", p.Description ?? "");
+        cmd.Parameters.AddWithValue("$act", p.IsActive ? 1 : 0);
+        cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O"));
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteProgram(string id)
+    {
+        using var c = Open(); using var tx = c.BeginTransaction();
+        using (var delBk = c.CreateCommand()) { delBk.Transaction = tx; delBk.CommandText = "DELETE FROM nrcs_break_templates WHERE program_id=$id"; delBk.Parameters.AddWithValue("$id", id); delBk.ExecuteNonQuery(); }
+        using (var cmd = c.CreateCommand()) { cmd.Transaction = tx; cmd.CommandText = "DELETE FROM nrcs_programs WHERE id=$id"; cmd.Parameters.AddWithValue("$id", id); cmd.ExecuteNonQuery(); }
+        tx.Commit();
+    }
+
+    // --- BREAK TEMPLATES (CRUD) ---
+    public IReadOnlyList<NrcsBreakTemplate> ListBreakTemplates(string? programId = null)
+    {
+        var list = new List<NrcsBreakTemplate>();
+        using var c = Open(); using var cmd = c.CreateCommand();
+        if (string.IsNullOrEmpty(programId))
+        {
+            cmd.CommandText = "SELECT id,program_id,title,break_type,default_duration_sec,segment,order_seq,notes,updated_utc FROM nrcs_break_templates ORDER BY program_id,order_seq,title";
+        }
+        else
+        {
+            cmd.CommandText = "SELECT id,program_id,title,break_type,default_duration_sec,segment,order_seq,notes,updated_utc FROM nrcs_break_templates WHERE program_id=$pid OR program_id='' ORDER BY order_seq,title";
+            cmd.Parameters.AddWithValue("$pid", programId);
+        }
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetInt32(4), r.GetString(5), r.GetInt32(6), r.GetString(7), ParseUtc(r.GetString(8))));
+        }
+        return list;
+    }
+
+    public void SaveBreakTemplate(NrcsBreakTemplate b)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO nrcs_break_templates(id,program_id,title,break_type,default_duration_sec,segment,order_seq,notes,updated_utc)
+            VALUES($id,$pid,$t,$bt,$d,$seg,$seq,$notes,$u)
+            ON CONFLICT(id) DO UPDATE SET program_id=$pid,title=$t,break_type=$bt,default_duration_sec=$d,segment=$seg,order_seq=$seq,notes=$notes,updated_utc=$u
+            """;
+        cmd.Parameters.AddWithValue("$id", b.Id);
+        cmd.Parameters.AddWithValue("$pid", b.ProgramId ?? "");
+        cmd.Parameters.AddWithValue("$t", b.Title);
+        cmd.Parameters.AddWithValue("$bt", Normalize(b.BreakType, "COMMERCIAL"));
+        cmd.Parameters.AddWithValue("$d", Math.Max(0, b.DefaultDurationSeconds));
+        cmd.Parameters.AddWithValue("$seg", Normalize(b.Segment, "A"));
+        cmd.Parameters.AddWithValue("$seq", b.OrderSeq);
+        cmd.Parameters.AddWithValue("$notes", b.Notes ?? "");
+        cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O"));
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteBreakTemplate(string id)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "DELETE FROM nrcs_break_templates WHERE id=$id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    // --- RUNDOWNS ---
+    public IReadOnlyList<NrcsRundown> ListRundowns()
+    {
+        var list = new List<NrcsRundown>(); using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id,name,channel_id,air_date_utc,status,updated_utc,program_id,opening_media,closing_media,opening_cg,closing_cg FROM nrcs_rundowns ORDER BY air_date_utc DESC,name";
+        var programs = ListPrograms().ToDictionary(x => x.Id, x => x.Name);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var pid = r.FieldCount > 6 && !r.IsDBNull(6) ? r.GetString(6) : "";
+            var pName = (!string.IsNullOrEmpty(pid) && programs.TryGetValue(pid, out var pn)) ? pn : "";
+            list.Add(new(r.GetString(0), r.GetString(1), r.GetString(2), ParseUtc(r.GetString(3)), r.GetString(4))
+            {
+                UpdatedUtc = ParseUtc(r.GetString(5)),
+                ProgramId = pid,
+                ProgramName = pName,
+                OpeningMedia = r.FieldCount > 7 && !r.IsDBNull(7) ? r.GetString(7) : "",
+                ClosingMedia = r.FieldCount > 8 && !r.IsDBNull(8) ? r.GetString(8) : "",
+                OpeningCg = r.FieldCount > 9 && !r.IsDBNull(9) ? r.GetString(9) : "",
+                ClosingCg = r.FieldCount > 10 && !r.IsDBNull(10) ? r.GetString(10) : ""
+            });
+        }
+        return list;
+    }
+
+    public void SaveRundown(NrcsRundown row)
+    {
+        using var c = Open(); using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO nrcs_rundowns(id,name,channel_id,air_date_utc,status,updated_utc,program_id,opening_media,closing_media,opening_cg,closing_cg)
+            VALUES($id,$n,$ch,$air,$s,$u,$pid,$om,$cm,$ocg,$ccg)
+            ON CONFLICT(id) DO UPDATE SET
+                name=$n,
+                channel_id=$ch,
+                air_date_utc=$air,
+                status=$s,
+                updated_utc=$u,
+                program_id=$pid,
+                opening_media=$om,
+                closing_media=$cm,
+                opening_cg=$ocg,
+                closing_cg=$ccg
+            """;
+        cmd.Parameters.AddWithValue("$id", row.Id);
+        cmd.Parameters.AddWithValue("$n", row.Name);
+        cmd.Parameters.AddWithValue("$ch", row.ChannelId);
+        cmd.Parameters.AddWithValue("$air", row.AirDateUtc.ToString("O"));
+        cmd.Parameters.AddWithValue("$s", row.Status);
+        cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("$pid", row.ProgramId ?? "");
+        cmd.Parameters.AddWithValue("$om", row.OpeningMedia ?? "");
+        cmd.Parameters.AddWithValue("$cm", row.ClosingMedia ?? "");
+        cmd.Parameters.AddWithValue("$ocg", row.OpeningCg ?? "");
+        cmd.Parameters.AddWithValue("$ccg", row.ClosingCg ?? "");
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteRundown(string rundownId)
+    {
+        using var c = Open();
+        using var tx = c.BeginTransaction();
+        using var cmd1 = c.CreateCommand();
+        cmd1.Transaction = tx;
+        cmd1.CommandText = "DELETE FROM nrcs_rundown_items WHERE rundown_id=$rid; DELETE FROM nrcs_stories WHERE rundown_id=$rid; DELETE FROM nrcs_rundowns WHERE id=$rid;";
+        cmd1.Parameters.AddWithValue("$rid", rundownId);
+        cmd1.ExecuteNonQuery();
+        tx.Commit();
+    }
+
+    public NrcsRundown CreateRundown(string name, string channelId, DateTime airDateUtc, string? programId = null, bool autoApplyOpenClose = true, bool autoApplyBreaks = true)
+    {
+        var prog = !string.IsNullOrEmpty(programId) ? GetProgram(programId) : null;
+        var rName = string.IsNullOrWhiteSpace(name)
+            ? (prog != null ? $"{prog.Name} {DateTime.Now:HH:mm}" : "New Rundown")
+            : name.Trim();
+        var chId = string.IsNullOrWhiteSpace(channelId)
+            ? (prog != null ? prog.ChannelId : "KTX-PLAYOUT-01")
+            : channelId.Trim();
+
+        var row = new NrcsRundown(Guid.NewGuid().ToString("N"), rName, chId, airDateUtc.ToUniversalTime(), "DRAFT")
+        {
+            ProgramId = prog?.Id ?? "",
+            ProgramName = prog?.Name ?? "",
+            OpeningMedia = prog?.OpeningMedia ?? "",
+            ClosingMedia = prog?.ClosingMedia ?? "",
+            OpeningCg = prog?.OpeningCg ?? "",
+            ClosingCg = prog?.ClosingCg ?? "",
+            Studio = prog?.Studio ?? "STUDIO-A"
+        };
+
+        using (var c = Open())
+        using (var cmd = c.CreateCommand())
+        {
+            cmd.CommandText = """
+                INSERT INTO nrcs_rundowns(id,name,channel_id,air_date_utc,status,updated_utc,program_id,opening_media,closing_media,opening_cg,closing_cg)
+                VALUES($id,$n,$ch,$air,$s,$u,$pid,$om,$cm,$ocg,$ccg)
+                """;
+            cmd.Parameters.AddWithValue("$id", row.Id);
+            cmd.Parameters.AddWithValue("$n", row.Name);
+            cmd.Parameters.AddWithValue("$ch", row.ChannelId);
+            cmd.Parameters.AddWithValue("$air", row.AirDateUtc.ToString("O"));
+            cmd.Parameters.AddWithValue("$s", row.Status);
+            cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O"));
+            cmd.Parameters.AddWithValue("$pid", row.ProgramId);
+            cmd.Parameters.AddWithValue("$om", row.OpeningMedia);
+            cmd.Parameters.AddWithValue("$cm", row.ClosingMedia);
+            cmd.Parameters.AddWithValue("$ocg", row.OpeningCg);
+            cmd.Parameters.AddWithValue("$ccg", row.ClosingCg);
+            cmd.ExecuteNonQuery();
+        }
+
+        // Auto-apply Program Opening & Closing & Break Points if requested
+        if (prog != null)
+        {
+            if (autoApplyOpenClose && (!string.IsNullOrEmpty(prog.OpeningMedia) || !string.IsNullOrEmpty(prog.OpeningCg) || true))
+            {
+                var openStory = new NrcsStory(Guid.NewGuid().ToString("N"), row.Id, 1, $"{prog.Name} - OPENING", prog.DefaultAnchor, 15, "[OPENING] Program intro and opening sequence", prog.OpeningMedia, prog.OpeningCg, 20, "{}", DateTime.UtcNow)
+                {
+                    StoryType = "OPENING",
+                    Segment = "A",
+                    Category = prog.Category,
+                    Status = "READY",
+                    ItemStatus = "READY"
+                };
+                SaveStory(openStory, createVersion: false);
+            }
+
+            if (autoApplyBreaks)
+            {
+                var bks = ListBreakTemplates(prog.Id);
+                var seq = 2;
+                foreach (var b in bks.Where(x => x.ProgramId == prog.Id))
+                {
+                    var bStory = new NrcsStory(Guid.NewGuid().ToString("N"), row.Id, seq++, b.Title, "", Math.Max(1, b.DefaultDurationSeconds), $"[{b.BreakType}] {b.Title}", "", "", 20, "{}", DateTime.UtcNow)
+                    {
+                        StoryType = b.BreakType == "SEGMENT" ? "SEGMENT" : "BREAK",
+                        Segment = b.Segment,
+                        Status = "READY",
+                        ItemStatus = "READY",
+                        Notes = b.Notes
+                    };
+                    SaveStory(bStory, createVersion: false);
+                }
+            }
+
+            if (autoApplyOpenClose && (!string.IsNullOrEmpty(prog.ClosingMedia) || !string.IsNullOrEmpty(prog.ClosingCg) || true))
+            {
+                var curStories = ListStories(row.Id);
+                var closeSeq = curStories.Count + 1;
+                var closeStory = new NrcsStory(Guid.NewGuid().ToString("N"), row.Id, closeSeq, $"{prog.Name} - CLOSING", prog.DefaultAnchor, 20, "[CLOSING] Program credits and sign-off", prog.ClosingMedia, prog.ClosingCg, 20, "{}", DateTime.UtcNow)
+                {
+                    StoryType = "CLOSING",
+                    Segment = "Z",
+                    Category = prog.Category,
+                    Status = "READY",
+                    ItemStatus = "READY"
+                };
+                SaveStory(closeStory, createVersion: false);
+            }
+        }
+
         return row;
+    }
+
+    public string AddBreakToRundown(string rundownId, string title, int durationSeconds = 60, string segment = "A", string breakType = "BREAK")
+    {
+        var seq = ListStories(rundownId).Count + 1;
+        var story = new NrcsStory(Guid.NewGuid().ToString("N"), rundownId, seq, string.IsNullOrWhiteSpace(title) ? "Commercial Break" : title.Trim(), "", Math.Max(1, durationSeconds), $"[{breakType}] {title}", "", "", 20, "{}", DateTime.UtcNow)
+        {
+            StoryType = breakType,
+            Segment = segment,
+            Status = "READY",
+            ItemStatus = "READY"
+        };
+        SaveStory(story, createVersion: false);
+        return story.Id;
+    }
+
+    public string AddSegmentHeaderToRundown(string rundownId, string title, string segment = "B")
+    {
+        var seq = ListStories(rundownId).Count + 1;
+        var story = new NrcsStory(Guid.NewGuid().ToString("N"), rundownId, seq, string.IsNullOrWhiteSpace(title) ? "Segment Block" : title.Trim(), "", 1, $"[SEGMENT] {title}", "", "", 20, "{}", DateTime.UtcNow)
+        {
+            StoryType = "SEGMENT",
+            Segment = segment,
+            Status = "READY",
+            ItemStatus = "READY"
+        };
+        SaveStory(story, createVersion: false);
+        return story.Id;
     }
 
     public void SetRundownStatus(string id, string status)

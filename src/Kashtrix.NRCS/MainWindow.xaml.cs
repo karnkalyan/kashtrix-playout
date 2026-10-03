@@ -15,6 +15,13 @@ using Kashtrix.NRCS.Services;
 
 namespace Kashtrix.NRCS;
 
+public sealed class FontItem
+{
+    public string Name { get; init; } = "";
+    public FontFamily Family { get; init; } = null!;
+    public override string ToString() => Name;
+}
+
 public partial class MainWindow : Window
 {
     private readonly NrcsPlatformStore _store = new();
@@ -23,6 +30,11 @@ public partial class MainWindow : Window
     private readonly PlanningDiaryService _diaryService = PlanningDiaryService.Instance;
     private readonly WireIngestService _wireService = WireIngestService.Instance;
     private readonly ConnectorManager _connectorManager = ConnectorManager.Instance;
+
+    private readonly List<FontItem> _allFontItems = [];
+    private NrcsProgram? _selectedProgram;
+    private NrcsBreakTemplate? _selectedBreakPreset;
+    private NrcsCategory? _selectedCategory;
 
     private NrcsRundown? _rundown;
     private NrcsStory? _story;
@@ -41,13 +53,11 @@ public partial class MainWindow : Window
         WindowChromeActions.ApplyCleanBorder(this);
         InitializeFontFamilies();
 
-        AssignmentDeskBox.ItemsSource = new[] { "NEWS", "POLITICS", "BUSINESS", "SPORTS", "INTERNATIONAL", "ENTERTAINMENT", "WEATHER", "DIGITAL" };
         AssignmentStatusBox.ItemsSource = new[] { "PLANNED", "ASSIGNED", "IN PROGRESS", "READY", "HOLD", "DONE", "CANCELLED" };
         AssignmentPriorityBox.ItemsSource = new[] { "LOW", "NORMAL", "HIGH", "URGENT", "BREAKING" };
         StoryStatusBox.ItemsSource = new[] { "DRAFT", "IN PROGRESS", "REVIEW", "APPROVED", "READY", "ON AIR", "COMPLETE" };
         StoryPriorityBox.ItemsSource = new[] { "LOW", "NORMAL", "HIGH", "URGENT", "BREAKING" };
-        StoryCategoryBox.ItemsSource = new[] { "NEWS", "POLITICS", "BUSINESS", "SPORTS", "INTERNATIONAL", "ENTERTAINMENT", "WEATHER", "DIGITAL" };
-        StoryTypeBox.ItemsSource = new[] { "ANCHOR", "PKG", "VO", "SOT", "LIVE", "REMOTE", "CG", "BREAK", "PROMO", "FILLER" };
+        StoryTypeBox.ItemsSource = new[] { "ANCHOR", "PKG", "VO", "SOT", "LIVE", "REMOTE", "CG", "BREAK", "SEGMENT", "OPENING", "CLOSING", "PROMO", "FILLER" };
         StartModeBox.ItemsSource = new[] { "FOLLOW", "HARD", "MANUAL", "JIP", "HOLD" };
         ItemStatusBox.ItemsSource = new[] { "READY", "PENDING", "PLAYED", "KILLED" };
         AssignmentFilterModeBox.ItemsSource = new[] { "ALL", "DAY", "NEXT 7 DAYS", "OVERDUE", "OPEN ONLY" };
@@ -57,7 +67,16 @@ public partial class MainWindow : Window
         CgLayerBox.ItemsSource = Enumerable.Range(0, 100).Select(x => x.ToString()).ToArray();
 
         RefreshCgCatalog();
-        _liveRefresh.Tick += (_, _) => RefreshLiveOnly();
+        UpdateLiveCalendarDate();
+        RefreshCategories();
+        RefreshPrograms();
+        RefreshBreakPresets();
+
+        _liveRefresh.Tick += (_, _) =>
+        {
+            RefreshLiveOnly();
+            UpdateLiveCalendarDate();
+        };
         _liveRefresh.Start();
         RefreshAll();
         RefreshDiary();
@@ -206,7 +225,9 @@ public partial class MainWindow : Window
         {
             RundownGrid.ItemsSource = null;
             RundownHeader.Text = "SELECT A RUNDOWN";
+            RundownProgramText.Text = "NONE";
             RundownTimingText.Text = "";
+            RundownOpenCloseInfoText.Text = "Program Opening & Closing: None";
             LiveStateText.Text = "OFF AIR";
             return;
         }
@@ -216,7 +237,25 @@ public partial class MainWindow : Window
         if (_rundownStory is not null) RundownGrid.SelectedItem = rows.FirstOrDefault(x => x.RundownItemId == _rundownStory.RundownItemId);
         var summary = _store.GetRundownSummary(_rundown.Id);
         RundownHeader.Text = $"{_rundown.Name} · {_rundown.ChannelId} · {_rundown.Status}";
-        RundownTimingText.Text = $"Air {_rundown.AirDateUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss} · {summary.Stories} items · {summary.Skipped} skipped · total {TimeSpan.FromSeconds(summary.DurationSeconds):hh\\:mm\\:ss}";
+
+        var dateSys = _store.GetSetting("DateSystem", "BS");
+        var num = _store.GetSetting("NumeralSystem", "Devanagari");
+        var dev = !num.Equals("Standard", StringComparison.OrdinalIgnoreCase);
+        var localAir = _rundown.AirDateUtc.ToLocalTime();
+        var dateFormatted = NepaliCalendarService.FormatDisplayDateTime(localAir, dateSys, dev);
+
+        RundownProgramText.Text = string.IsNullOrEmpty(_rundown.ProgramName) ? "CUSTOM" : _rundown.ProgramName.ToUpperInvariant();
+        RundownTimingText.Text = $"Air: {dateFormatted} · {summary.Stories} items · {summary.Skipped} skipped · total {TimeSpan.FromSeconds(summary.DurationSeconds):hh\\:mm\\:ss}";
+        RundownOpenCloseInfoText.Text = $"🎬 OPENING CG: {(string.IsNullOrEmpty(_rundown.OpeningCg) ? "Default" : _rundown.OpeningCg)} | CLOSING CG: {(string.IsNullOrEmpty(_rundown.ClosingCg) ? "Default" : _rundown.ClosingCg)} | MEDIA: {(string.IsNullOrEmpty(_rundown.OpeningMedia) ? "None" : Path.GetFileName(_rundown.OpeningMedia))}";
+
+        if (_cgCatalog.Count > 0)
+        {
+            RundownOpenCgBox.ItemsSource = _cgCatalog.Select(x => x.Name).ToArray();
+            RundownCloseCgBox.ItemsSource = _cgCatalog.Select(x => x.Name).ToArray();
+            RundownOpenCgBox.Text = _rundown.OpeningCg;
+            RundownCloseCgBox.Text = _rundown.ClosingCg;
+        }
+
         RefreshLiveOnly();
     }
 
@@ -259,11 +298,15 @@ public partial class MainWindow : Window
 
     private void NewRundown_Click(object sender, RoutedEventArgs e)
     {
-        _rundown = _store.CreateRundown("NEWS " + DateTime.Now.ToString("yyyy-MM-dd HH:mm"), "KTX-PLAYOUT-01", DateTime.UtcNow);
-        RefreshRundowns();
-        RundownList.SelectedItem = _rundown;
-        WorkspaceTabs.SelectedIndex = 5;
-        StatusText.Text = "New rundown created.";
+        var dlg = new CreateRundownDialog(_store) { Owner = this };
+        if (dlg.ShowDialog() == true && dlg.CreatedRundown != null)
+        {
+            _rundown = dlg.CreatedRundown;
+            RefreshRundowns();
+            RundownList.SelectedItem = _store.ListRundowns().FirstOrDefault(x => x.Id == _rundown.Id);
+            WorkspaceTabs.SelectedIndex = 5;
+            StatusText.Text = $"Created rundown {_rundown.Name} with program structure.";
+        }
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e)
@@ -474,12 +517,16 @@ public partial class MainWindow : Window
         _suppressFormatEvents = true;
         try
         {
-            var fonts = Fonts.SystemFontFamilies.OrderBy(f => f.Source).ToList();
+            _allFontItems.Clear();
+            foreach (var f in Fonts.SystemFontFamilies.OrderBy(x => x.Source))
+            {
+                _allFontItems.Add(new FontItem { Name = f.Source, Family = f });
+            }
             if (EditorFontFamilyBox != null)
             {
-                EditorFontFamilyBox.ItemsSource = fonts;
-                var preferred = fonts.FirstOrDefault(f => f.Source.Equals("Segoe UI", StringComparison.OrdinalIgnoreCase))
-                             ?? fonts.FirstOrDefault();
+                EditorFontFamilyBox.ItemsSource = _allFontItems;
+                var preferred = _allFontItems.FirstOrDefault(f => f.Name.Equals("Segoe UI", StringComparison.OrdinalIgnoreCase))
+                             ?? _allFontItems.FirstOrDefault();
                 if (preferred != null) EditorFontFamilyBox.SelectedItem = preferred;
             }
         }
@@ -488,6 +535,27 @@ public partial class MainWindow : Window
         {
             _suppressFormatEvents = false;
         }
+    }
+
+    private void EditorFontSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressFormatEvents || EditorFontFamilyBox == null) return;
+        var q = EditorFontSearchBox.Text?.Trim() ?? string.Empty;
+        var filtered = string.IsNullOrEmpty(q)
+            ? _allFontItems
+            : _allFontItems.Where(f => f.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        _suppressFormatEvents = true;
+        try
+        {
+            EditorFontFamilyBox.ItemsSource = filtered;
+            if (filtered.Count > 0)
+            {
+                EditorFontFamilyBox.SelectedItem = filtered[0];
+                EditorFontFamilyBox.IsDropDownOpen = true;
+            }
+        }
+        finally { _suppressFormatEvents = false; }
     }
 
     public string GetStoryPlainText()
@@ -618,7 +686,9 @@ public partial class MainWindow : Window
     {
         if (_loading || _suppressFormatEvents || BodyRichBox == null) return;
         FontFamily? family = null;
-        if (EditorFontFamilyBox?.SelectedItem is FontFamily ff)
+        if (EditorFontFamilyBox?.SelectedItem is FontItem fi)
+            family = fi.Family;
+        else if (EditorFontFamilyBox?.SelectedItem is FontFamily ff)
             family = ff;
         else if (!string.IsNullOrWhiteSpace(EditorFontFamilyBox?.Text))
             family = new FontFamily(EditorFontFamilyBox.Text.Trim());
@@ -948,7 +1018,14 @@ public partial class MainWindow : Window
     private void RundownList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loading) return;
-        _rundown = RundownList.SelectedItem as NrcsRundown; _rundownStory = null; RefreshRundownStories();
+        _rundown = RundownList.SelectedItem as NrcsRundown;
+        _rundownStory = null;
+        if (_rundown != null)
+        {
+            RundownOpenCgBox.Text = _rundown.OpeningCg ?? "";
+            RundownCloseCgBox.Text = _rundown.ClosingCg ?? "";
+        }
+        RefreshRundownStories();
     }
 
     private void RundownGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -957,14 +1034,34 @@ public partial class MainWindow : Window
         _rundownStory = RundownGrid.SelectedItem as NrcsStory;
         if (_rundownStory is null) return;
         RundownItemSlug.Text = $"{_rundownStory.Sequence:00} · {_rundownStory.Slug} · {_rundownStory.Presenter}";
-        SegmentBox.Text = _rundownStory.Segment; StartModeBox.SelectedItem = _rundownStory.StartMode; ItemStatusBox.SelectedItem = _rundownStory.ItemStatus; SkipCheck.IsChecked = _rundownStory.IsSkipped; LockCheck.IsChecked = _rundownStory.IsLocked;
+        RundownItemTitleBox.Text = _rundownStory.Slug;
+        RundownItemDurBox.Text = _rundownStory.DurationSeconds.ToString();
+        SegmentBox.Text = _rundownStory.Segment;
+        StartModeBox.SelectedItem = _rundownStory.StartMode;
+        ItemStatusBox.SelectedItem = _rundownStory.ItemStatus;
+        SkipCheck.IsChecked = _rundownStory.IsSkipped;
+        LockCheck.IsChecked = _rundownStory.IsLocked;
     }
 
     private void SaveRundownItem_Click(object sender, RoutedEventArgs e)
     {
         if (_rundownStory is null) return;
-        _rundownStory = _rundownStory with { Segment = SegmentBox.Text.Trim(), StartMode = Convert.ToString(StartModeBox.SelectedItem) ?? "FOLLOW", ItemStatus = Convert.ToString(ItemStatusBox.SelectedItem) ?? "READY", IsSkipped = SkipCheck.IsChecked == true, IsLocked = LockCheck.IsChecked == true };
-        _store.UpdateRundownItem(_rundownStory); RefreshRundownStories(); StatusText.Text = "Rundown item updated.";
+        int.TryParse(RundownItemDurBox.Text.Trim(), out var durSec);
+        if (durSec <= 0) durSec = _rundownStory.DurationSeconds;
+        var newSlug = string.IsNullOrWhiteSpace(RundownItemTitleBox.Text) ? _rundownStory.Slug : RundownItemTitleBox.Text.Trim();
+        _rundownStory = _rundownStory with
+        {
+            Slug = newSlug,
+            DurationSeconds = durSec,
+            Segment = SegmentBox.Text.Trim(),
+            StartMode = Convert.ToString(StartModeBox.SelectedItem) ?? "FOLLOW",
+            ItemStatus = Convert.ToString(ItemStatusBox.SelectedItem) ?? "READY",
+            IsSkipped = SkipCheck.IsChecked == true,
+            IsLocked = LockCheck.IsChecked == true
+        };
+        _store.UpdateRundownItem(_rundownStory);
+        RefreshRundownStories();
+        StatusText.Text = "Rundown item updated.";
     }
 
     private void MoveUp_Click(object sender, RoutedEventArgs e) { if (_rundown is null || _rundownStory is null || _rundownStory.IsLocked) return; _store.MoveRundownItem(_rundown.Id, _rundownStory.RundownItemId, -1); RefreshRundownStories(); }
@@ -1037,6 +1134,614 @@ public partial class MainWindow : Window
         if (_rundown is null) return;
         try { var result = await _store.PublishMosAsync(_rundown.Id); StatusText.Text = result.Sent ? $"MOS sent · {result.Message} · {result.Path}" : $"MOS outbox saved; network send failed · {result.Message} · {result.Path}"; }
         catch (Exception ex) { StatusText.Text = "MOS publish failed: " + ex.GetBaseException().Message; }
+    }
+
+    // --- NEPALI CALENDAR INTEGRATION ---
+    private void UpdateLiveCalendarDate()
+    {
+        try
+        {
+            var dateSys = _store.GetSetting("DateSystem", "BS");
+            var devnagari = _store.GetSetting("DevnagariDigits", "False").Equals("True", StringComparison.OrdinalIgnoreCase);
+            var now = DateTime.Now;
+            var formatted = NepaliCalendarService.FormatDisplayDate(now, dateSys, devnagari);
+            if (TopNepaliDateText != null)
+            {
+                TopNepaliDateText.Text = $"📅 {formatted}";
+            }
+        }
+        catch { }
+    }
+
+    private void OpenNepaliCalendar_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new NepaliCalendarDialog(_store) { Owner = this };
+        if (dlg.ShowDialog() == true)
+        {
+            UpdateLiveCalendarDate();
+            RefreshAll();
+            StatusText.Text = $"Date preference updated to {dlg.DateSystem}. Selected: {dlg.SelectedFormattedDate}";
+        }
+    }
+
+    // --- RUNDOWN STORY / BREAK / SEGMENT ACTIONS ---
+    private void AddStoryToRundownManual_Click(object sender, RoutedEventArgs e)
+    {
+        if (_rundown is null)
+        {
+            System.Windows.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var newStory = _store.CreateStoryDraft("NEW STORY BLOCK") with
+        {
+            Presenter = "ANCHOR",
+            StoryType = "ANCHOR",
+            Category = "NEWS",
+            Priority = "NORMAL",
+            Status = "DRAFT",
+            DurationSeconds = 60,
+            Segment = "A",
+            StartMode = "FOLLOW",
+            ItemStatus = "READY",
+            Body = "Enter story script here..."
+        };
+
+        _store.SaveStory(newStory);
+        _store.AddStoryToRundown(newStory.Id, _rundown.Id);
+        RefreshRundownStories();
+        StatusText.Text = $"Added new story to {_rundown.Name}.";
+    }
+
+    private void AddBreakToRundown_Click(object sender, RoutedEventArgs e)
+    {
+        if (_rundown is null)
+        {
+            System.Windows.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new AddBreakDialog(_store, _rundown.ProgramId) { Owner = this };
+        if (dlg.ShowDialog() == true)
+        {
+            _store.AddBreakToRundown(_rundown.Id, dlg.BreakTitle, dlg.DurationSeconds, dlg.Segment, dlg.BreakType);
+            RefreshRundownStories();
+            StatusText.Text = $"Inserted {dlg.BreakType}: {dlg.BreakTitle} ({dlg.DurationSeconds}s).";
+        }
+    }
+
+    private void AddSegmentToRundown_Click(object sender, RoutedEventArgs e)
+    {
+        if (_rundown is null)
+        {
+            System.Windows.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new AddBreakDialog(_store, _rundown.ProgramId, isSegmentHeader: true) { Owner = this };
+        dlg.Title = "Add Segment Header / Topic Block";
+        if (dlg.ShowDialog() == true)
+        {
+            _store.AddSegmentHeaderToRundown(_rundown.Id, dlg.BreakTitle, dlg.Segment);
+            RefreshRundownStories();
+            StatusText.Text = $"Inserted Segment Block: {dlg.BreakTitle} [Seg {dlg.Segment}].";
+        }
+    }
+
+    private void SaveRundownTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_rundown is null)
+        {
+            System.Windows.MessageBox.Show("Please select an active rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var saveDlg = new SaveFileDialog
+        {
+            Title = "Save Rundown Template",
+            Filter = "Kashtrix Rundown Template (*.ktxtpl)|*.ktxtpl|JSON File (*.json)|*.json",
+            FileName = $"{_rundown.Name.Replace(" ", "_")}_Template.ktxtpl"
+        };
+
+        if (saveDlg.ShowDialog() == true)
+        {
+            try
+            {
+                var stories = _store.ListStories(_rundown.Id);
+                var templateData = new
+                {
+                    TemplateVersion = "1.0",
+                    RundownName = _rundown.Name,
+                    ProgramId = _rundown.ProgramId,
+                    ProgramName = _rundown.ProgramName,
+                    OpeningMedia = _rundown.OpeningMedia,
+                    ClosingMedia = _rundown.ClosingMedia,
+                    OpeningCg = _rundown.OpeningCg,
+                    ClosingCg = _rundown.ClosingCg,
+                    Items = stories.Select(s => new
+                    {
+                        s.Slug,
+                        s.StoryType,
+                        s.Presenter,
+                        s.Category,
+                        s.DurationSeconds,
+                        s.Segment,
+                        s.StartMode,
+                        s.Notes,
+                        s.CgTemplate,
+                        s.CgLayer
+                    }).ToList()
+                };
+
+                var json = JsonSerializer.Serialize(templateData, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(saveDlg.FileName, json);
+                StatusText.Text = $"Rundown template saved successfully: {Path.GetFileName(saveDlg.FileName)}";
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show("Failed to save template: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private void LoadRundownTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_rundown is null)
+        {
+            System.Windows.MessageBox.Show("Please select an active rundown to populate from template.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var openDlg = new OpenFileDialog
+        {
+            Title = "Load Rundown Template",
+            Filter = "Kashtrix Rundown Template (*.ktxtpl;*.json)|*.ktxtpl;*.json|All Files (*.*)|*.*"
+        };
+
+        if (openDlg.ShowDialog() == true)
+        {
+            try
+            {
+                var json = File.ReadAllText(openDlg.FileName);
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("Items", out var itemsElem) && itemsElem.ValueKind == JsonValueKind.Array)
+                {
+                    int added = 0;
+                    foreach (var item in itemsElem.EnumerateArray())
+                    {
+                        var slug = item.TryGetProperty("Slug", out var sp) ? sp.GetString() ?? "ITEM" : "ITEM";
+                        var type = item.TryGetProperty("StoryType", out var stp) ? stp.GetString() ?? "ANCHOR" : "ANCHOR";
+                        var presenter = item.TryGetProperty("Presenter", out var prp) ? prp.GetString() ?? "" : "";
+                        var category = item.TryGetProperty("Category", out var cp) ? cp.GetString() ?? "NEWS" : "NEWS";
+                        var dur = item.TryGetProperty("DurationSeconds", out var dp) ? dp.GetInt32() : 30;
+                        var seg = item.TryGetProperty("Segment", out var sgp) ? sgp.GetString() ?? "A" : "A";
+                        var startMode = item.TryGetProperty("StartMode", out var smp) ? smp.GetString() ?? "FOLLOW" : "FOLLOW";
+                        var notes = item.TryGetProperty("Notes", out var np) ? np.GetString() ?? "" : "";
+
+                        var story = _store.CreateStoryDraft(slug) with
+                        {
+                            StoryType = type,
+                            Presenter = presenter,
+                            Category = category,
+                            DurationSeconds = dur,
+                            Segment = seg,
+                            StartMode = startMode,
+                            Notes = notes,
+                            Status = "READY"
+                        };
+                        _store.SaveStory(story);
+                        _store.AddStoryToRundown(story.Id, _rundown.Id);
+                        added++;
+                    }
+
+                    RefreshRundownStories();
+                    StatusText.Text = $"Loaded template: {added} items imported into {_rundown.Name}.";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show("Failed to load template: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private void DeleteRundown_Click(object sender, RoutedEventArgs e)
+    {
+        if (_rundown is null)
+        {
+            System.Windows.MessageBox.Show("Select a rundown to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show($"Are you sure you want to delete rundown '{_rundown.Name}'?\nStories in the Story Bank will NOT be deleted.", "Confirm Rundown Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (confirm == MessageBoxResult.Yes)
+        {
+            _store.DeleteRundown(_rundown.Id);
+            _rundown = null;
+            RefreshRundowns();
+            RefreshRundownStories();
+            StatusText.Text = "Rundown deleted.";
+        }
+    }
+
+    private void ApplyRundownProgramSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (_rundown is null)
+        {
+            System.Windows.MessageBox.Show("Select a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var updated = _rundown with
+        {
+            OpeningCg = RundownOpenCgBox.Text.Trim(),
+            ClosingCg = RundownCloseCgBox.Text.Trim()
+        };
+
+        _store.SaveRundown(updated);
+        _rundown = updated;
+        RefreshRundowns();
+        StatusText.Text = $"Updated opening/closing CG templates for {_rundown.Name}.";
+    }
+
+    // --- PROGRAMS & PRESETS CRUD ---
+    private void RefreshPrograms()
+    {
+        try
+        {
+            var progs = _store.ListPrograms();
+            ProgramListBox.ItemsSource = progs;
+
+            var cgNames = _cgCatalog.Select(x => x.Name).ToList();
+            ProgOpenCgBox.ItemsSource = cgNames;
+            ProgCloseCgBox.ItemsSource = cgNames;
+            RundownOpenCgBox.ItemsSource = cgNames;
+            RundownCloseCgBox.ItemsSource = cgNames;
+
+            var cats = _store.ListCategories().Select(c => c.Code).ToList();
+            ProgCategoryBox.ItemsSource = cats;
+
+            var filterList = new List<string> { "ALL PROGRAMS", "GLOBAL PRESETS" };
+            filterList.AddRange(progs.Select(p => p.Name));
+            BreakFilterBox.ItemsSource = filterList;
+            if (BreakFilterBox.SelectedIndex < 0) BreakFilterBox.SelectedIndex = 0;
+
+            var targetList = new List<string> { "GLOBAL (All Programs)" };
+            targetList.AddRange(progs.Select(p => $"{p.Name} [{p.Id}]"));
+            BreakTargetProgBox.ItemsSource = targetList;
+            if (BreakTargetProgBox.SelectedIndex < 0) BreakTargetProgBox.SelectedIndex = 0;
+        }
+        catch { }
+    }
+
+    private void ProgramList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ProgramListBox.SelectedItem is not NrcsProgram p) return;
+        _selectedProgram = p;
+        ProgNameBox.Text = p.Name;
+        ProgCategoryBox.SelectedItem = p.Category;
+        ProgDurationBox.Text = p.DefaultDurationMinutes.ToString();
+        ProgAnchorBox.Text = p.DefaultAnchor;
+        ProgChannelBox.Text = p.ChannelId;
+        ProgStudioBox.Text = p.Studio;
+        ProgOpenMediaBox.Text = p.OpeningMedia;
+        ProgOpenCgBox.Text = p.OpeningCg;
+        ProgCloseMediaBox.Text = p.ClosingMedia;
+        ProgCloseCgBox.Text = p.ClosingCg;
+        ProgDescBox.Text = p.Description;
+        ProgActiveCheck.IsChecked = p.IsActive;
+    }
+
+    private void NewProgram_Click(object sender, RoutedEventArgs e)
+    {
+        _selectedProgram = null;
+        ProgramListBox.SelectedIndex = -1;
+        ProgNameBox.Text = "NEW BROADCAST SHOW";
+        ProgCategoryBox.SelectedItem = "NEWS";
+        ProgDurationBox.Text = "30";
+        ProgAnchorBox.Text = "";
+        ProgChannelBox.Text = "KTX-PLAYOUT-01";
+        ProgStudioBox.Text = "STUDIO-A";
+        ProgOpenMediaBox.Text = "";
+        ProgOpenCgBox.Text = "";
+        ProgCloseMediaBox.Text = "";
+        ProgCloseCgBox.Text = "";
+        ProgDescBox.Text = "";
+        ProgActiveCheck.IsChecked = true;
+        ProgNameBox.Focus();
+        ProgNameBox.SelectAll();
+    }
+
+    private void SaveProgram_Click(object sender, RoutedEventArgs e)
+    {
+        var name = ProgNameBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            System.Windows.MessageBox.Show("Please enter a program name.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        int.TryParse(ProgDurationBox.Text.Trim(), out var dur);
+        if (dur <= 0) dur = 30;
+
+        var prog = new NrcsProgram(
+            _selectedProgram?.Id ?? ("PROG-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()),
+            name,
+            Convert.ToString(ProgCategoryBox.SelectedItem) ?? "NEWS",
+            dur,
+            ProgAnchorBox.Text.Trim(),
+            ProgChannelBox.Text.Trim(),
+            ProgStudioBox.Text.Trim(),
+            ProgOpenMediaBox.Text.Trim(),
+            ProgCloseMediaBox.Text.Trim(),
+            ProgOpenCgBox.Text.Trim(),
+            ProgCloseCgBox.Text.Trim(),
+            ProgDescBox.Text.Trim(),
+            ProgActiveCheck.IsChecked == true,
+            DateTime.UtcNow
+        );
+
+        _store.SaveProgram(prog);
+        _selectedProgram = prog;
+        RefreshPrograms();
+        StatusText.Text = $"Program '{prog.Name}' saved successfully.";
+    }
+
+    private void DeleteProgram_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedProgram is null)
+        {
+            System.Windows.MessageBox.Show("Select a program to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show($"Are you sure you want to delete program '{_selectedProgram.Name}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm == MessageBoxResult.Yes)
+        {
+            _store.DeleteProgram(_selectedProgram.Id);
+            _selectedProgram = null;
+            RefreshPrograms();
+            NewProgram_Click(sender, e);
+            StatusText.Text = "Program deleted.";
+        }
+    }
+
+    private void BrowseProgOpenMedia_Click(object sender, RoutedEventArgs e)
+    {
+        var d = new OpenFileDialog { Title = "Select Opening Media Master", Filter = "Video Files|*.mp4;*.mov;*.mxf;*.mkv;*.ts;*.avi|All Files|*.*" };
+        if (d.ShowDialog() == true) ProgOpenMediaBox.Text = d.FileName;
+    }
+
+    private void BrowseProgCloseMedia_Click(object sender, RoutedEventArgs e)
+    {
+        var d = new OpenFileDialog { Title = "Select Closing Media Master", Filter = "Video Files|*.mp4;*.mov;*.mxf;*.mkv;*.ts;*.avi|All Files|*.*" };
+        if (d.ShowDialog() == true) ProgCloseMediaBox.Text = d.FileName;
+    }
+
+    // --- BREAK PRESETS CRUD ---
+    private void RefreshBreakPresets()
+    {
+        try
+        {
+            var filter = BreakFilterBox.SelectedItem as string;
+            IReadOnlyList<NrcsBreakTemplate> presets;
+            if (string.Equals(filter, "GLOBAL PRESETS", StringComparison.OrdinalIgnoreCase))
+            {
+                presets = _store.ListBreakTemplates(null).Where(b => string.IsNullOrEmpty(b.ProgramId)).ToList();
+            }
+            else if (!string.IsNullOrEmpty(filter) && !string.Equals(filter, "ALL PROGRAMS", StringComparison.OrdinalIgnoreCase))
+            {
+                var prog = _store.ListPrograms().FirstOrDefault(p => p.Name.Equals(filter, StringComparison.OrdinalIgnoreCase));
+                presets = prog != null ? _store.ListBreakTemplates(prog.Id) : _store.ListBreakTemplates(null);
+            }
+            else
+            {
+                presets = _store.ListBreakTemplates(null);
+            }
+
+            BreakPresetGrid.ItemsSource = presets;
+        }
+        catch { }
+    }
+
+    private void BreakFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        RefreshBreakPresets();
+    }
+
+    private void BreakPresetGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (BreakPresetGrid.SelectedItem is not NrcsBreakTemplate b) return;
+        _selectedBreakPreset = b;
+        BreakPresetTitleBox.Text = b.Title;
+        BreakPresetDurBox.Text = b.DefaultDurationSeconds.ToString();
+        BreakPresetSegBox.Text = b.Segment;
+        BreakPresetOrderBox.Text = b.OrderSeq.ToString();
+        BreakPresetNotesBox.Text = b.Notes;
+
+        foreach (ComboBoxItem item in BreakPresetTypeBox.Items)
+        {
+            if (string.Equals(item.Content.ToString(), b.BreakType, StringComparison.OrdinalIgnoreCase))
+            {
+                BreakPresetTypeBox.SelectedItem = item;
+                break;
+            }
+        }
+
+        if (string.IsNullOrEmpty(b.ProgramId))
+        {
+            BreakTargetProgBox.SelectedIndex = 0; // Global
+        }
+        else
+        {
+            var match = BreakTargetProgBox.Items.Cast<object>().FirstOrDefault(x => x.ToString()!.Contains(b.ProgramId));
+            if (match != null) BreakTargetProgBox.SelectedItem = match;
+        }
+    }
+
+    private void NewBreakPreset_Click(object sender, RoutedEventArgs e)
+    {
+        _selectedBreakPreset = null;
+        BreakPresetGrid.SelectedIndex = -1;
+        BreakPresetTitleBox.Text = "COMMERCIAL BREAK";
+        BreakPresetDurBox.Text = "60";
+        BreakPresetSegBox.Text = "A";
+        BreakPresetOrderBox.Text = "1";
+        BreakPresetNotesBox.Text = "";
+        BreakPresetTypeBox.SelectedIndex = 0;
+        BreakTargetProgBox.SelectedIndex = 0;
+        BreakPresetTitleBox.Focus();
+        BreakPresetTitleBox.SelectAll();
+    }
+
+    private void SaveBreakPreset_Click(object sender, RoutedEventArgs e)
+    {
+        var title = BreakPresetTitleBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            System.Windows.MessageBox.Show("Please enter a preset title.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        int.TryParse(BreakPresetDurBox.Text.Trim(), out var dur);
+        if (dur <= 0) dur = 60;
+        int.TryParse(BreakPresetOrderBox.Text.Trim(), out var order);
+        if (order <= 0) order = 1;
+
+        string? progId = null;
+        var targetStr = Convert.ToString(BreakTargetProgBox.SelectedItem);
+        if (!string.IsNullOrEmpty(targetStr) && !targetStr.StartsWith("GLOBAL", StringComparison.OrdinalIgnoreCase))
+        {
+            var openBracket = targetStr.LastIndexOf('[');
+            var closeBracket = targetStr.LastIndexOf(']');
+            if (openBracket >= 0 && closeBracket > openBracket)
+            {
+                progId = targetStr.Substring(openBracket + 1, closeBracket - openBracket - 1).Trim();
+            }
+        }
+
+        var breakType = (BreakPresetTypeBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "COMMERCIAL";
+
+        var preset = new NrcsBreakTemplate(
+            _selectedBreakPreset?.Id ?? ("BRK-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()),
+            progId ?? "",
+            title,
+            breakType,
+            dur,
+            string.IsNullOrWhiteSpace(BreakPresetSegBox.Text) ? "A" : BreakPresetSegBox.Text.Trim(),
+            order,
+            BreakPresetNotesBox.Text.Trim(),
+            DateTime.UtcNow
+        );
+
+        _store.SaveBreakTemplate(preset);
+        _selectedBreakPreset = preset;
+        RefreshBreakPresets();
+        StatusText.Text = $"Break preset '{preset.Title}' saved.";
+    }
+
+    private void DeleteBreakPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedBreakPreset is null)
+        {
+            System.Windows.MessageBox.Show("Select a break preset to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show($"Are you sure you want to delete preset '{_selectedBreakPreset.Title}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm == MessageBoxResult.Yes)
+        {
+            _store.DeleteBreakTemplate(_selectedBreakPreset.Id);
+            _selectedBreakPreset = null;
+            RefreshBreakPresets();
+            NewBreakPreset_Click(sender, e);
+            StatusText.Text = "Break preset deleted.";
+        }
+    }
+
+    // --- CATEGORIES CRUD ---
+    private void RefreshCategories()
+    {
+        try
+        {
+            var cats = _store.ListCategories();
+            CategoryGrid.ItemsSource = cats;
+
+            var codes = cats.Select(c => c.Code).ToList();
+            StoryCategoryBox.ItemsSource = codes;
+            ProgCategoryBox.ItemsSource = codes;
+        }
+        catch { }
+    }
+
+    private void CategoryGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CategoryGrid.SelectedItem is not NrcsCategory c) return;
+        _selectedCategory = c;
+        CatCodeBox.Text = c.Code;
+        CatNameBox.Text = c.Name;
+        CatColorBox.Text = c.ColorHex;
+        CatDescBox.Text = c.Description;
+        CatDefaultCheck.IsChecked = c.IsDefault;
+    }
+
+    private void NewCategory_Click(object sender, RoutedEventArgs e)
+    {
+        _selectedCategory = null;
+        CategoryGrid.SelectedIndex = -1;
+        CatCodeBox.Text = "NEW_CAT";
+        CatNameBox.Text = "New Category";
+        CatColorBox.Text = "#3B82F6";
+        CatDescBox.Text = "";
+        CatDefaultCheck.IsChecked = false;
+        CatCodeBox.Focus();
+        CatCodeBox.SelectAll();
+    }
+
+    private void SaveCategory_Click(object sender, RoutedEventArgs e)
+    {
+        var code = CatCodeBox.Text.Trim().ToUpperInvariant();
+        var name = CatNameBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
+        {
+            System.Windows.MessageBox.Show("Please enter both category code and name.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var cat = new NrcsCategory(
+            _selectedCategory?.Id ?? ("CAT-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()),
+            name,
+            code,
+            string.IsNullOrWhiteSpace(CatColorBox.Text) ? "#3B82F6" : CatColorBox.Text.Trim(),
+            CatDescBox.Text.Trim(),
+            CatDefaultCheck.IsChecked == true,
+            DateTime.UtcNow
+        );
+
+        _store.SaveCategory(cat);
+        _selectedCategory = cat;
+        RefreshCategories();
+        StatusText.Text = $"Category '{cat.Name}' saved.";
+    }
+
+    private void DeleteCategory_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCategory is null)
+        {
+            System.Windows.MessageBox.Show("Select a category to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show($"Are you sure you want to delete category '{_selectedCategory.Name}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm == MessageBoxResult.Yes)
+        {
+            _store.DeleteCategory(_selectedCategory.Id);
+            _selectedCategory = null;
+            RefreshCategories();
+            NewCategory_Click(sender, e);
+            StatusText.Text = "Category deleted.";
+        }
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => WindowChromeActions.Drag(this, e);

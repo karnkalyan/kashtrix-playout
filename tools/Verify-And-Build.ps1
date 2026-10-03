@@ -1665,7 +1665,7 @@ Write-Host 'Restoring NuGet packages for the full solution...' -ForegroundColor 
 if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed with exit code $LASTEXITCODE" }
 
 Write-Host "Building the complete Kashtrix solution once ($Configuration x64)..." -ForegroundColor Cyan
-& dotnet build $solution -c $Configuration -p:Platform=x64 -p:KashtrixBuildRoot="$env:KASHTRIX_BUILD_ROOT" --no-restore
+& dotnet build $solution -c $Configuration -p:Platform=x64 -p:KashtrixBuildRoot="$env:KASHTRIX_BUILD_ROOT" -m:1 --no-restore
 if ($LASTEXITCODE -ne 0) { throw "solution build failed with exit code $LASTEXITCODE" }
 
 Write-Host 'Validating every application output from the single solution build...' -ForegroundColor Cyan

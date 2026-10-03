@@ -1,0 +1,88 @@
+<Window x:Class="Kashtrix.NRCS.CreateRundownDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Create Broadcast Rundown"
+        Width="580" Height="560"
+        Background="#0D1117" Foreground="#F0F6FC"
+        WindowStartupLocation="CenterOwner" WindowStyle="None" ResizeMode="NoResize"
+        BorderBrush="#30363D" BorderThickness="1">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- HEADER -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,14">
+            <Button DockPanel.Dock="Right" Content="✕" Width="30" Height="26" Click="Cancel_Click" Foreground="#FF7B72" Background="#21262D" BorderBrush="#30363D" FontWeight="Bold"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="➕ CREATE NEW RUNDOWN" FontSize="16" FontWeight="Bold" Foreground="#79C0FF"/>
+                <Border Background="#1F2937" CornerRadius="3" Padding="6,2" Margin="10,0,0,0">
+                    <TextBlock Text="PROGRAM-WISE &amp; BREAKS AUTOMATION" FontSize="10" Foreground="#8B949E" FontWeight="SemiBold"/>
+                </Border>
+            </StackPanel>
+        </DockPanel>
+
+        <!-- FORM -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- PROGRAM SELECTOR -->
+                <TextBlock Text="ASSOCIATED BROADCAST PROGRAM (OPTIONAL):" FontWeight="Bold" Foreground="#C9D1D9" FontSize="11" Margin="0,4,0,3"/>
+                <ComboBox x:Name="ProgramBox" Height="30" SelectionChanged="ProgramBox_SelectionChanged" ToolTip="Select a preset program to auto-populate opening, closing and breaks"/>
+                <TextBlock Text="Selecting a program auto-configures duration, opening/closing graphics &amp; commercial break structure." Foreground="#8B949E" FontSize="10" Margin="0,2,0,10"/>
+
+                <!-- RUNDOWN NAME -->
+                <TextBlock Text="RUNDOWN NAME / BULLETIN TITLE:" FontWeight="Bold" Foreground="#C9D1D9" FontSize="11" Margin="0,4,0,3"/>
+                <TextBox x:Name="RundownNameBox" Height="28" Padding="6,4" Background="#161B22" Foreground="White" BorderBrush="#30363D"/>
+
+                <!-- DATE & TIMING (BS & AD) -->
+                <Grid Margin="0,10,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="SCHEDULED DATE (AD):" FontWeight="Bold" Foreground="#C9D1D9" FontSize="11" Margin="0,0,0,3"/>
+                        <DatePicker x:Name="AirDatePicker" SelectedDateChanged="AirDatePicker_SelectedDateChanged"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="AIR TIME (LOCAL):" FontWeight="Bold" Foreground="#C9D1D9" FontSize="11" Margin="0,0,0,3"/>
+                        <TextBox x:Name="AirTimeBox" Height="28" Text="19:00" Padding="6,4" Background="#161B22" Foreground="White" BorderBrush="#30363D" ToolTip="HH:mm"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- NEPALI DATE PREVIEW -->
+                <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="NEPALI DATE (BIKRAM SAMBAT):" FontSize="10" Foreground="#8B949E" FontWeight="Bold"/>
+                        <TextBlock x:Name="NepaliDatePreviewText" Text="२०८१ असोज १७, बिहिबार" FontWeight="Bold" Foreground="#58A6FF" FontSize="13" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- CHANNEL ID -->
+                <TextBlock Text="TARGET PLAYOUT CHANNEL:" FontWeight="Bold" Foreground="#C9D1D9" FontSize="11" Margin="0,2,0,3"/>
+                <TextBox x:Name="ChannelBox" Text="KTX-PLAYOUT-01" Height="28" Padding="6,4" Background="#161B22" Foreground="White" BorderBrush="#30363D" Margin="0,0,0,12"/>
+
+                <!-- AUTOMATION OPTIONS -->
+                <Border Background="#161B22" BorderBrush="#30363D" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
+                    <StackPanel>
+                        <TextBlock Text="PROGRAM AUTOMATION OPTIONS:" FontWeight="Bold" Foreground="#7EE787" FontSize="11" Margin="0,0,0,6"/>
+                        <CheckBox x:Name="AutoOpenCloseCheck" Content="Auto-insert Program Opening and Closing blocks" IsChecked="True" Foreground="#C9D1D9" Margin="0,2,0,6"/>
+                        <CheckBox x:Name="AutoBreaksCheck" Content="Auto-insert Program Break Points &amp; Segment headers" IsChecked="True" Foreground="#C9D1D9" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- FOOTER ACTIONS -->
+        <DockPanel Grid.Row="2" Margin="0,14,0,0">
+            <TextBlock x:Name="ErrorText" Foreground="#FF7B72" VerticalAlignment="Center"/>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="CREATE RUNDOWN" Click="Create_Click" Padding="16,6" Background="#238636" Foreground="White" FontWeight="Bold" Margin="0,0,8,0"/>
+                <Button Content="CANCEL" Click="Cancel_Click" Padding="14,6" Background="#21262D" BorderBrush="#30363D"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>
