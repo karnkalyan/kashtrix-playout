@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Xml.Linq;
 using BroadcastPlayout.Models;
 using Microsoft.Data.Sqlite;
@@ -30,6 +30,7 @@ public sealed record NrcsStory(string Id, string RundownId, int Sequence, string
     public bool IsLive { get; init; }
     public DateTime PlannedStartUtc { get; init; }
     public DateTime PlannedEndUtc { get; init; }
+    public string BodyRichXaml { get; init; } = "";
 }
 
 public sealed record NrcsAssignment(string Id, string Title, string Angle, string Assignee, string Desk, string Location, string Status, string Priority, DateTime DueUtc, string LinkedStoryId, string Notes, DateTime UpdatedUtc);
@@ -101,6 +102,8 @@ public sealed class NrcsPlatformStore
             """;
         cmd.ExecuteNonQuery();
         TryAlter(c, "ALTER TABLE nrcs_story_bank ADD COLUMN story_type TEXT NOT NULL DEFAULT 'PKG'");
+        TryAlter(c, "ALTER TABLE nrcs_story_bank ADD COLUMN body_rich_xaml TEXT NOT NULL DEFAULT ''");
+        TryAlter(c, "ALTER TABLE nrcs_stories ADD COLUMN body_rich_xaml TEXT NOT NULL DEFAULT ''");
         MigrateLegacyStories(c);
     }
 
@@ -152,7 +155,7 @@ public sealed class NrcsPlatformStore
         var hasSearch = !string.IsNullOrWhiteSpace(search);
         cmd.CommandText = """
             SELECT id,slug,presenter,duration_seconds,body,media_path,cg_template,cg_layer,cg_data_json,
-                   writer,editor,status,priority,category,language,notes,story_type,updated_utc
+                   writer,editor,status,priority,category,language,notes,story_type,updated_utc,body_rich_xaml
             FROM nrcs_story_bank
             """ + (hasSearch ? " WHERE slug LIKE $q OR body LIKE $q OR presenter LIKE $q OR writer LIKE $q OR category LIKE $q " : "") + " ORDER BY updated_utc DESC,slug";
         if (hasSearch) cmd.Parameters.AddWithValue("$q", "%" + search!.Trim() + "%");
@@ -166,7 +169,7 @@ public sealed class NrcsPlatformStore
         using var c = Open(); using var cmd = c.CreateCommand();
         cmd.CommandText = """
             SELECT id,slug,presenter,duration_seconds,body,media_path,cg_template,cg_layer,cg_data_json,
-                   writer,editor,status,priority,category,language,notes,story_type,updated_utc
+                   writer,editor,status,priority,category,language,notes,story_type,updated_utc,body_rich_xaml
             FROM nrcs_story_bank WHERE id=$id
             """;
         cmd.Parameters.AddWithValue("$id", storyId);
@@ -200,11 +203,11 @@ public sealed class NrcsPlatformStore
         {
             cmd.Transaction = tx;
             cmd.CommandText = """
-              INSERT INTO nrcs_story_bank(id,slug,presenter,duration_seconds,body,media_path,cg_template,cg_layer,cg_data_json,writer,editor,status,priority,category,language,notes,story_type,updated_utc)
-              VALUES($id,$slug,$p,$d,$b,$m,$cg,$l,$j,$w,$e,$st,$pr,$cat,$lang,$notes,$type,$u)
-              ON CONFLICT(id) DO UPDATE SET slug=$slug,presenter=$p,duration_seconds=$d,body=$b,media_path=$m,cg_template=$cg,cg_layer=$l,cg_data_json=$j,writer=$w,editor=$e,status=$st,priority=$pr,category=$cat,language=$lang,notes=$notes,story_type=$type,updated_utc=$u
+              INSERT INTO nrcs_story_bank(id,slug,presenter,duration_seconds,body,media_path,cg_template,cg_layer,cg_data_json,writer,editor,status,priority,category,language,notes,story_type,body_rich_xaml,updated_utc)
+              VALUES($id,$slug,$p,$d,$b,$m,$cg,$l,$j,$w,$e,$st,$pr,$cat,$lang,$notes,$type,$rx,$u)
+              ON CONFLICT(id) DO UPDATE SET slug=$slug,presenter=$p,duration_seconds=$d,body=$b,media_path=$m,cg_template=$cg,cg_layer=$l,cg_data_json=$j,writer=$w,editor=$e,status=$st,priority=$pr,category=$cat,language=$lang,notes=$notes,story_type=$type,body_rich_xaml=$rx,updated_utc=$u
               """;
-            cmd.Parameters.AddWithValue("$id", s.Id); cmd.Parameters.AddWithValue("$slug", s.Slug ?? ""); cmd.Parameters.AddWithValue("$p", s.Presenter ?? ""); cmd.Parameters.AddWithValue("$d", Math.Max(1, s.DurationSeconds)); cmd.Parameters.AddWithValue("$b", s.Body ?? ""); cmd.Parameters.AddWithValue("$m", s.MediaPath ?? ""); cmd.Parameters.AddWithValue("$cg", s.CgTemplate ?? ""); cmd.Parameters.AddWithValue("$l", Math.Clamp(s.CgLayer, 0, 999)); cmd.Parameters.AddWithValue("$j", ValidJson(s.CgDataJson)); cmd.Parameters.AddWithValue("$w", s.Writer ?? ""); cmd.Parameters.AddWithValue("$e", s.Editor ?? ""); cmd.Parameters.AddWithValue("$st", Normalize(s.Status, "DRAFT")); cmd.Parameters.AddWithValue("$pr", Normalize(s.Priority, "NORMAL")); cmd.Parameters.AddWithValue("$cat", Normalize(s.Category, "NEWS")); cmd.Parameters.AddWithValue("$lang", Normalize(s.Language, "en")); cmd.Parameters.AddWithValue("$notes", s.Notes ?? ""); cmd.Parameters.AddWithValue("$type", Normalize(s.StoryType, "PKG")); cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O")); cmd.ExecuteNonQuery();
+            cmd.Parameters.AddWithValue("$id", s.Id); cmd.Parameters.AddWithValue("$slug", s.Slug ?? ""); cmd.Parameters.AddWithValue("$p", s.Presenter ?? ""); cmd.Parameters.AddWithValue("$d", Math.Max(1, s.DurationSeconds)); cmd.Parameters.AddWithValue("$b", s.Body ?? ""); cmd.Parameters.AddWithValue("$m", s.MediaPath ?? ""); cmd.Parameters.AddWithValue("$cg", s.CgTemplate ?? ""); cmd.Parameters.AddWithValue("$l", Math.Clamp(s.CgLayer, 0, 999)); cmd.Parameters.AddWithValue("$j", ValidJson(s.CgDataJson)); cmd.Parameters.AddWithValue("$w", s.Writer ?? ""); cmd.Parameters.AddWithValue("$e", s.Editor ?? ""); cmd.Parameters.AddWithValue("$st", Normalize(s.Status, "DRAFT")); cmd.Parameters.AddWithValue("$pr", Normalize(s.Priority, "NORMAL")); cmd.Parameters.AddWithValue("$cat", Normalize(s.Category, "NEWS")); cmd.Parameters.AddWithValue("$lang", Normalize(s.Language, "en")); cmd.Parameters.AddWithValue("$notes", s.Notes ?? ""); cmd.Parameters.AddWithValue("$type", Normalize(s.StoryType, "PKG")); cmd.Parameters.AddWithValue("$rx", s.BodyRichXaml ?? ""); cmd.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O")); cmd.ExecuteNonQuery();
         }
 
         if (!string.IsNullOrWhiteSpace(s.RundownId))
@@ -222,11 +225,11 @@ public sealed class NrcsPlatformStore
             using var legacy = c.CreateCommand();
             legacy.Transaction = tx;
             legacy.CommandText = """
-                INSERT INTO nrcs_stories(id,rundown_id,seq,slug,presenter,duration_seconds,body,media_path,cg_template,cg_layer,cg_data_json,updated_utc)
-                VALUES($id,$r,$seq,$slug,$p,$d,$b,$m,$cg,$l,$j,$u)
-                ON CONFLICT(id) DO UPDATE SET rundown_id=$r,seq=$seq,slug=$slug,presenter=$p,duration_seconds=$d,body=$b,media_path=$m,cg_template=$cg,cg_layer=$l,cg_data_json=$j,updated_utc=$u
+                INSERT INTO nrcs_stories(id,rundown_id,seq,slug,presenter,duration_seconds,body,media_path,cg_template,cg_layer,cg_data_json,body_rich_xaml,updated_utc)
+                VALUES($id,$r,$seq,$slug,$p,$d,$b,$m,$cg,$l,$j,$rx,$u)
+                ON CONFLICT(id) DO UPDATE SET rundown_id=$r,seq=$seq,slug=$slug,presenter=$p,duration_seconds=$d,body=$b,media_path=$m,cg_template=$cg,cg_layer=$l,cg_data_json=$j,body_rich_xaml=$rx,updated_utc=$u
                 """;
-            legacy.Parameters.AddWithValue("$id", s.Id); legacy.Parameters.AddWithValue("$r", s.RundownId); legacy.Parameters.AddWithValue("$seq", Math.Max(1, s.Sequence)); legacy.Parameters.AddWithValue("$slug", s.Slug ?? ""); legacy.Parameters.AddWithValue("$p", s.Presenter ?? ""); legacy.Parameters.AddWithValue("$d", Math.Max(1, s.DurationSeconds)); legacy.Parameters.AddWithValue("$b", s.Body ?? ""); legacy.Parameters.AddWithValue("$m", s.MediaPath ?? ""); legacy.Parameters.AddWithValue("$cg", s.CgTemplate ?? ""); legacy.Parameters.AddWithValue("$l", Math.Clamp(s.CgLayer, 0, 999)); legacy.Parameters.AddWithValue("$j", ValidJson(s.CgDataJson)); legacy.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O")); legacy.ExecuteNonQuery();
+            legacy.Parameters.AddWithValue("$id", s.Id); legacy.Parameters.AddWithValue("$r", s.RundownId); legacy.Parameters.AddWithValue("$seq", Math.Max(1, s.Sequence)); legacy.Parameters.AddWithValue("$slug", s.Slug ?? ""); legacy.Parameters.AddWithValue("$p", s.Presenter ?? ""); legacy.Parameters.AddWithValue("$d", Math.Max(1, s.DurationSeconds)); legacy.Parameters.AddWithValue("$b", s.Body ?? ""); legacy.Parameters.AddWithValue("$m", s.MediaPath ?? ""); legacy.Parameters.AddWithValue("$cg", s.CgTemplate ?? ""); legacy.Parameters.AddWithValue("$l", Math.Clamp(s.CgLayer, 0, 999)); legacy.Parameters.AddWithValue("$j", ValidJson(s.CgDataJson)); legacy.Parameters.AddWithValue("$rx", s.BodyRichXaml ?? ""); legacy.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O")); legacy.ExecuteNonQuery();
         }
 
         if (createVersion)
@@ -235,7 +238,7 @@ public sealed class NrcsPlatformStore
             v.Transaction = tx;
             v.CommandText = "INSERT INTO nrcs_story_versions(story_id,created_utc,slug,body,writer,editor,status,snapshot_json) VALUES($id,$u,$slug,$body,$w,$e,$st,$snap)";
             v.Parameters.AddWithValue("$id", s.Id); v.Parameters.AddWithValue("$u", DateTime.UtcNow.ToString("O")); v.Parameters.AddWithValue("$slug", s.Slug ?? ""); v.Parameters.AddWithValue("$body", s.Body ?? ""); v.Parameters.AddWithValue("$w", s.Writer ?? ""); v.Parameters.AddWithValue("$e", s.Editor ?? ""); v.Parameters.AddWithValue("$st", Normalize(s.Status, "DRAFT"));
-            v.Parameters.AddWithValue("$snap", JsonSerializer.Serialize(new { s.Slug, s.Presenter, s.DurationSeconds, s.Body, s.MediaPath, s.CgTemplate, s.CgLayer, s.CgDataJson, s.Writer, s.Editor, s.Status, s.Priority, s.Category, s.Language, s.Notes, s.StoryType }));
+            v.Parameters.AddWithValue("$snap", JsonSerializer.Serialize(new { s.Slug, s.Presenter, s.DurationSeconds, s.Body, s.MediaPath, s.CgTemplate, s.CgLayer, s.CgDataJson, s.Writer, s.Editor, s.Status, s.Priority, s.Category, s.Language, s.Notes, s.StoryType, s.BodyRichXaml }));
             v.ExecuteNonQuery();
         }
         tx.Commit();
@@ -259,7 +262,7 @@ public sealed class NrcsPlatformStore
         cmd.CommandText = """
             SELECT b.id,i.id,i.seq,b.slug,b.presenter,b.duration_seconds,b.body,b.media_path,b.cg_template,b.cg_layer,b.cg_data_json,
                    b.writer,b.editor,b.status,b.priority,b.category,b.language,b.notes,b.story_type,b.updated_utc,
-                   i.segment,i.start_mode,i.item_status,i.is_skipped,i.is_locked
+                   i.segment,i.start_mode,i.item_status,i.is_skipped,i.is_locked,b.body_rich_xaml
             FROM nrcs_rundown_items i JOIN nrcs_story_bank b ON b.id=i.story_id
             WHERE i.rundown_id=$r ORDER BY i.seq,i.id
             """;
@@ -273,7 +276,8 @@ public sealed class NrcsPlatformStore
                 Segment = r.GetString(20), StartMode = r.GetString(21), ItemStatus = r.GetString(22), IsSkipped = r.GetInt32(23) != 0, IsLocked = r.GetInt32(24) != 0,
                 IsLive = live is not null && live.OnAir && live.RundownItemId == r.GetString(1),
                 PlannedStartUtc = (rundown?.AirDateUtc ?? DateTime.UtcNow).AddSeconds(cumulative),
-                PlannedEndUtc = (rundown?.AirDateUtc ?? DateTime.UtcNow).AddSeconds(cumulative + (r.GetInt32(23) != 0 ? 0 : Math.Max(1, r.GetInt32(5))))
+                PlannedEndUtc = (rundown?.AirDateUtc ?? DateTime.UtcNow).AddSeconds(cumulative + (r.GetInt32(23) != 0 ? 0 : Math.Max(1, r.GetInt32(5)))),
+                BodyRichXaml = r.FieldCount > 25 && !r.IsDBNull(25) ? r.GetString(25) : ""
             };
             list.Add(story);
             if (!story.IsSkipped) cumulative += Math.Max(1, story.DurationSeconds);
@@ -477,7 +481,8 @@ public sealed class NrcsPlatformStore
 
     private static NrcsStory ReadBankStory(SqliteDataReader r) => new(r.GetString(0), "", 0, r.GetString(1), r.GetString(2), r.GetInt32(3), r.GetString(4), r.GetString(5), r.GetString(6), r.GetInt32(7), r.GetString(8), ParseUtc(r.GetString(17)))
     {
-        Writer = r.GetString(9), Editor = r.GetString(10), Status = r.GetString(11), Priority = r.GetString(12), Category = r.GetString(13), Language = r.GetString(14), Notes = r.GetString(15), StoryType = r.GetString(16)
+        Writer = r.GetString(9), Editor = r.GetString(10), Status = r.GetString(11), Priority = r.GetString(12), Category = r.GetString(13), Language = r.GetString(14), Notes = r.GetString(15), StoryType = r.GetString(16),
+        BodyRichXaml = r.FieldCount > 18 && !r.IsDBNull(18) ? r.GetString(18) : ""
     };
 
     private static void Resequence(SqliteConnection c, string rundownId)

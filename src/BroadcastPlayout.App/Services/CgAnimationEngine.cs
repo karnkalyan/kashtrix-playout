@@ -582,23 +582,39 @@ public static class CgAnimationEngine
             "SLIDE DOWN" => isEntering
                 ? new TextVisualState(Math.Clamp(.15 + .85 * pIn, 0, 1), 0, -(1 - pIn) * Math.Max(35, layer.Height * 0.5), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(Math.Clamp(.15 + .85 * pOut, 0, 1), 0, (1 - pOut) * Math.Max(35, layer.Height * 0.5), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
-            "FADE CASCADE" or "FADE" => new TextVisualState(Math.Clamp(.15 + .85 * p, 0, 1), 0, 0, 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
+            "FADE CASCADE" or "FADE" => isEntering
+                ? new TextVisualState(Math.Clamp(.15 + .85 * pIn, 0, 1), 0, 0, 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(.15 + .85 * pOut, 0, 1), 0, 0, 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
             "RISE CASCADE" => isEntering
                 ? new TextVisualState(.20 + .80 * pIn, 0, 28 * (1 - pIn), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(.20 + .80 * pOut, 0, -28 * (1 - pOut), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
-            "TRACKING REVEAL" => new TextVisualState(.30 + .70 * p, 0, 0, .94 + .06 * p, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
-            "POP CASCADE" or "POP" => new TextVisualState(Math.Clamp(.15 + .85 * Math.Min(rawIn, rawOut), 0, 1), 0, 0, Math.Clamp(.78 + .22 * p, .65, 1.08), dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
+            "TRACKING REVEAL" => isEntering
+                ? new TextVisualState(Math.Clamp(.30 + .70 * pIn, 0, 1), 0, 0, .94 + .06 * pIn, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(.30 + .70 * pOut, 0, 1), 0, 0, .94 + .06 * pOut, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
+            "POP CASCADE" or "POP" => isEntering
+                ? new TextVisualState(Math.Clamp(.15 + .85 * rawIn, 0, 1), 0, 0, Math.Clamp(.78 + .22 * pIn, .65, 1.08), dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(.15 + .85 * rawOut, 0, 1), 0, 0, Math.Clamp(.78 + .22 * pOut, .65, 1.08), dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
             "SLIDE LETTERS" => isEntering
                 ? new TextVisualState(.18 + .82 * pIn, 52 * (1 - pIn), 0, .98 + .02 * pIn, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(.18 + .82 * pOut, -52 * (1 - pOut), 0, .98 + .02 * pOut, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
-            "SOFT REVEAL" => new TextVisualState(Math.Clamp(Math.Min(rawIn, rawOut), 0, 1), 0, 8 * (1 - p), .90 + .10 * p, Math.Max(dynamicBlur, (1 - p) * 12.0), dynamicGlow, layer.AnimationGlowColor),
-            "FLIP IN" or "DATE / TIME FLIP" => new TextVisualState(.15 + .85 * Math.Min(rawIn, rawOut), 0, 18 * (1 - p), Math.Clamp(.68 + .32 * p, .60, 1.04), dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
+            "SOFT REVEAL" => isEntering
+                ? new TextVisualState(Math.Clamp(rawIn, 0, 1), 0, 8 * (1 - pIn), .90 + .10 * pIn, Math.Max(dynamicBlur, (1 - pIn) * 12.0), dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(rawOut, 0, 1), 0, -8 * (1 - pOut), .90 + .10 * pOut, Math.Max(dynamicBlur, (1 - pOut) * 12.0), dynamicGlow, layer.AnimationGlowColor),
+            "FLIP IN" or "DATE / TIME FLIP" => isEntering
+                ? new TextVisualState(.15 + .85 * rawIn, 0, 18 * (1 - pIn), Math.Clamp(.68 + .32 * pIn, .60, 1.04), dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(.15 + .85 * rawOut, 0, -18 * (1 - pOut), Math.Clamp(.68 + .32 * pOut, .60, 1.04), dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
             "WIPE WORDS" => isEntering
                 ? new TextVisualState(.25 + .75 * pIn, -20 * (1 - pIn), 0, 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(.25 + .75 * pOut, 20 * (1 - pOut), 0, 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
-            "BLUR DISSOLVE" or "BLUR IN" => new TextVisualState(Math.Clamp(.10 + .90 * p, 0, 1), 0, 0, 1, Math.Max(dynamicBlur, (1 - p) * 18.0), dynamicGlow, layer.AnimationGlowColor),
-            "TYPEWRITER + BLUR" => new TextVisualState(Math.Clamp(.15 + .85 * p, 0, 1), 0, 0, 1, Math.Max(dynamicBlur, (1 - p) * 8.0), dynamicGlow, layer.AnimationGlowColor),
-            "GLOW PULSE" => new TextVisualState(Math.Clamp(Math.Min(rawIn, rawOut) * 1.4, 0, 1), 0, 0, .92 + .08 * p, Math.Max(dynamicBlur, (1 - p) * 10.0), Math.Max(dynamicGlow, (1 - p) * 15.0), layer.AnimationGlowColor),
+            "BLUR DISSOLVE" or "BLUR IN" => isEntering
+                ? new TextVisualState(Math.Clamp(.10 + .90 * pIn, 0, 1), 0, 0, 1, Math.Max(dynamicBlur, (1 - pIn) * 18.0), dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(.10 + .90 * pOut, 0, 1), 0, 0, 1, Math.Max(dynamicBlur, (1 - pOut) * 18.0), dynamicGlow, layer.AnimationGlowColor),
+            "TYPEWRITER + BLUR" => isEntering
+                ? new TextVisualState(Math.Clamp(.15 + .85 * pIn, 0, 1), 0, 0, 1, Math.Max(dynamicBlur, (1 - pIn) * 8.0), dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(.15 + .85 * pOut, 0, 1), 0, 0, 1, Math.Max(dynamicBlur, (1 - pOut) * 8.0), dynamicGlow, layer.AnimationGlowColor),
+            "GLOW PULSE" => isEntering
+                ? new TextVisualState(Math.Clamp(rawIn * 1.4, 0, 1), 0, 0, .92 + .08 * pIn, Math.Max(dynamicBlur, (1 - pIn) * 10.0), Math.Max(dynamicGlow, (1 - pIn) * 15.0), layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(rawOut * 1.4, 0, 1), 0, 0, .92 + .08 * pOut, Math.Max(dynamicBlur, (1 - pOut) * 10.0), Math.Max(dynamicGlow, (1 - pOut) * 15.0), layer.AnimationGlowColor),
             "BOUNCE / WAVE" => isEntering
                 ? new TextVisualState(Math.Clamp(rawIn * 1.5, 0, 1), 0, 35 * (1 - pIn), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(Math.Clamp(rawOut * 1.5, 0, 1), 0, 35 * (1 - pOut), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),

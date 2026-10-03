@@ -17,22 +17,33 @@ public class Scte35DvbService
 
     public event Action<BroadcastEventLog>? LogAdded;
 
-    public void Log(string category, string message, string level = "INFO")
+    public void Log(string category, string message, string level = "INFO", string channelName = "")
     {
         var entry = new BroadcastEventLog
         {
             Category = category.ToUpperInvariant(),
+            ChannelName = channelName,
             Message = message,
             Level = level.ToUpperInvariant(),
             Timestamp = DateTime.Now
         };
 
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        var app = System.Windows.Application.Current;
+        if (app?.Dispatcher != null)
+        {
+            app.Dispatcher.BeginInvoke(() =>
+            {
+                Logs.Insert(0, entry);
+                if (Logs.Count > 1000) Logs.RemoveAt(Logs.Count - 1);
+                LogAdded?.Invoke(entry);
+            });
+        }
+        else
         {
             Logs.Insert(0, entry);
             if (Logs.Count > 1000) Logs.RemoveAt(Logs.Count - 1);
             LogAdded?.Invoke(entry);
-        });
+        }
     }
 
     public Scte35SpliceEvent TriggerScte35Splice(double durationSeconds = 30.0, string command = "splice_insert")

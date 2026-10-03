@@ -26,5 +26,7 @@
     <Page Include="..\Kashtrix.Shared\KashtrixTheme.xaml" Link="Themes\KashtrixTheme.xaml" />
     <Resource Include="..\BroadcastPlayout.App\Branding\kashtrix-playout.png" Link="Branding\kashtrix-outputengine.png" />
     <Resource Include="..\BroadcastPlayout.App\Branding\kashtrix-playout.ico" Link="Branding\kashtrix-outputengine.ico" />
+    <None Include="..\BroadcastPlayout.App\native\ffmpeg\**\*" Link="native\ffmpeg\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\BroadcastPlayout.App\native\ndi\**\*" Link="native\ndi\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

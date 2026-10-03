@@ -9,8 +9,8 @@ public static partial class InputDeviceService
 {
     public static async Task<CaptureDeviceLists> EnumerateDirectShowAsync()
     {
-        var ffmpegPath = Path.Combine(AppContext.BaseDirectory, "native", "ffmpeg", "ffmpeg.exe");
-        if (!File.Exists(ffmpegPath))
+        var ffmpegPath = FindFfmpegExecutable();
+        if (ffmpegPath is null)
             return new CaptureDeviceLists([], []);
 
         var psi = new ProcessStartInfo
@@ -26,7 +26,12 @@ public static partial class InputDeviceService
         using var process = Process.Start(psi);
         if (process is null) return new CaptureDeviceLists([], []);
         var stderr = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
-        await process.WaitForExitAsync().ConfigureAwait(false);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        try { await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+        }
 
         var video = new List<string>();
         var audio = new List<string>();
@@ -42,6 +47,28 @@ public static partial class InputDeviceService
         }
 
         return new CaptureDeviceLists(video, audio);
+    }
+
+    /// <summary>Finds the bundled FFmpeg executable from any standalone Kashtrix app.</summary>
+    public static string? FindFfmpegExecutable()
+    {
+        var candidates = new List<string>
+        {
+            Path.Combine(AppContext.BaseDirectory, "native", "ffmpeg", "ffmpeg.exe"),
+            Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe"),
+            Path.Combine(Environment.CurrentDirectory, "native", "ffmpeg", "ffmpeg.exe"),
+            Path.Combine(Environment.CurrentDirectory, "src", "BroadcastPlayout.App", "native", "ffmpeg", "ffmpeg.exe")
+        };
+
+        var cursor = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var depth = 0; cursor is not null && depth < 9; depth++, cursor = cursor.Parent)
+        {
+            candidates.Add(Path.Combine(cursor.FullName, "src", "BroadcastPlayout.App", "native", "ffmpeg", "ffmpeg.exe"));
+            candidates.Add(Path.Combine(cursor.FullName, "Kashtrix.Playout", "native", "ffmpeg", "ffmpeg.exe"));
+            candidates.Add(Path.Combine(cursor.FullName, "native", "ffmpeg", "ffmpeg.exe"));
+        }
+
+        return candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists);
     }
 
     [GeneratedRegex("\\\"(?<name>[^\\\"]+)\\\"\\s+\\((?<kind>video|audio)\\)", RegexOptions.IgnoreCase)]

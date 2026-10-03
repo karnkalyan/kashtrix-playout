@@ -1,8 +1,9 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Documents;
+using System.Windows.Media;
 using Microsoft.Win32;
 using System.Windows.Threading;
 using BroadcastPlayout.Models;
@@ -57,6 +58,7 @@ public partial class MainWindow : Window
         HeaderCheck.IsChecked = false;
         ClockCheck.IsChecked = false;
         TimerCheck.IsChecked = true;
+        InitializeFontFamilies();
         RefreshDisplays();
         _engineTimer.Tick += EngineTick;
         _refreshTimer.Tick += (_, _) => RefreshFromDb();
@@ -67,6 +69,20 @@ public partial class MainWindow : Window
         RefreshFromDb();
         RefreshProductionContext();
         RenderOutputs(forceStatus: true);
+    }
+
+    private void InitializeFontFamilies()
+    {
+        try
+        {
+            var fonts = Fonts.SystemFontFamilies.OrderBy(f => f.Source).ToList();
+            PrompterFontBox.ItemsSource = fonts;
+            var defaultFont = fonts.FirstOrDefault(f => f.Source.Equals("Segoe UI", StringComparison.OrdinalIgnoreCase)) ?? fonts.FirstOrDefault();
+            PrompterFontBox.SelectedItem = defaultFont;
+        }
+        catch
+        {
+        }
     }
 
     private void RefreshDisplays()
@@ -241,6 +257,8 @@ public partial class MainWindow : Window
     private PrompterVisualState BuildState()
     {
         var margin = int.TryParse(SafeMarginBox.Text, out var m) ? Math.Clamp(m, 20, 500) : 80;
+        var selectedFont = (PrompterFontBox.SelectedItem as FontFamily)?.Source ?? PrompterFontBox.Text;
+        var filterCues = FilterCuesCheck?.IsChecked ?? true;
         return new PrompterVisualState(
             CurrentBody,
             CurrentSlug,
@@ -260,7 +278,9 @@ public partial class MainWindow : Window
             TimerCheck.IsChecked == true,
             Elapsed,
             margin,
-            HeaderCheck.IsChecked == true);
+            HeaderCheck.IsChecked == true,
+            selectedFont,
+            filterCues);
     }
 
     private TimeSpan Elapsed => _elapsedBase + (_running ? DateTime.UtcNow - _runStartedUtc : TimeSpan.Zero);

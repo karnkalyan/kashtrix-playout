@@ -35,6 +35,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private CgKeyframe? _selectedKeyframe;
     private CgKeyframe? _selectedGroupKeyframe;
     private CgGradientStop? _selectedGradientStop;
+    private bool _gradientDialDragging;
     private double _playhead;
     private bool _loop = true;
     private bool _playing;
@@ -2299,6 +2300,69 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll();
     }
 
+    private void GradientAngleDial_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (SelectedLayer is null || sender is not FrameworkElement dial) return;
+        if (AutoKey && _autoKeyEditSnapshot is null) CaptureAutoKeyEditSnapshot();
+        _gradientDialDragging = true;
+        dial.CaptureMouse();
+        UpdateGradientAngleFromDial(dial, e.GetPosition(dial));
+        e.Handled = true;
+    }
+
+    private void GradientAngleDial_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_gradientDialDragging || e.LeftButton != MouseButtonState.Pressed || sender is not FrameworkElement dial) return;
+        UpdateGradientAngleFromDial(dial, e.GetPosition(dial));
+        e.Handled = true;
+    }
+
+    private void GradientAngleDial_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_gradientDialDragging) return;
+        _gradientDialDragging = false;
+        if (sender is FrameworkElement dial) dial.ReleaseMouseCapture();
+        CommitInspectorAutoKey();
+        SyncLayersToProject();
+        _main.SaveCgProjects();
+        RenderAll();
+        e.Handled = true;
+    }
+
+    private void UpdateGradientAngleFromDial(FrameworkElement dial, Point point)
+    {
+        if (SelectedLayer is null) return;
+        var centerX = dial.ActualWidth / 2;
+        var centerY = dial.ActualHeight / 2;
+        if (centerX <= 0 || centerY <= 0) return;
+        var angle = Math.Atan2(point.Y - centerY, point.X - centerX) * 180.0 / Math.PI;
+        SelectedLayer.GradientAngle = Math.Round((angle % 360 + 360) % 360, 1);
+        SelectedLayer.UseGradient = true;
+        SyncLayersToProject();
+        Raise(nameof(SelectedLayer));
+        RenderPreview();
+    }
+
+    private void GradientAngleText_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsLoaded || SelectedLayer is null || _gradientDialDragging || sender is not TextBox textBox) return;
+        if (!double.TryParse(textBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var angle) || !double.IsFinite(angle)) return;
+        SelectedLayer.GradientAngle = (angle % 360 + 360) % 360;
+        SelectedLayer.UseGradient = true;
+        SyncLayersToProject();
+        Raise(nameof(SelectedLayer));
+        RenderPreview();
+    }
+
+    private void GradientStopSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!IsLoaded || SelectedLayer is null) return;
+        SelectedLayer.UseGradient = true;
+        SyncLayersToProject();
+        Raise(nameof(SelectedLayer));
+        RenderPreview();
+    }
+
     private void NepaliFormatPreset_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!IsLoaded || SelectedLayer is null || sender is not ComboBox cb) return;
@@ -2363,60 +2427,109 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         switch (preset)
         {
             case "Slide Left":
+                SelectedLayer.AnimationIn = "Slide Left"; SelectedLayer.AnimationOut = "Slide Left";
+                SelectedLayer.AnimationInSeconds = 0.65; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.65; SelectedLayer.TextAnimationStaggerSeconds = 0.06; break;
             case "Slide Right":
+                SelectedLayer.AnimationIn = "Slide Right"; SelectedLayer.AnimationOut = "Slide Right";
+                SelectedLayer.AnimationInSeconds = 0.65; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.65; SelectedLayer.TextAnimationStaggerSeconds = 0.06; break;
             case "Push Left":
+                SelectedLayer.AnimationIn = "Push Left"; SelectedLayer.AnimationOut = "Push Left";
+                SelectedLayer.AnimationInSeconds = 0.55; SelectedLayer.AnimationOutSeconds = 0.45;
                 SelectedLayer.TextAnimationUnit = "Whole"; SelectedLayer.TextAnimationDurationSeconds = 0.55; SelectedLayer.TextAnimationStaggerSeconds = 0.05; break;
             case "Push Right":
+                SelectedLayer.AnimationIn = "Push Right"; SelectedLayer.AnimationOut = "Push Right";
+                SelectedLayer.AnimationInSeconds = 0.55; SelectedLayer.AnimationOutSeconds = 0.45;
                 SelectedLayer.TextAnimationUnit = "Whole"; SelectedLayer.TextAnimationDurationSeconds = 0.55; SelectedLayer.TextAnimationStaggerSeconds = 0.05; break;
             case "Slide Up":
+                SelectedLayer.AnimationIn = "Slide Up"; SelectedLayer.AnimationOut = "Slide Up";
+                SelectedLayer.AnimationInSeconds = 0.60; SelectedLayer.AnimationOutSeconds = 0.45;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.60; SelectedLayer.TextAnimationStaggerSeconds = 0.05; break;
             case "Slide Down":
+                SelectedLayer.AnimationIn = "Slide Down"; SelectedLayer.AnimationOut = "Slide Down";
+                SelectedLayer.AnimationInSeconds = 0.60; SelectedLayer.AnimationOutSeconds = 0.45;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.60; SelectedLayer.TextAnimationStaggerSeconds = 0.05; break;
             case "Date / Time Split":
             case "Date / Time Flip":
+                SelectedLayer.AnimationIn = "Flip In"; SelectedLayer.AnimationOut = "Fade";
+                SelectedLayer.AnimationInSeconds = 0.85; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.85; SelectedLayer.TextAnimationStaggerSeconds = 0.08; break;
             case "Type On":
+                SelectedLayer.AnimationIn = "Fade"; SelectedLayer.AnimationOut = "Fade";
+                SelectedLayer.AnimationInSeconds = 1.0; SelectedLayer.AnimationOutSeconds = 0.60;
                 SelectedLayer.TextAnimationUnit = "Letter"; SelectedLayer.TextAnimationDurationSeconds = 1.0; SelectedLayer.TextAnimationStaggerSeconds = .035; break;
             case "Typewriter + Blur":
+                SelectedLayer.AnimationIn = "Blur"; SelectedLayer.AnimationOut = "Blur";
+                SelectedLayer.AnimationInSeconds = 1.0; SelectedLayer.AnimationOutSeconds = 0.60;
                 SelectedLayer.TextAnimationUnit = "Letter"; SelectedLayer.TextAnimationDurationSeconds = 1.0; SelectedLayer.TextAnimationStaggerSeconds = .035; SelectedLayer.AnimationBlurRadius = 8.0; break;
             case "Blur Dissolve":
+                SelectedLayer.AnimationIn = "Blur"; SelectedLayer.AnimationOut = "Blur";
+                SelectedLayer.AnimationInSeconds = 0.80; SelectedLayer.AnimationOutSeconds = 0.55;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.8; SelectedLayer.TextAnimationStaggerSeconds = .06; SelectedLayer.AnimationBlurRadius = 12.0; break;
             case "Fade Cascade":
             case "Soft Reveal":
             case "Fade":
+                SelectedLayer.AnimationIn = "Fade"; SelectedLayer.AnimationOut = "Fade";
+                SelectedLayer.AnimationInSeconds = 0.70; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = .7; SelectedLayer.TextAnimationStaggerSeconds = .10; break;
             case "Rise Cascade":
+                SelectedLayer.AnimationIn = "Slide Up"; SelectedLayer.AnimationOut = "Slide Down";
+                SelectedLayer.AnimationInSeconds = 0.75; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = .75; SelectedLayer.TextAnimationStaggerSeconds = .09; break;
             case "Tracking Reveal":
+                SelectedLayer.AnimationIn = "Fade"; SelectedLayer.AnimationOut = "Fade";
+                SelectedLayer.AnimationInSeconds = 0.90; SelectedLayer.AnimationOutSeconds = 0.60;
                 SelectedLayer.TextAnimationUnit = "Letter"; SelectedLayer.TextAnimationDurationSeconds = .9; SelectedLayer.TextAnimationStaggerSeconds = .025; break;
             case "Pop Cascade":
             case "Pop":
+                SelectedLayer.AnimationIn = "Pop"; SelectedLayer.AnimationOut = "Pop";
+                SelectedLayer.AnimationInSeconds = 0.65; SelectedLayer.AnimationOutSeconds = 0.45;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = .65; SelectedLayer.TextAnimationStaggerSeconds = .075; break;
             case "Slide Letters":
+                SelectedLayer.AnimationIn = "Slide Left"; SelectedLayer.AnimationOut = "Slide Left";
+                SelectedLayer.AnimationInSeconds = 0.80; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Letter"; SelectedLayer.TextAnimationDurationSeconds = .80; SelectedLayer.TextAnimationStaggerSeconds = .028; break;
             case "Flip In":
+                SelectedLayer.AnimationIn = "Scale Down"; SelectedLayer.AnimationOut = "Scale Down";
+                SelectedLayer.AnimationInSeconds = 0.72; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Letter"; SelectedLayer.TextAnimationDurationSeconds = .72; SelectedLayer.TextAnimationStaggerSeconds = .032; break;
             case "Wipe Words":
+                SelectedLayer.AnimationIn = "Wipe Left"; SelectedLayer.AnimationOut = "Wipe Left";
+                SelectedLayer.AnimationInSeconds = 0.85; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = .85; SelectedLayer.TextAnimationStaggerSeconds = .07; break;
             case "Glow Pulse":
+                SelectedLayer.AnimationIn = "Blur"; SelectedLayer.AnimationOut = "Blur";
+                SelectedLayer.AnimationInSeconds = 1.20; SelectedLayer.AnimationOutSeconds = 0.60;
                 SelectedLayer.TextAnimationUnit = "Whole"; SelectedLayer.TextAnimationDurationSeconds = 1.2; SelectedLayer.TextAnimationStaggerSeconds = .05; SelectedLayer.AnimationGlowRadius = 14.0; break;
             case "Bounce / Wave":
+                SelectedLayer.AnimationIn = "Slide Up"; SelectedLayer.AnimationOut = "Fade";
+                SelectedLayer.AnimationInSeconds = 1.10; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Letter"; SelectedLayer.TextAnimationDurationSeconds = 1.1; SelectedLayer.TextAnimationStaggerSeconds = .04; break;
             case "Zoom":
+                SelectedLayer.AnimationIn = "Zoom"; SelectedLayer.AnimationOut = "Zoom";
+                SelectedLayer.AnimationInSeconds = 0.70; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.70; SelectedLayer.TextAnimationStaggerSeconds = 0.06; SelectedLayer.TextAnimationScaleStart = 2.0; SelectedLayer.TextAnimationScaleEnd = 1.0; break;
             case "Scale Down":
             case "Scale Down (Letter + Blur + Glow)":
+                SelectedLayer.AnimationIn = "Scale Down"; SelectedLayer.AnimationOut = "Scale Down";
+                SelectedLayer.AnimationInSeconds = 0.75; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.75; SelectedLayer.TextAnimationStaggerSeconds = 0.06; SelectedLayer.TextAnimationScaleStart = 2.5; SelectedLayer.TextAnimationScaleEnd = 1.0; SelectedLayer.AnimationBlurRadius = 6.0; break;
             case "Scale Up":
+                SelectedLayer.AnimationIn = "Scale Up"; SelectedLayer.AnimationOut = "Scale Up";
+                SelectedLayer.AnimationInSeconds = 0.75; SelectedLayer.AnimationOutSeconds = 0.50;
                 SelectedLayer.TextAnimationUnit = "Word"; SelectedLayer.TextAnimationDurationSeconds = 0.75; SelectedLayer.TextAnimationStaggerSeconds = 0.06; SelectedLayer.TextAnimationScaleStart = 0.2; SelectedLayer.TextAnimationScaleEnd = 1.0; break;
             case "Wiggle":
+                SelectedLayer.AnimationIn = "Fade"; SelectedLayer.AnimationOut = "Fade";
+                SelectedLayer.AnimationInSeconds = 0.80; SelectedLayer.AnimationOutSeconds = 0.45;
                 SelectedLayer.TextAnimationUnit = "Letter"; SelectedLayer.TextAnimationDurationSeconds = 0.80; SelectedLayer.TextAnimationStaggerSeconds = 0.04; break;
             case "Jump":
+                SelectedLayer.AnimationIn = "Slide Up"; SelectedLayer.AnimationOut = "Slide Down";
+                SelectedLayer.AnimationInSeconds = 0.80; SelectedLayer.AnimationOutSeconds = 0.45;
                 SelectedLayer.TextAnimationUnit = "Letter"; SelectedLayer.TextAnimationDurationSeconds = 0.80; SelectedLayer.TextAnimationStaggerSeconds = 0.04; break;
             case "None":
             default:
+                SelectedLayer.AnimationIn = "None"; SelectedLayer.AnimationOut = "None";
                 SelectedLayer.TextAnimationUnit = "Whole"; break;
         }
         CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); Raise(nameof(SelectedLayer)); RenderAll();
@@ -4831,21 +4944,32 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var p = Math.Min(a, b);
         var anim = a < b ? layer.AnimationIn : layer.AnimationOut;
         el.Opacity = Math.Clamp(layer.Opacity * (string.Equals(anim, "Fade", StringComparison.OrdinalIgnoreCase) ? p : 1), 0, 1);
+        var isOutPhase = b <= a;
         switch ((anim ?? "").ToUpperInvariant())
         {
-            case "SLIDE LEFT": x += (1 - p) * 110; break;
-            case "SLIDE RIGHT": x -= (1 - p) * 110; break;
-            case "SLIDE UP": y += (1 - p) * 70; break;
-            case "SLIDE DOWN": y -= (1 - p) * 70; break;
-            case "PUSH LEFT": x += (1 - p) * Math.Max(110, w); break;
-            case "PUSH RIGHT": x -= (1 - p) * Math.Max(110, w); break;
-            case "PUSH UP": y += (1 - p) * Math.Max(70, h); break;
-            case "PUSH DOWN": y -= (1 - p) * Math.Max(70, h); break;
+            case "SLIDE LEFT":
+                x += isOutPhase ? -(1 - p) * 110 : (1 - p) * 110; break;
+            case "SLIDE RIGHT":
+                x += isOutPhase ? (1 - p) * 110 : -(1 - p) * 110; break;
+            case "SLIDE UP":
+                y += isOutPhase ? -(1 - p) * 70 : (1 - p) * 70; break;
+            case "SLIDE DOWN":
+                y += isOutPhase ? (1 - p) * 70 : -(1 - p) * 70; break;
+            case "PUSH LEFT":
+                x += isOutPhase ? -(1 - p) * Math.Max(110, w) : (1 - p) * Math.Max(110, w); break;
+            case "PUSH RIGHT":
+                x += isOutPhase ? (1 - p) * Math.Max(110, w) : -(1 - p) * Math.Max(110, w); break;
+            case "PUSH UP":
+                y += isOutPhase ? -(1 - p) * Math.Max(70, h) : (1 - p) * Math.Max(70, h); break;
+            case "PUSH DOWN":
+                y += isOutPhase ? (1 - p) * Math.Max(70, h) : -(1 - p) * Math.Max(70, h); break;
             case "SCALE DOWN":
                 var csdX = x + w / 2; var csdY = y + h / 2;
                 var startScale = layer.TextAnimationScaleStart > 0.01 ? layer.TextAnimationScaleStart : 1.35;
                 var endScale = layer.TextAnimationScaleEnd > 0.01 ? layer.TextAnimationScaleEnd : 1.0;
-                var scDown = startScale + (endScale - startScale) * p;
+                var scDown = isOutPhase
+                    ? endScale + (startScale - endScale) * (1 - p)
+                    : startScale + (endScale - startScale) * p;
                 w *= scDown; h *= scDown; x = csdX - w / 2; y = csdY - h / 2;
                 break;
             case "SCALE IN":
@@ -4853,7 +4977,9 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 var csuX = x + w / 2; var csuY = y + h / 2;
                 var suStart = layer.TextAnimationScaleStart > 0.01 ? layer.TextAnimationScaleStart : 0.65;
                 var suEnd = layer.TextAnimationScaleEnd > 0.01 ? layer.TextAnimationScaleEnd : 1.0;
-                var scUp = suStart + (suEnd - suStart) * p;
+                var scUp = isOutPhase
+                    ? suStart + (suEnd - suStart) * p
+                    : suStart + (suEnd - suStart) * p;
                 w *= scUp; h *= scUp; x = csuX - w / 2; y = csuY - h / 2;
                 break;
             case "ZOOM":

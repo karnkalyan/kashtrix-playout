@@ -62,6 +62,20 @@ public class OutputChannel : INotifyPropertyChanged
         }
     }
 
+    // Complete custom-input descriptor. Keeping this on each output makes the selected
+    // source reproducible after restart instead of reducing a capture/NDI/URL source to
+    // a label that the output runtime cannot open.
+    public string ManualInputKind { get; set; } = "Custom";
+    public string ManualInputFormat { get; set; } = string.Empty;
+    public string ManualInputOptions { get; set; } = string.Empty;
+    public string ManualVideoDevice { get; set; } = string.Empty;
+    public string ManualAudioDevice { get; set; } = string.Empty;
+    public string ManualAlternateAudioUrl { get; set; } = string.Empty;
+    public bool ManualIsLiveSource { get; set; } = true;
+    public int ManualCaptureWidth { get; set; } = 1920;
+    public int ManualCaptureHeight { get; set; } = 1080;
+    public double ManualSourceFrameRate { get; set; } = 25;
+
     public string InputSourceDisplayName => InputSource switch
     {
         OutputInputSource.CgProgram => "CG PROGRAM BUS",

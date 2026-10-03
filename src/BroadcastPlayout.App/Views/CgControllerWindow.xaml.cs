@@ -249,6 +249,8 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         _programLayerSnapshots.Clear();
         _programSnapshot = null;
         _programPreviousSnapshot = null;
+        Interlocked.Exchange(ref _latestPlayoutProgramFrame, null);
+        Interlocked.Exchange(ref _latestPlayoutProgramBaseFrame, null);
         ProgramCgImage.Source = null;
         _programMonitorBitmap = null;
         ProgramProjectName = "All Overlays Cleared";
@@ -693,6 +695,8 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     private void CatalogGrid_Click(object sender,RoutedEventArgs e){_catalogViewMode="Grid";Raise(nameof(CatalogListVisibility));Raise(nameof(CatalogGridVisibility));}
     private static ImageSource CreateCatalogThumbnail(CgProject project)
     {
+        var rendered = CgThumbnailRenderer.RenderProject(project, 320, 180);
+        if (rendered is not null) return rendered;
         const double width=320,height=180;
         var visual=new DrawingVisual();
         using(var dc=visual.RenderOpen())
@@ -968,6 +972,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         {
             _previewSnapshot = null;
             Interlocked.Exchange(ref _latestPlayoutPreviewFrame, null);
+            Interlocked.Exchange(ref _latestPlayoutPreviewBaseFrame, null);
             PreviewCgImage.Source = null;
             _previewMonitorBitmap = null;
             PreviewProjectName = "No CG in preview";
@@ -1131,6 +1136,8 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             _programLayerSnapshots.Clear();
             _programSnapshot = null;
             _programPreviousSnapshot = null;
+            Interlocked.Exchange(ref _latestPlayoutProgramFrame, null);
+            Interlocked.Exchange(ref _latestPlayoutProgramBaseFrame, null);
             _programTransitionMode = "None";
             _programTransitionStartedUtc = DateTime.MinValue;
             ProgramCgImage.Source = null;
@@ -1210,6 +1217,12 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         ProgramProjectName = project.Name;
         ProgramLayerName = $"ALL LAYERS · {visible.Length}";
         ProgramLayerText = visible.Length == 0 ? "No visible native layers" : string.Join(" · ", visible.Take(4).Select(x => x.Name)) + (visible.Length > 4 ? " …" : string.Empty);
+    }
+
+    private void ToggleNdiBroadcast_Click(object s, RoutedEventArgs e)
+    {
+        EnableCgNdiAlphaOutput = !EnableCgNdiAlphaOutput;
+        ApplyCgOutput_Click(s, e);
     }
 
     private void ApplyCgOutput_Click(object s, RoutedEventArgs e)

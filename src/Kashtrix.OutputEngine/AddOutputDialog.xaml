@@ -19,7 +19,7 @@
             <Grid Margin="12,0,4,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <Image Source="/Branding/kashtrix-outputengine.png" Width="26" Height="26" Margin="0,0,9,0" Stretch="Uniform"/>
-                <TextBlock Grid.Column="1" Text="KASHTRIX OUTPUT ENGINE  •  ADD OUTPUT" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="DialogTitleTextBlock" Grid.Column="1" Text="KASHTRIX OUTPUT ENGINE  •  ADD OUTPUT" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
                 <Button Grid.Column="2" Click="Cancel_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close"><TextBlock Style="{StaticResource WindowCloseGlyph}"/></Button>
             </Grid>
         </Border>
@@ -32,8 +32,8 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="NEW BROADCAST OUTPUT STREAM / HARDWARE" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"/>
-            <TextBlock Text="Provision DeckLink, NDI, Matrox, AJA, DVB-TS UDP, SRT, RTMP, HLS or MPD" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0"/>
+            <TextBlock x:Name="HeaderTitleTextBlock" Text="NEW BROADCAST OUTPUT STREAM / HARDWARE" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"/>
+            <TextBlock x:Name="HeaderSubtitleTextBlock" Text="Provision DeckLink, NDI, Matrox, AJA, DVB-TS UDP, SRT, RTMP, HLS or MPD" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0"/>
         </StackPanel>
 
         <!-- Form Fields -->
@@ -68,17 +68,7 @@
                     </ComboBox>
                 </StackPanel>
 
-                <!-- The bus being routed is independent from the destination protocol. -->
-                <StackPanel Margin="0,0,0,12">
-                    <TextBlock Text="Input Source / Program Bus:" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                    <ComboBox x:Name="InputSourceComboBox" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6" SelectionChanged="InputSourceComboBox_SelectionChanged">
-                        <ComboBoxItem Content="Playout Program Bus (Default)" Tag="PlayoutProgram" IsSelected="True"/>
-                        <ComboBoxItem Content="CG Controller Program Bus (Alpha / Fill + Key)" Tag="CgProgram"/>
-                        <ComboBoxItem Content="Manual Input Source..." Tag="Manual"/>
-                    </ComboBox>
-                    <TextBox x:Name="ManualInputSourceTextBox" Visibility="Collapsed" Margin="0,6,0,0" Background="{DynamicResource Bg1Brush}" Foreground="#FFFFFF" BorderBrush="{DynamicResource LineStrongBrush}" Padding="6" ToolTip="NDI source name, capture-device name, URL, or shared source identifier"/>
-                    <TextBlock Text="Choose content here; choose DeckLink, NDI, SRT, RTMP, etc. separately as the output type." Foreground="{DynamicResource MutedBrush}" FontSize="9.5" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                </StackPanel>
+
 
                 <!-- Destination / Device URI -->
                 <StackPanel Margin="0,0,0,12">
@@ -242,7 +232,7 @@
         <!-- Actions -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Cancel" Click="Cancel_Click" Background="{DynamicResource LineBrush}" Foreground="{DynamicResource TextBrush}" BorderBrush="{DynamicResource LineBrush}" Padding="16,8" Margin="0,0,8,0" Cursor="Hand"/>
-            <Button Content="Create Output Channel" Click="Create_Click" Background="#522B70" BorderBrush="{DynamicResource AccentBrush}" Foreground="#FFFFFF" FontWeight="Bold" Padding="20,8" Cursor="Hand"/>
+            <Button x:Name="CreateButton" Content="Create Output Channel" Click="Create_Click" Background="#522B70" BorderBrush="{DynamicResource AccentBrush}" Foreground="#FFFFFF" FontWeight="Bold" Padding="20,8" Cursor="Hand"/>
         </StackPanel>
     </Grid>
     </Grid>

@@ -76,8 +76,14 @@
                                     <Border Style="{StaticResource PanelBorder}" Padding="12" Margin="0,0,0,8">
                                         <StackPanel>
                                             <TextBlock Text="PLAYOUT PROGRAM and CG PROGRAM are separate source buses." FontWeight="SemiBold" Foreground="#D7B8F9" TextWrapping="Wrap"/>
-                                            <TextBlock Text="Open Output Engine to select a source bus, then route it to DeckLink, NDI, SRT, RTMP, UDP, HLS, or another destination." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,7,0,10"/>
-                                            <Button Content="OPEN OUTPUT ENGINE" Click="LaunchOutputEngine_Click" Height="34"/>
+                                            <Button Content="OPEN OUTPUT ENGINE" Click="LaunchOutputEngine_Click" Height="34" Margin="0,0,0,10"/>
+                                            <TextBlock Text="QUICK OUTPUT TOGGLES" Style="{StaticResource SectionCaption}" Margin="0,4,0,4"/>
+                                            <CheckBox Content="NDI Network Output" IsChecked="{Binding NdiEnabled, Mode=TwoWay}" Style="{StaticResource ToggleSwitch}" Margin="0,2,0,4"/>
+                                            <CheckBox Content="DeckLink SDI / HDMI Output" IsChecked="{Binding DeckLinkEnabled, Mode=TwoWay}" Style="{StaticResource ToggleSwitch}" Margin="0,2,0,4"/>
+                                            <TextBlock Text="DECKLINK CARD" Style="{StaticResource SectionCaption}" Margin="0,4,0,2"/>
+                                            <ComboBox ItemsSource="{Binding DeckLinkDevices}" SelectedValuePath="Index" SelectedValue="{Binding SelectedDeckLinkDeviceIndex, Mode=TwoWay}" DisplayMemberPath="Label" Margin="0,0,0,4"/>
+                                            <TextBlock Text="SCAN / FIELD ORDER" Style="{StaticResource SectionCaption}" Margin="0,4,0,2"/>
+                                            <ComboBox ItemsSource="{Binding ScanModes}" SelectedItem="{Binding OutputScanMode, Mode=TwoWay}" Margin="0,0,0,0"/>
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource PanelBorder}" Padding="12">

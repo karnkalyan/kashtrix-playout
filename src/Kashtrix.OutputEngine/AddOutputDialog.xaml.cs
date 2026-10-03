@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using BroadcastPlayout.Outputs;
+using BroadcastPlayout.Models;
 using Kashtrix.OutputEngine.Models;
 using ThemedMessageBox = BroadcastPlayout.Views.MessageBox;
 
@@ -120,13 +121,148 @@ namespace Kashtrix.OutputEngine
             UpdateHardwareOptions();
         }
 
-        private void InputSourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        public OutputInputSource ConfiguredInputSource { get; set; } = OutputInputSource.PlayoutProgram;
+        public string ConfiguredManualInputSource { get; set; } = string.Empty;
+        public PlaylistItem? ConfiguredCustomInput { get; set; }
+        public OutputChannel? ExistingChannel { get; private set; }
+
+        public AddOutputDialog(OutputInputSource defaultInput = OutputInputSource.PlayoutProgram, string defaultManual = "", PlaylistItem? customInput = null) : this()
         {
-            if (ManualInputSourceTextBox == null) return;
-            var tag = (InputSourceComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
-            ManualInputSourceTextBox.Visibility = string.Equals(tag, "Manual", StringComparison.OrdinalIgnoreCase)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            ConfiguredInputSource = defaultInput;
+            ConfiguredManualInputSource = defaultManual ?? string.Empty;
+            ConfiguredCustomInput = customInput;
+        }
+
+        public AddOutputDialog(OutputChannel existingChannel) : this()
+        {
+            ExistingChannel = existingChannel;
+            ConfiguredInputSource = existingChannel.InputSource;
+            ConfiguredManualInputSource = existingChannel.ManualInputSource;
+
+            if (DialogTitleTextBlock != null) DialogTitleTextBlock.Text = "KASHTRIX OUTPUT ENGINE  •  MODIFY OUTPUT";
+            if (HeaderTitleTextBlock != null) HeaderTitleTextBlock.Text = "MODIFY BROADCAST OUTPUT STREAM / HARDWARE";
+            if (HeaderSubtitleTextBlock != null) HeaderSubtitleTextBlock.Text = $"Modify output parameters, destination or encoder for '{existingChannel.Name}'";
+            if (CreateButton != null) CreateButton.Content = "Save Changes";
+
+            Loaded += (_, _) => PopulateFromExisting(existingChannel);
+        }
+
+        private void PopulateFromExisting(OutputChannel ch)
+        {
+            NameTextBox.Text = ch.Name;
+            DestinationTextBox.Text = ch.DestinationUri;
+
+            string targetTag = ch.Protocol switch
+            {
+                BroadcastOutputProtocol.CgOutput => "CgOutput",
+                BroadcastOutputProtocol.VirtualOutput => "VirtualOutput",
+                BroadcastOutputProtocol.DvbUdp => "UDP_DVB",
+                BroadcastOutputProtocol.RTMP => ch.StreamPreset switch
+                {
+                    "YouTube Live" => "RTMP_YouTube",
+                    "Facebook Live" => "RTMP_Facebook",
+                    "Twitch Live" => "RTMP_Twitch",
+                    "TikTok Live" => "RTMP_TikTok",
+                    _ => "RTMP"
+                },
+                _ => ch.Protocol.ToString()
+            };
+
+            foreach (var item in ProtocolComboBox.Items.OfType<ComboBoxItem>())
+            {
+                if (string.Equals(item.Tag?.ToString(), targetTag, StringComparison.OrdinalIgnoreCase))
+                {
+                    ProtocolComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            DestinationTextBox.Text = ch.DestinationUri;
+
+            if (ch.IsCustomResolution)
+            {
+                foreach (var item in ResolutionComboBox.Items.OfType<ComboBoxItem>())
+                {
+                    if (item.Content?.ToString()?.StartsWith("Custom", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        ResolutionComboBox.SelectedItem = item;
+                        break;
+                    }
+                }
+                CustomWidthTextBox.Text = ch.CustomWidth.ToString();
+                CustomHeightTextBox.Text = ch.CustomHeight.ToString();
+                CustomFpsTextBox.Text = ch.TargetFps.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                CustomResolutionPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                bool foundRes = false;
+                foreach (var item in ResolutionComboBox.Items.OfType<ComboBoxItem>())
+                {
+                    var text = item.Content?.ToString() ?? string.Empty;
+                    if (text.Contains(ch.RasterFormat, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ResolutionComboBox.SelectedItem = item;
+                        foundRes = true;
+                        break;
+                    }
+                }
+                if (!foundRes && !string.IsNullOrWhiteSpace(ch.RasterFormat))
+                {
+                    var customItem = new ComboBoxItem { Content = ch.RasterFormat };
+                    ResolutionComboBox.Items.Insert(1, customItem);
+                    ResolutionComboBox.SelectedItem = customItem;
+                }
+            }
+
+            bool foundFps = false;
+            string fpsStr = ch.TargetFps.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+            foreach (var item in FpsComboBox.Items.OfType<ComboBoxItem>())
+            {
+                var text = item.Content?.ToString() ?? string.Empty;
+                if (text.StartsWith(fpsStr, StringComparison.OrdinalIgnoreCase) ||
+                    (double.TryParse(text, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fVal) && Math.Abs(fVal - ch.TargetFps) < 0.05))
+                {
+                    FpsComboBox.SelectedItem = item;
+                    foundFps = true;
+                    break;
+                }
+            }
+            if (!foundFps)
+            {
+                foreach (var item in FpsComboBox.Items.OfType<ComboBoxItem>())
+                {
+                    if (item.Content?.ToString()?.StartsWith("Custom", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        FpsComboBox.SelectedItem = item;
+                        CustomFpsTextBox.Text = fpsStr;
+                        CustomResolutionPanel.Visibility = Visibility.Visible;
+                        break;
+                    }
+                }
+            }
+
+            BitrateTextBox.Text = ch.BitrateMbps.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+
+            if (GpuEncoderComboBox != null)
+            {
+                foreach (var item in GpuEncoderComboBox.Items.OfType<ComboBoxItem>())
+                {
+                    if (string.Equals(item.Content?.ToString(), ch.GpuEncoder, StringComparison.OrdinalIgnoreCase))
+                    {
+                        GpuEncoderComboBox.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+
+            if (DvbCompliantCheckBox != null) DvbCompliantCheckBox.IsChecked = ch.DvbStandardEnabled;
+            if (Scte35CheckBox != null) Scte35CheckBox.IsChecked = ch.Scte35Enabled;
+            if (ServiceIdTextBox != null) ServiceIdTextBox.Text = ch.ServiceId.ToString();
+            if (PmtPidTextBox != null) PmtPidTextBox.Text = ch.PmtPid.ToString();
+            if (VideoPidTextBox != null) VideoPidTextBox.Text = ch.VideoPid.ToString();
+            if (AudioPidTextBox != null) AudioPidTextBox.Text = ch.AudioPid.ToString();
+            if (PcrPidTextBox != null) PcrPidTextBox.Text = ch.PcrPid.ToString();
         }
 
         private void UpdateHardwareOptions()
@@ -197,16 +333,8 @@ namespace Kashtrix.OutputEngine
 
             var item = ProtocolComboBox.SelectedItem as ComboBoxItem;
             string tag = item?.Tag?.ToString() ?? "DeckLink";
-            var inputTag = (InputSourceComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "PlayoutProgram";
-            var inputSource = Enum.TryParse<OutputInputSource>(inputTag, true, out var parsedInput)
-                ? parsedInput
-                : OutputInputSource.PlayoutProgram;
-            var manualInput = ManualInputSourceTextBox.Text.Trim();
-            if (inputSource == OutputInputSource.Manual && string.IsNullOrWhiteSpace(manualInput))
-            {
-                ThemedMessageBox.Show(this, "Enter a manual input source name, URL, or device identifier.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+            var inputSource = ConfiguredInputSource;
+            var manualInput = ConfiguredManualInputSource ?? string.Empty;
 
             BroadcastOutputProtocol protocol;
             string streamPreset = string.Empty;
@@ -294,11 +422,54 @@ namespace Kashtrix.OutputEngine
             int pcrPid = 257;
             if (PcrPidTextBox != null) int.TryParse(PcrPidTextBox.Text, out pcrPid);
 
+            if (ExistingChannel != null)
+            {
+                ExistingChannel.Name = NameTextBox.Text.Trim();
+                ExistingChannel.Protocol = protocol;
+                ExistingChannel.DestinationUri = DestinationTextBox.Text.Trim();
+                ExistingChannel.RasterFormat = resolutionStr;
+                ExistingChannel.IsCustomResolution = isCustomRes;
+                ExistingChannel.CustomWidth = customW;
+                ExistingChannel.CustomHeight = customH;
+                ExistingChannel.TargetFps = fps;
+                ExistingChannel.BitrateMbps = bitrate;
+                ExistingChannel.GpuEncoder = gpuEncoder;
+                ExistingChannel.StreamPreset = streamPreset;
+                ExistingChannel.ServiceId = serviceId > 0 ? serviceId : 101;
+                ExistingChannel.PmtPid = pmtPid > 0 ? pmtPid : 256;
+                ExistingChannel.VideoPid = videoPid > 0 ? videoPid : 257;
+                ExistingChannel.AudioPid = audioPid > 0 ? audioPid : 258;
+                ExistingChannel.PcrPid = pcrPid > 0 ? pcrPid : 257;
+                ExistingChannel.DvbStandardEnabled = DvbCompliantCheckBox?.IsChecked == true;
+                ExistingChannel.Scte35Enabled = Scte35CheckBox?.IsChecked == true;
+
+                if (!Services.BroadcastOutputEngine.TryValidateOutput(ExistingChannel, out var validationErr))
+                {
+                    ThemedMessageBox.Show(this, validationErr, "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                ResultChannel = ExistingChannel;
+                DialogResult = true;
+                Close();
+                return;
+            }
+
             ResultChannel = new OutputChannel
             {
                 Name = NameTextBox.Text.Trim(),
                 InputSource = inputSource,
                 ManualInputSource = manualInput,
+                ManualInputKind = ConfiguredCustomInput?.SourceKind ?? "Custom",
+                ManualInputFormat = ConfiguredCustomInput?.InputFormat ?? string.Empty,
+                ManualInputOptions = ConfiguredCustomInput?.InputOptions ?? string.Empty,
+                ManualVideoDevice = ConfiguredCustomInput?.VideoDevice ?? string.Empty,
+                ManualAudioDevice = ConfiguredCustomInput?.AudioDevice ?? string.Empty,
+                ManualAlternateAudioUrl = ConfiguredCustomInput?.AlternateAudioUrl ?? string.Empty,
+                ManualIsLiveSource = ConfiguredCustomInput?.IsLiveSource ?? true,
+                ManualCaptureWidth = ConfiguredCustomInput?.CaptureWidth ?? 1920,
+                ManualCaptureHeight = ConfiguredCustomInput?.CaptureHeight ?? 1080,
+                ManualSourceFrameRate = ConfiguredCustomInput?.SourceFrameRate ?? 25,
                 Protocol = protocol,
                 DestinationUri = DestinationTextBox.Text.Trim(),
                 RasterFormat = resolutionStr,
@@ -308,8 +479,8 @@ namespace Kashtrix.OutputEngine
                 TargetFps = fps,
                 RunningFps = fps,
                 BitrateMbps = bitrate,
-                Status = OutputStatus.Online,
-                IsEnabled = true,
+                Status = OutputStatus.Standby,
+                IsEnabled = false,
                 AlertMessage = string.Empty,
                 PcrJitterNs = 2.4,
                 LatencyMs = 2.8,

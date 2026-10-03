@@ -29,6 +29,46 @@ public static unsafe class FfmpegInput
 
             AVFormatContext* context = null;
             var result = ffmpeg.avformat_open_input(&context, source, inputFormat, &options);
+            if (result < 0 && item.SourceKind.Equals("DirectShow", StringComparison.OrdinalIgnoreCase))
+            {
+                // Fallback attempt 1: Drop strict framerate requirement.
+                // USB webcams and DirectShow capture pins return I/O error (-5) if the pin cannot supply
+                // the requested framerate (e.g. 50 fps on a 30 fps webcam). Dropping the framerate
+                // constraint allows DirectShow to use the device's native hardware cadence.
+                ffmpeg.av_dict_free(&options);
+                SetOption(&options, "rtbufsize", "512M");
+                if (preferredMediaType != AVMediaType.AVMEDIA_TYPE_AUDIO && item.CaptureWidth > 0 && item.CaptureHeight > 0)
+                {
+                    SetOption(&options, "video_size", $"{item.CaptureWidth}x{item.CaptureHeight}");
+                }
+                AddCustomOptions(item.InputOptions, &options);
+                result = ffmpeg.avformat_open_input(&context, source, inputFormat, &options);
+
+                // Fallback attempt 2: Many 1080p USB 2.0 webcams require MJPEG due to USB bus bandwidth limitations.
+                if (result < 0 && preferredMediaType != AVMediaType.AVMEDIA_TYPE_AUDIO)
+                {
+                    ffmpeg.av_dict_free(&options);
+                    SetOption(&options, "rtbufsize", "512M");
+                    SetOption(&options, "vcodec", "mjpeg");
+                    if (item.CaptureWidth > 0 && item.CaptureHeight > 0)
+                    {
+                        SetOption(&options, "video_size", $"{item.CaptureWidth}x{item.CaptureHeight}");
+                    }
+                    AddCustomOptions(item.InputOptions, &options);
+                    result = ffmpeg.avformat_open_input(&context, source, inputFormat, &options);
+                }
+
+                // Fallback attempt 3: Clean hardware defaults (only buffer size). DirectShow filter
+                // graph negotiates default supported pin format and native resolution/framerate.
+                if (result < 0)
+                {
+                    ffmpeg.av_dict_free(&options);
+                    SetOption(&options, "rtbufsize", "512M");
+                    AddCustomOptions(item.InputOptions, &options);
+                    result = ffmpeg.avformat_open_input(&context, source, inputFormat, &options);
+                }
+            }
+
             if (result < 0)
                 throw new InvalidOperationException($"Cannot open {item.SourceKind} input '{source}': {result.ToFfmpegError()}");
             if (context == null) throw new InvalidOperationException("The media engine could not initialize this input source.");
@@ -132,5 +172,10 @@ public static unsafe class FfmpegInput
             if (key.Length == 0 || value.Length == 0) continue;
             ffmpeg.av_dict_set(options, key, value, 0).ThrowIfError();
         }
+    }
+
+    private static void SetOption(AVDictionary** options, string key, string value)
+    {
+        ffmpeg.av_dict_set(options, key, value, 0);
     }
 }

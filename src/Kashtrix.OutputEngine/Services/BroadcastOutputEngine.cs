@@ -6,7 +6,7 @@ using Kashtrix.OutputEngine.Models;
 
 namespace Kashtrix.OutputEngine.Services;
 
-public class BroadcastOutputEngine
+public class BroadcastOutputEngine : IDisposable
 {
     private static readonly Lazy<BroadcastOutputEngine> _instance = new(() => new BroadcastOutputEngine());
     public static BroadcastOutputEngine Instance => _instance.Value;
@@ -14,8 +14,9 @@ public class BroadcastOutputEngine
     public ObservableCollection<OutputChannel> Outputs { get; } = [];
 
     private readonly DispatcherTimer _cadenceTimer;
-    private readonly Random _rand = new();
     private long _cycleCount = 0;
+    private readonly object _runtimeSync = new();
+    private readonly Dictionary<Guid, OutputChannelRuntime> _runtimes = [];
 
     public BroadcastOutputEngine()
     {
@@ -77,43 +78,6 @@ public class BroadcastOutputEngine
     {
         _cycleCount++;
 
-        foreach (var ch in Outputs)
-        {
-            if (!ch.IsEnabled || ch.Status == OutputStatus.Standby)
-            {
-                // BitrateMbps is the configured target as well as the value shown by the
-                // simulator. Preserve it in standby so validation can still start a channel.
-                ch.RunningFps = 0.0;
-                continue;
-            }
-
-            // Increment frame counts based on target FPS (200ms tick = ~10 frames @ 50fps, ~5 frames @ 25fps)
-            var framesThisTick = (long)Math.Round(ch.TargetFps * 0.2);
-            ch.FramesTransmitted += framesThisTick;
-
-            if (ch.IsCardHardware)
-            {
-                // Hardware SDI/HDMI baseband video cards (DeckLink, Matrox, AJA) output raw
-                // uncompressed video at exact hardware pixel clock / genlock cadence without software encoding jitter.
-                // Raw baseband does not carry an encoder compressed bitrate.
-                ch.RunningFps = ch.TargetFps;
-                ch.BitrateMbps = 0.0;
-            }
-            else
-            {
-                // Microscopic cadence variance for realism on IP / streaming encoders
-                if (ch.Status != OutputStatus.Warning && ch.Status != OutputStatus.Error)
-                {
-                    var jitter = (_rand.NextDouble() - 0.5) * 0.04;
-                    ch.RunningFps = Math.Round(ch.TargetFps + jitter, 2);
-                }
-                else
-                {
-                    ch.RunningFps = Math.Round(ch.TargetFps - 1.8 + (_rand.NextDouble() * 0.4), 2);
-                }
-            }
-        }
-
         // Periodic DVB table logging every 25 cycles (5 seconds)
         if (_cycleCount % 25 == 0)
         {
@@ -133,24 +97,11 @@ public class BroadcastOutputEngine
     {
         if (channel.IsEnabled)
         {
-            channel.IsEnabled = false;
-            channel.Status = OutputStatus.Standby;
-            Scte35DvbService.Instance.Log("HARDWARE", $"Output '{channel.Name}' stopped by operator", "WARN");
+            StopOutput(channel);
         }
         else
         {
-            if (!TryValidateOutput(channel, out var validationError))
-            {
-                channel.IsEnabled = false;
-                channel.Status = OutputStatus.Error;
-                channel.AlertMessage = validationError;
-                Scte35DvbService.Instance.Log("VALIDATION", $"Output '{channel.Name}' was not started: {validationError}", "ERROR");
-                return;
-            }
-            channel.IsEnabled = true;
-            channel.Status = OutputStatus.Online;
-            channel.AlertMessage = string.Empty;
-            Scte35DvbService.Instance.Log("HARDWARE", $"Output '{channel.Name}' started successfully on {channel.ProtocolDisplayName}", "SUCCESS");
+            StartOutput(channel);
         }
     }
 
@@ -161,28 +112,53 @@ public class BroadcastOutputEngine
             channel.IsEnabled = false;
             channel.Status = OutputStatus.Error;
             channel.AlertMessage = validationError;
-            Scte35DvbService.Instance.Log("VALIDATION", $"Output '{channel.Name}' was not started: {validationError}", "ERROR");
+            Scte35DvbService.Instance.Log("VALIDATION", $"Output '{channel.Name}' was not started: {validationError}", "ERROR", channel.Name);
             return;
         }
+        StopRuntime(channel.Id);
         channel.IsEnabled = true;
-        channel.Status = OutputStatus.Online;
+        channel.Status = OutputStatus.Starting;
+        channel.RunningFps = 0;
         channel.AlertMessage = string.Empty;
-        Scte35DvbService.Instance.Log("ENGINE", $"Started output '{channel.Name}'", "SUCCESS");
+        try
+        {
+            var runtime = new OutputChannelRuntime(channel, update => ApplyRuntimeUpdate(channel, update));
+            lock (_runtimeSync) _runtimes[channel.Id] = runtime;
+            runtime.Start();
+            Scte35DvbService.Instance.Log("OUTPUT", $"Starting output '{channel.Name}' [{channel.ProtocolDisplayName}] from {channel.InputSourceDisplayName}", "SUCCESS", channel.Name);
+        }
+        catch (Exception ex)
+        {
+            StopRuntime(channel.Id);
+            channel.IsEnabled = false;
+            channel.Status = OutputStatus.Error;
+            channel.AlertMessage = ex.Message;
+            Scte35DvbService.Instance.Log("OUTPUT_FAULT", $"Output '{channel.Name}' failed to start: {ex.Message}", "ERROR", channel.Name);
+        }
     }
 
     public void StopOutput(OutputChannel channel)
     {
+        StopRuntime(channel.Id);
         channel.IsEnabled = false;
         channel.Status = OutputStatus.Standby;
-        Scte35DvbService.Instance.Log("ENGINE", $"Stopped output '{channel.Name}'", "WARN");
+        channel.RunningFps = 0;
+        Scte35DvbService.Instance.Log("OUTPUT", $"Stopped output '{channel.Name}'", "WARN", channel.Name);
     }
 
     public void RestartOutput(OutputChannel channel)
     {
-        channel.IsEnabled = true;
+        StopRuntime(channel.Id);
+        channel.IsEnabled = false;
         channel.Status = OutputStatus.Starting;
-        Scte35DvbService.Instance.Log("ENGINE", $"Restarting output '{channel.Name}'", "INFO");
-        Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => StartOutput(channel)), DispatcherPriority.Background);
+        Scte35DvbService.Instance.Log("OUTPUT", $"Restarting output '{channel.Name}'", "INFO", channel.Name);
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(150).ConfigureAwait(false);
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is not null) await dispatcher.InvokeAsync(() => StartOutput(channel));
+            else StartOutput(channel);
+        });
     }
 
     public void DeleteOutput(OutputChannel channel)
@@ -190,7 +166,46 @@ public class BroadcastOutputEngine
         StopOutput(channel);
         Outputs.Remove(channel);
         SaveOutputs();
-        Scte35DvbService.Instance.Log("CONFIG", $"Deleted output '{channel.Name}'", "WARN");
+        Scte35DvbService.Instance.Log("CONFIG", $"Deleted output '{channel.Name}'", "WARN", channel.Name);
+    }
+
+    private void ApplyRuntimeUpdate(OutputChannel channel, OutputRuntimeUpdate update)
+    {
+        void Apply()
+        {
+            if (!channel.IsEnabled && update.Status != OutputStatus.Error) return;
+            var prevStatus = channel.Status;
+            channel.Status = update.Status;
+            if (update.FramesSent > 0) channel.FramesTransmitted += update.FramesSent;
+            if (update.Fps > 0) channel.RunningFps = update.Fps;
+            channel.AlertMessage = update.Error;
+
+            if (!string.IsNullOrWhiteSpace(update.Error))
+            {
+                Scte35DvbService.Instance.Log("ALERT", $"[{channel.Name}] {update.Error}", "ERROR", channel.Name);
+            }
+            else if (prevStatus != update.Status && update.Status == OutputStatus.Online)
+            {
+                Scte35DvbService.Instance.Log("OUTPUT", $"[{channel.Name}] Online · {update.Detail} · {channel.RunningFps:F1} fps", "SUCCESS", channel.Name);
+            }
+            else if (prevStatus != update.Status && update.Status == OutputStatus.Warning)
+            {
+                Scte35DvbService.Instance.Log("WARNING", $"[{channel.Name}] {update.Detail}", "WARN", channel.Name);
+            }
+        }
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess()) Apply();
+        else dispatcher.BeginInvoke((Action)Apply, DispatcherPriority.Background);
+    }
+
+    private void StopRuntime(Guid id)
+    {
+        OutputChannelRuntime? runtime = null;
+        lock (_runtimeSync)
+        {
+            if (_runtimes.Remove(id, out var found)) runtime = found;
+        }
+        runtime?.Dispose();
     }
 
     public void ResetCounters()
@@ -273,5 +288,13 @@ public class BroadcastOutputEngine
             { error = "PMT, video and audio PIDs must be unique."; return false; }
         }
         return true;
+    }
+
+    public void Dispose()
+    {
+        _cadenceTimer.Stop();
+        OutputChannelRuntime[] runtimes;
+        lock (_runtimeSync) { runtimes = _runtimes.Values.ToArray(); _runtimes.Clear(); }
+        foreach (var runtime in runtimes) runtime.Dispose();
     }
 }

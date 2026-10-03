@@ -186,12 +186,151 @@
             <Border Grid.Row="0" Background="{DynamicResource Bg1Brush}" BorderBrush="{DynamicResource Bg3Brush}" BorderThickness="1" CornerRadius="6">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <!-- Row 0: Input Sources Selector (Playout, CG, Custom) -->
                         <RowDefinition Height="Auto"/>
+                        <!-- Row 1: Custom Inputs Drawer (Active when Custom is selected) -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- Row 2: Outputs Header Strip with Confidence Monitor -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- Row 3: Outputs DataGrid -->
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
+                    <!-- INPUT SOURCES SELECTION BAR (PLACED BEFORE OUTPUTS LIST) -->
+                    <Border Grid.Row="0" Background="#161B22" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,10" CornerRadius="5,5,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="ROUTED INPUT SOURCE:" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                <RadioButton x:Name="SourceTabPlayout" Content="📺 Playout Program Bus" Checked="InputSourceTab_Checked" IsChecked="True"
+                                             GroupName="InputSourceTabs" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0" Cursor="Hand"/>
+                                <RadioButton x:Name="SourceTabCg" Content="🎨 CG Program Bus (Alpha/Fill+Key)" Checked="InputSourceTab_Checked"
+                                             GroupName="InputSourceTabs" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0" Cursor="Hand"/>
+                                <RadioButton x:Name="SourceTabCustom" Content="🌐 Custom Input Source..." Checked="InputSourceTab_Checked"
+                                             GroupName="InputSourceTabs" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0" Cursor="Hand"/>
+                                <Button x:Name="ConfigureCustomInputButton" Content="⚙ Add / Browse Source" Click="ConfigureCustomInput_Click"
+                                        Style="{StaticResource ActionButtonStyle}" Background="#311F42" BorderBrush="{DynamicResource AccentBrush}" Foreground="#DCC7F0" Padding="8,4" FontSize="11" Margin="0,0,10,0"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Background="#1C232B" BorderBrush="{DynamicResource LineStrongBrush}" BorderThickness="1" CornerRadius="3" Padding="8,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Active Ingest: " FontSize="11" Foreground="{DynamicResource MutedBrush}"/>
+                                        <TextBlock x:Name="ActiveInputSourceLabel" Text="PLAYOUT PROGRAM BUS" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource GoodBrush}"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- CUSTOM INPUT SOURCES DRAWER & LIST -->
+                    <Border Grid.Row="1" x:Name="CustomInputsDrawer" Background="#0C1017" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,8" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="SELECTED &amp; AVAILABLE CUSTOM INPUTS" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBlock Text="•  Double-click any item to activate source &amp; route to output" FontSize="10.5" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="＋ Add / Browse Custom Source" Click="ConfigureCustomInput_Click" Style="{StaticResource ActionButtonStyle}" Background="#3B1C54" BorderBrush="{DynamicResource AccentBrush}" Foreground="#F3E8FF" Padding="8,3" FontSize="10" Margin="0,0,6,0"/>
+                                    <Button Content="🔄 Rescan Devices" Click="RescanCustomInputs_Click" Style="{StaticResource ActionButtonStyle}" Background="#16202A" BorderBrush="{DynamicResource LineStrongBrush}" Foreground="{DynamicResource TextBrush}" Padding="8,3" FontSize="10" Margin="0,0,6,0"/>
+                                    <Button Content="＋ Add Multiple Output for Custom" Click="AddCustomOutput_Click" Style="{StaticResource ActionButtonStyle}" Background="#064E3B" BorderBrush="{DynamicResource GoodBrush}" Foreground="#ECFDF5" Padding="8,3" FontSize="10" FontWeight="Bold"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Horizontal scrollable card list of custom inputs -->
+                            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                <ItemsControl x:Name="CustomInputsItemsControl" ItemsSource="{Binding CustomInputViewModels, RelativeSource={RelativeSource AncestorType=Window}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,8,0" Background="#161D26" BorderThickness="1.5" CornerRadius="4" Padding="10,6" Cursor="Hand" MouseLeftButtonDown="CustomInputCard_MouseLeftButtonDown">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource LineStrongBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                                                <Setter Property="Background" Value="#29183B"/>
+                                                            </DataTrigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#C084FC"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid Width="240">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+
+                                                    <!-- Top Row: Kind Badge & Active Indicator -->
+                                                    <Grid Grid.Row="0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0" CornerRadius="2" Padding="5,1" Background="{Binding BadgeBrush}">
+                                                            <TextBlock Text="{Binding SourceKindUpper}" FontSize="8.5" FontWeight="Black" Foreground="#FFFFFF"/>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Visibility="{Binding ActiveVisibility}">
+                                                            <Ellipse Width="6" Height="6" Fill="{DynamicResource GoodBrush}" Margin="0,0,3,0"/>
+                                                            <TextBlock Text="ACTIVE ROUTE" FontSize="8.5" FontWeight="Bold" Foreground="{DynamicResource GoodBrush}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <!-- Title -->
+                                                    <TextBlock Grid.Row="1" Text="{Binding Title}" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis" Margin="0,5,0,2" ToolTip="{Binding Title}"/>
+
+                                                    <!-- Details -->
+                                                    <TextBlock Grid.Row="2" Text="{Binding Details}" FontSize="9.5" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,5" ToolTip="{Binding Details}"/>
+
+                                                    <!-- Buttons: Route & Set Output, Add Output -->
+                                                    <Grid Grid.Row="3">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="4"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Content="▶ Route &amp; Set Output" Click="RouteCustomItem_Click" Style="{StaticResource ActionButtonStyle}" Background="#3B2554" BorderBrush="{DynamicResource AccentBrush}" Foreground="#F3E8FF" Padding="5,2" FontSize="9"/>
+                                                        <Button Grid.Column="2" Content="＋ Output" Click="AddOutputForCustomItem_Click" Style="{StaticResource ActionButtonStyle}" Background="#1E293B" BorderBrush="{DynamicResource LineStrongBrush}" Foreground="{DynamicResource TextBrush}" Padding="5,2" FontSize="9" ToolTip="Add multiple output for this custom source"/>
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
                     <!-- Outputs Header Strip -->
-                    <Border Grid.Row="0" Background="{DynamicResource Bg3Brush}" Padding="12,8" CornerRadius="5,5,0,0">
+                    <Border Grid.Row="2" Background="{DynamicResource Bg3Brush}" Padding="12,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -220,12 +359,13 @@
                     </Border>
 
                     <!-- Outputs DataGrid -->
-                    <DataGrid Grid.Row="1" x:Name="OutputsDataGrid"
+                    <DataGrid Grid.Row="3" x:Name="OutputsDataGrid"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
                               IsReadOnly="True"
                               SelectionMode="Single"
+                              MouseDoubleClick="OutputsDataGrid_MouseDoubleClick"
                               Background="{DynamicResource Bg1Brush}"
                               RowBackground="{DynamicResource Bg1Brush}"
                               AlternatingRowBackground="#1D1629"
@@ -406,12 +546,13 @@
                             </DataGridTemplateColumn>
 
                             <!-- Controls -->
-                            <DataGridTemplateColumn Header="ACTIONS" Width="280">
+                            <DataGridTemplateColumn Header="ACTIONS" Width="330">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate DataType="models:OutputChannel">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Button Content="START" Click="StartChannel_Click" Style="{StaticResource ActionButtonStyle}" Padding="7,2" Margin="0,0,3,0" FontSize="10"/>
                                             <Button Content="STOP" Click="StopChannel_Click" Style="{StaticResource ActionButtonStyle}" Padding="7,2" Margin="0,0,3,0" FontSize="10"/>
+                                            <Button Content="MODIFY" Click="EditChannel_Click" Style="{StaticResource ActionButtonStyle}" Background="#1F3A52" BorderBrush="#2D608A" Foreground="#E0F2FE" Padding="7,2" Margin="0,0,3,0" FontSize="10" ToolTip="Modify output destination, resolution, bitrate, or PIDs"/>
                                             <Button Content="RESTART" Click="RestartChannel_Click" Style="{StaticResource ActionButtonStyle}" Padding="7,2" Margin="0,0,3,0" FontSize="10"/>
                                             <Button Content="DELETE" Click="DeleteChannel_Click" Style="{StaticResource ActionButtonStyle}" Background="#4A1717" Padding="7,2" Margin="0,0,3,0" FontSize="10"/>
                                             <Button Content="INSPECT" Click="InspectAlert_Click" Style="{StaticResource ActionButtonStyle}" Background="{DynamicResource LineStrongBrush}" Padding="7,2" FontSize="10"/>
@@ -421,6 +562,7 @@
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
+                    <TextBlock Grid.Row="3" x:Name="NoOutputsForSourceText" Text="No outputs are configured for this selected input bus. Use + Add Output to create one." Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" IsHitTestVisible="False"/>
                 </Grid>
             </Border>
 
@@ -447,6 +589,7 @@
                             <StackPanel Grid.Column="0" Orientation="Horizontal">
                                 <TextBlock Text="TELEMETRY &amp; STANDARDS LOGS:" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                 <RadioButton x:Name="TabAll" Content="All Output Events" Checked="Filter_Changed" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <RadioButton x:Name="TabOutputs" Content="Outputs &amp; Faults" Checked="Filter_Changed" Foreground="#F59E0B" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <RadioButton x:Name="TabDvb" Content="DVB SI/PSI &amp; UDP" Checked="Filter_Changed" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <RadioButton x:Name="TabScte35" Content="SCTE-35 Splice Triggers" Checked="Filter_Changed" Foreground="{DynamicResource PinkBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <RadioButton x:Name="TabMos" Content="MOS 2.8.4 Gateway" Checked="Filter_Changed" Foreground="{DynamicResource GoodBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
@@ -476,6 +619,18 @@
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="{DynamicResource Bg3Brush}"/>
                                                 <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Category}" Value="OUTPUT">
+                                                        <Setter Property="Background" Value="#2563EB"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Category}" Value="OUTPUT_FAULT">
+                                                        <Setter Property="Background" Value="#DC2626"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Category}" Value="HARDWARE">
+                                                        <Setter Property="Background" Value="#D97706"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Category}" Value="ENGINE">
+                                                        <Setter Property="Background" Value="#4F46E5"/>
+                                                    </DataTrigger>
                                                     <DataTrigger Binding="{Binding Category}" Value="DVB">
                                                         <Setter Property="Background" Value="#0369A1"/>
                                                     </DataTrigger>

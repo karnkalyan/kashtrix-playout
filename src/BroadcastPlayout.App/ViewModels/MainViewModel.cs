@@ -4053,6 +4053,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (stop)
         {
             var isInstantClear = command.Action.Equals("CLEAR", StringComparison.OrdinalIgnoreCase);
+            var clearEveryProgramCg = isInstantClear && command.Layer < 0 && command.Project is null;
             lock (_controllerCgStackGate)
             {
                 CgProject[] targets;
@@ -4126,6 +4127,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                         targets.Contains(transition.Incoming);
                     if (touchesStoppedLayer) _controllerCgTransition = null;
                 }
+            }
+            if (clearEveryProgramCg)
+            {
+                // Emergency PROGRAM CLEAR is authoritative across every CG origin. A graphic
+                // started from Playout's quick CG control, auto-CG, logo bus, or the Controller
+                // stack must not survive behind a cleared Controller monitor.
+                if (ActiveCgProject is not null) ActiveCgProject.OnAir = false;
+                ActiveCgProject = null;
+                if (_logoOverlayProject is not null) _logoOverlayProject.OnAir = false;
+                _logoOverlayProject = null;
+                _autoCgProjectActive = false;
+                _autoCgOnAirUntilSeconds = -1;
+                lock (_programCgTimelineGate) _programCgTimelineAnchors.Clear();
             }
             Raise(nameof(CgEnabled)); Raise(nameof(CgStatusText));
             var targetDesc = command.Project?.Name ?? (command.Layer >= 0 ? $"LAYER {command.Layer}" : "ALL");

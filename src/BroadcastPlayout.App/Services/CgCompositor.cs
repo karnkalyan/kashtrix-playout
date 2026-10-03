@@ -1,4 +1,4 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Drawing.Imaging;
@@ -896,12 +896,13 @@ public sealed class CgCompositor : IDisposable
         }
         var p = Math.Min(inProgress, outProgress);
         var animation = inProgress < outProgress ? layer.AnimationIn : layer.AnimationOut;
+        var isOutPhase = outProgress <= inProgress;
         switch ((animation ?? "").ToUpperInvariant())
         {
-            case "SLIDE LEFT": x += (1 - p) * 220 * sx; break;
-            case "SLIDE RIGHT": x -= (1 - p) * 220 * sx; break;
-            case "SLIDE UP": y += (1 - p) * 120 * sy; break;
-            case "SLIDE DOWN": y -= (1 - p) * 120 * sy; break;
+            case "SLIDE LEFT": x += isOutPhase ? -(1 - p) * 220 * sx : (1 - p) * 220 * sx; break;
+            case "SLIDE RIGHT": x += isOutPhase ? (1 - p) * 220 * sx : -(1 - p) * 220 * sx; break;
+            case "SLIDE UP": y += isOutPhase ? -(1 - p) * 120 * sy : (1 - p) * 120 * sy; break;
+            case "SLIDE DOWN": y += isOutPhase ? (1 - p) * 120 * sy : -(1 - p) * 120 * sy; break;
             case "SCALE DOWN":
                 var startScaleDown = layer.TextAnimationScaleStart > 1.0 ? layer.TextAnimationScaleStart : 2.0;
                 var endScaleDown = layer.TextAnimationScaleEnd > 0 ? layer.TextAnimationScaleEnd : 1.0;

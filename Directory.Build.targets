@@ -46,12 +46,10 @@
                           '$(MSBuildProjectName)' == 'Kashtrix.ChannelController' or
                           '$(MSBuildProjectName)' == 'Kashtrix.FileManager' or
                           '$(MSBuildProjectName)' == 'Kashtrix.PlaylistEditor' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.CGController' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.HAController' or
+                           '$(MSBuildProjectName)' == 'Kashtrix.HAController' or
                           '$(MSBuildProjectName)' == 'Kashtrix.Prompter' or
                           '$(MSBuildProjectName)' == 'Kashtrix.ApiGateway' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.NRCS' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.OutputEngine'">
+                           '$(MSBuildProjectName)' == 'Kashtrix.NRCS'">
       <_SourceItemsToCopyToOutputDirectory Remove="@(_SourceItemsToCopyToOutputDirectory)"
                                            Condition="'%(_SourceItemsToCopyToOutputDirectory.Filename)' != 'e_sqlite3' and ($([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.TargetPath)').ToLower().StartsWith('native\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\native\ffmpeg\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\native\ndi\')) or '%(_SourceItemsToCopyToOutputDirectory.Filename)' == 'yt-dlp')" />
       <_SourceItemsToCopyToOutputDirectoryAlways Remove="@(_SourceItemsToCopyToOutputDirectoryAlways)"
@@ -78,15 +76,12 @@
                           '$(MSBuildProjectName)' == 'Kashtrix.ChannelController' or
                           '$(MSBuildProjectName)' == 'Kashtrix.FileManager' or
                           '$(MSBuildProjectName)' == 'Kashtrix.PlaylistEditor' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.CGController' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.CGEditor' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.HAController' or
+                           '$(MSBuildProjectName)' == 'Kashtrix.HAController' or
                           '$(MSBuildProjectName)' == 'Kashtrix.Prompter' or
                           '$(MSBuildProjectName)' == 'Kashtrix.ApiGateway' or
                           '$(MSBuildProjectName)' == 'Kashtrix.NRCS' or
                           '$(MSBuildProjectName)' == 'Kashtrix.QCController' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.MAM' or
-                          '$(MSBuildProjectName)' == 'Kashtrix.OutputEngine'">
+                           '$(MSBuildProjectName)' == 'Kashtrix.MAM'">
       <FilesToDelete Include="$(TargetDir)yt-dlp.exe" />
       <DirectoriesToDelete Include="$(TargetDir)native" />
     </ItemGroup>
