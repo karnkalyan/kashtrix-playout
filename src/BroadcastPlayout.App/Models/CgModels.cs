@@ -24,7 +24,8 @@ public sealed class CgProject : INotifyPropertyChanged
     public double DurationSeconds { get => _durationSeconds; set => Set(ref _durationSeconds, double.IsFinite(value) ? Math.Clamp(value, 0.1, 7200.0) : 10); }
     public double TimelinePauseSeconds { get => _timelinePauseSeconds; set => Set(ref _timelinePauseSeconds, double.IsFinite(value) ? value : -1); }
     public bool OnAir { get => _onAir; set => Set(ref _onAir, value); }
-    public bool Loop { get; set; }
+    private bool _loop;
+    public bool Loop { get => _loop; set => Set(ref _loop, value); }
     public bool IsStopping { get; set; }
     public double StopRequestedTimelineSeconds { get; set; } = -1;
     /// <summary>Optional external mixer/controller layer. -1 means no routed layer identity.</summary>
@@ -278,6 +279,25 @@ public sealed class CgLayer : INotifyPropertyChanged
     public double CornerRadiusBottomLeftPercent { get => _cornerRadiusBottomLeftPercent; set => Set(ref _cornerRadiusBottomLeftPercent, value); }
     public string BorderColor { get => _borderColor; set => Set(ref _borderColor, value); }
     public double BorderWidth { get => _borderWidth; set => Set(ref _borderWidth, value); }
+    private bool _useBorder;
+    public bool UseBorder { get => _useBorder; set => Set(ref _useBorder, value); }
+    private bool _useOutline;
+    public bool UseOutline { get => _useOutline; set => Set(ref _useOutline, value); }
+    private bool _fitToAr;
+    public bool FitToAr { get => _fitToAr; set => Set(ref _fitToAr, value); }
+
+    private bool _lightSweepEnabled;
+    public bool LightSweepEnabled { get => _lightSweepEnabled; set => Set(ref _lightSweepEnabled, value); }
+    private double _lightSweepProgress;
+    public double LightSweepProgress { get => _lightSweepProgress; set => Set(ref _lightSweepProgress, value); }
+    private double _lightSweepWidth = 0.25;
+    public double LightSweepWidth { get => _lightSweepWidth; set => Set(ref _lightSweepWidth, value); }
+    private double _lightSweepAngle = -25.0;
+    public double LightSweepAngle { get => _lightSweepAngle; set => Set(ref _lightSweepAngle, value); }
+    private double _lightSweepIntensity = 0.85;
+    public double LightSweepIntensity { get => _lightSweepIntensity; set => Set(ref _lightSweepIntensity, value); }
+    private string _lightSweepColor = "#FFFFFFFF";
+    public string LightSweepColor { get => _lightSweepColor; set => Set(ref _lightSweepColor, value); }
     private string _horizontalTextAlignment = "Left";
     public string HorizontalTextAlignment { get => _horizontalTextAlignment; set => Set(ref _horizontalTextAlignment, value ?? "Left"); } // Left, Center, Right
     private string _verticalTextAlignment = "Center";
@@ -449,6 +469,16 @@ public sealed class CgKeyframe : INotifyPropertyChanged
     public string StyleJson { get; set; } = string.Empty;
     public string Ease { get => _ease; set => Set(ref _ease, string.IsNullOrWhiteSpace(value) ? "linear" : value); }
     public bool Hold { get => _hold; set => Set(ref _hold, value); }
+    private double _cp1X = 0.25;
+    private double _cp1Y = 0.1;
+    private double _cp2X = 0.25;
+    private double _cp2Y = 1.0;
+    private double _speedOffset = 10.0;
+    public double Cp1X { get => _cp1X; set => Set(ref _cp1X, value); }
+    public double Cp1Y { get => _cp1Y; set => Set(ref _cp1Y, value); }
+    public double Cp2X { get => _cp2X; set => Set(ref _cp2X, value); }
+    public double Cp2Y { get => _cp2Y; set => Set(ref _cp2Y, value); }
+    public double SpeedOffset { get => _speedOffset; set => Set(ref _speedOffset, value); }
     private string _targetProperty = string.Empty;
     /// <summary>
     /// Channel/property this keyframe specifically animates: Position, Scale, Rotation, Opacity, Effects, or empty/All.

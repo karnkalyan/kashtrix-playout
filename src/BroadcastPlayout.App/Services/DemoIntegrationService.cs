@@ -41,7 +41,7 @@ public sealed class DemoIntegrationService
         {
             var database = new BroadcastDatabase();
             var canonical = CgDemoFactory.CreateDefaults();
-            Check(result, "CG catalog", CgDemoValidator.CatalogLooksHealthy(canonical), $"{canonical.Count} canonical editable template(s)");
+            Check(result, "CG catalog", CgDemoValidator.CatalogLooksHealthy(canonical), $"{canonical.Count} broadcast template(s) loaded from cg-demo");
 
             var canonicalNames = canonical.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var existing = database.LoadState("cg-projects", new List<CgProject>());

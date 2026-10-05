@@ -92,6 +92,7 @@ internal sealed partial class OutputChannelRuntime : IDisposable
         var mapName = _channel.InputSource switch
         {
             OutputInputSource.CgProgram => VirtualOutputBridge.CgProgramVideoMapName,
+            OutputInputSource.KashtrixStudio => VirtualOutputBridge.StudioProgramVideoMapName,
             OutputInputSource.Manual => VirtualOutputBridge.CustomPreviewVideoMapName,
             _ => VirtualOutputBridge.ProgramConfidenceVideoMapName
         };

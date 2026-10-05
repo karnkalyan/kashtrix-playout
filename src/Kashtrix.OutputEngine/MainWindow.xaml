@@ -209,6 +209,8 @@
                                 <TextBlock Text="ROUTED INPUT SOURCE:" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" FontSize="12" VerticalAlignment="Center" Margin="0,0,14,0"/>
                                 <RadioButton x:Name="SourceTabPlayout" Content="📺 Playout Program Bus" Checked="InputSourceTab_Checked" IsChecked="True"
                                              GroupName="InputSourceTabs" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0" Cursor="Hand"/>
+                                <RadioButton x:Name="SourceTabStudio" Content="🎬 Kashtrix Studio Program" Checked="InputSourceTab_Checked"
+                                             GroupName="InputSourceTabs" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0" Cursor="Hand"/>
                                 <RadioButton x:Name="SourceTabCg" Content="🎨 CG Program Bus (Alpha/Fill+Key)" Checked="InputSourceTab_Checked"
                                              GroupName="InputSourceTabs" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0" Cursor="Hand"/>
                                 <RadioButton x:Name="SourceTabCustom" Content="🌐 Custom Input Source..." Checked="InputSourceTab_Checked"

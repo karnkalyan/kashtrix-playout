@@ -1,0 +1,10 @@
+[
+  { "cityName": "Kathmandu", "temp": 24, "min": 16, "max": 27, "condition": "Partly Cloudy", "humidity": "62%", "icon": "02d" },
+  { "cityName": "Pokhara", "temp": 26, "min": 18, "max": 29, "condition": "Sunny", "humidity": "55%", "icon": "01d" },
+  { "cityName": "Biratnagar", "temp": 30, "min": 22, "max": 33, "condition": "Cloudy", "humidity": "70%", "icon": "04d" },
+  { "cityName": "Nepalgunj", "temp": 32, "min": 24, "max": 35, "condition": "Clear Night", "humidity": "48%", "icon": "01n" },
+  { "cityName": "Dhangadhi", "temp": 31, "min": 23, "max": 34, "condition": "Rain", "humidity": "72%", "icon": "10d" },
+  { "cityName": "Dharan", "temp": 28, "min": 20, "max": 31, "condition": "Mist", "humidity": "75%", "icon": "50d" },
+  { "cityName": "Chitwan", "temp": 29, "min": 21, "max": 32, "condition": "Thunderstorm", "humidity": "78%", "icon": "11d" },
+  { "cityName": "Butwal", "temp": 30, "min": 22, "max": 33, "condition": "Showers", "humidity": "68%", "icon": "09d" }
+]

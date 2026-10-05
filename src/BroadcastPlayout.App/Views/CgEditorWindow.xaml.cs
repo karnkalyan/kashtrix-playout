@@ -17,7 +17,8 @@ using System.Windows.Threading;
 using BroadcastPlayout.Models;
 using BroadcastPlayout.Services;
 using BroadcastPlayout.ViewModels;
-using Microsoft.Win32;
+using OpenFileDialog = BroadcastPlayout.Views.KashtrixFileDialog;
+using SaveFileDialog = BroadcastPlayout.Views.KashtrixSaveFileDialog;
 using Forms = System.Windows.Forms;
 
 namespace BroadcastPlayout.Views;
@@ -56,6 +57,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private string _previewDragMode = "";
     private Point _previewDragStart;
     private double _previewStartX, _previewStartY, _previewStartW, _previewStartH;
+    private double _previewStartSkewX, _previewStartSkewY, _previewStartRotation;
     private CgKeyframe? _previewEditKeyframe;
     private CgLayer? _pendingVideoSourceLayer;
     private CgLayer? _drawVideoSourceLayer;
@@ -248,7 +250,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         ProjectView = CollectionViewSource.GetDefaultView(Projects);
         ProjectView.Filter = FilterProject;
         Animations = ["None", "Fade", "Slide Left", "Slide Right", "Slide Up", "Slide Down", "Zoom", "Scale", "Pop", "Push Left", "Push Right", "Push Up", "Push Down", "Wipe Left", "Wipe Right", "Blur"];
-        Easings = ["linear", "power1.in", "power1.out", "power1.inout", "power2.in", "power2.out", "power2.inout", "power3.in", "power3.out", "power3.inout", "power4.in", "power4.out", "power4.inout", "back.in", "back.out", "back.inout", "elastic.in", "elastic.out", "elastic.inout", "bounce.in", "bounce.out", "bounce.inout", "expo.in", "expo.out", "expo.inout", "circ.in", "circ.out", "circ.inout", "sine.in", "sine.out", "sine.inout", "steps(2).out", "steps(4).out", "steps(6).out", "steps(12).out"];
+        foreach (var e in new[] { "linear", "power1.in", "power1.out", "power1.inout", "power2.in", "power2.out", "power2.inout", "power3.in", "power3.out", "power3.inout", "power4.in", "power4.out", "power4.inout", "back.in", "back.out", "back.inout", "elastic.in", "elastic.out", "elastic.inout", "bounce.in", "bounce.out", "bounce.inout", "expo.in", "expo.out", "expo.inout", "circ.in", "circ.out", "circ.inout", "sine.in", "sine.out", "sine.inout", "steps(2).out", "steps(4).out", "steps(6).out", "steps(12).out" })
+        {
+            Easings.Add(e);
+        }
         var editorSettings = SettingsStore.Load();
         _showSafeAreas = editorSettings.CgEditorShowSafeAreas;
         _showCenterGuide = editorSettings.CgEditorShowCenterGuide;
@@ -364,7 +369,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     public ObservableCollection<CgProject> Projects { get; }
     public ICollectionView ProjectView { get; }
-    public IReadOnlyList<string> TemplateCategories { get; } = ["ALL", "AP1 HD", "PRIME HD", "SPACE 4K", "AAJ TAK", "ABP NEWS", "INDIA TV", "GRAPHICS PACK", "BREAKING NEWS", "NEWS", "LOWER THIRDS", "WEATHER", "SPORTS", "FINANCE", "ELECTION", "ENTERTAINMENT", "MUSIC", "TICKERS", "IMPORTED"];
+    public IReadOnlyList<string> TemplateCategories { get; } = ["ALL", "3D", "AP1 HD", "PRIME HD", "SPACE 4K", "PUBLIC 4K", "NEWS", "BREAKING NEWS", "MARKET / FINANCE", "TICKERS", "LOWER THIRDS", "LOGO / BUG", "COUNTDOWN / TIMER", "WEATHER", "MUSIC", "PROGRAM", "IMPORTED"];
     public string TemplateCategory
     {
         get => _templateCategory;
@@ -379,7 +384,17 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     public ObservableCollection<CgKeyframe> GroupKeyframes { get; } = [];
     public CgGradientStop? SelectedGradientStop { get => _selectedGradientStop; set { _selectedGradientStop=value; Raise(); } }
     public IReadOnlyList<string> Animations { get; }
-    public IReadOnlyList<string> Easings { get; }
+    public ObservableCollection<string> Easings { get; } = [];
+
+    public void EnsureEaseInCollection(string? ease)
+    {
+        if (string.IsNullOrWhiteSpace(ease)) return;
+        var trimmed = ease.Trim();
+        if (!Easings.Any(x => string.Equals(x, trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            Easings.Add(trimmed);
+        }
+    }
     public IReadOnlyList<string> DataSourceTypes { get; } = ["UrlJson", "LocalJson", "Xml", "Rss", "Excel", "Csv", "Txt", "OpenWeather"];
     public IReadOnlyList<string> StaggerFromOptions { get; } = ["Start", "End"];
     public IReadOnlyList<string> LayerRoles { get; } = ["Graphic", "Logo", "Bug", "Shape", "Data"];
@@ -416,8 +431,11 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         "Slide Right",
         "Push Left",
         "Push Right",
+        "Push Up",
+        "Push Down",
         "Slide Up",
         "Slide Down",
+        "3D Rotation",
         "Rise Cascade",
         "Tracking Reveal",
         "Pop Cascade",
@@ -587,23 +605,21 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         return TemplateCategory switch
         {
             "ALL" => true,
+            "3D" => n.Contains("3D") || n.Contains("EXTRUDE") || n.Contains("DEPTH"),
             "AP1 HD" => n.Contains("AP1") || n.Contains("AP 1"),
-            "PRIME HD" => n.Contains("PRIME HD"),
-            "SPACE 4K" => n.Contains("SPACE 4K"),
-            "AAJ TAK" => n.Contains("AAJ TAK"),
-            "ABP NEWS" => n.Contains("ABP NEWS"),
-            "INDIA TV" => n.Contains("INDIA TV"),
-            "GRAPHICS PACK" => n.Contains("GRAPHICS PACK") || n.Contains("FRACTAL"),
-            "BREAKING NEWS" => n.Contains("BREAKING"),
-            "NEWS" => n.Contains("NEWS") || n.Contains("HEADLINE") || n.Contains("DISPATCH"),
-            "LOWER THIRDS" => n.Contains("LOWER THIRD") || n.Contains("NAME PLATE") || n.Contains("STRAP"),
-            "WEATHER" => n.Contains("WEATHER") || n.Contains("FORECAST") || n.Contains("AQI"),
-            "SPORTS" => n.Contains("CRICKET") || n.Contains("FOOTBALL") || n.Contains("SPORTS") || n.Contains("SCOREBUG"),
-            "FINANCE" => n.Contains("FINANCE") || n.Contains("MARKET") || n.Contains("BUSINESS"),
-            "ELECTION" => n.Contains("ELECTION"),
-            "ENTERTAINMENT" => n.Contains("ENTERTAINMENT") || n.Contains("HOLLYWOOD") || n.Contains("CINEMA"),
-            "MUSIC" => n.Contains("MUSIC") || n.Contains("NOW PLAYING"),
-            "TICKERS" => n.Contains("TICKER") || n.Contains("ROLL"),
+            "PRIME HD" => n.Contains("PRIME"),
+            "SPACE 4K" => n.Contains("SPACE"),
+            "PUBLIC 4K" => n.Contains("PUBLIC"),
+            "NEWS" => n.Contains("NEWS") || n.Contains("HEADLINE") || n.Contains("DISPATCH") || n.Contains("BULLETIN"),
+            "BREAKING NEWS" => n.Contains("BREAKING") || n.Contains("FLASH"),
+            "MARKET / FINANCE" => n.Contains("FINANCE") || n.Contains("MARKET") || n.Contains("BUSINESS") || n.Contains("STOCK") || n.Contains("NEPSE"),
+            "TICKERS" => n.Contains("TICKER") || n.Contains("ROLL") || n.Contains("CRAWL"),
+            "LOWER THIRDS" => n.Contains("LOWER THIRD") || n.Contains("NAME PLATE") || n.Contains("STRAP") || n.Contains("L3"),
+            "LOGO / BUG" => n.Contains("LOGO") || n.Contains("BUG") || n.Contains("WATERMARK") || n.Contains("STATION"),
+            "COUNTDOWN / TIMER" => n.Contains("COUNTDOWN") || n.Contains("TIMER") || n.Contains("CLOCK"),
+            "WEATHER" => n.Contains("WEATHER") || n.Contains("FORECAST") || n.Contains("AQI") || n.Contains("METEO"),
+            "MUSIC" => n.Contains("MUSIC") || n.Contains("NOW PLAYING") || n.Contains("SONG"),
+            "PROGRAM" => n.Contains("PROGRAM") || n.Contains("SHOW") || n.Contains("SCHEDULE") || n.Contains("PROMO"),
             "IMPORTED" => p.IsImported || n.Contains("IMPORTED"),
             _ => true
         };
@@ -668,7 +684,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         {
             if (value.Layers.Count == 0)
             {
-                var canonical = CgUniqueDemoFactory.Create().FirstOrDefault(x => string.Equals(x.Name, value.Name, StringComparison.OrdinalIgnoreCase));
+                var canonical = CgDemoFactory.CreateDefaults().FirstOrDefault(x => string.Equals(x.Name, value.Name, StringComparison.OrdinalIgnoreCase));
                 if (canonical != null && canonical.Layers.Count > 0)
                 {
                     value.Layers = canonical.Layers.Select(CgDemoFactory.CloneLayer).ToList();
@@ -918,7 +934,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     public CgKeyframe? SelectedGroupKeyframe
     {
         get => _selectedGroupKeyframe;
-        set { if (ReferenceEquals(_selectedGroupKeyframe, value)) return; _selectedGroupKeyframe = value; Raise(); }
+        set { if (ReferenceEquals(_selectedGroupKeyframe, value)) return; _selectedGroupKeyframe = value; if (_selectedGroupKeyframe is not null) EnsureEaseInCollection(_selectedGroupKeyframe.Ease); Raise(); }
     }
 
     public CgKeyframe? SelectedKeyframe
@@ -928,7 +944,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         {
             if (ReferenceEquals(_selectedKeyframe, value)) return;
             _selectedKeyframe = value;
-            if (_selectedKeyframe is not null && SelectedLayer is not null)
+            if (_selectedKeyframe is not null)
+            {
+                EnsureEaseInCollection(_selectedKeyframe.Ease);
+                if (SelectedLayer is not null)
             {
                 SelectedLayer.X = _selectedKeyframe.X;
                 SelectedLayer.Y = _selectedKeyframe.Y;
@@ -958,6 +977,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             Raise();
         }
     }
+}
 
     public CgHtmlSource? SelectedHtml
     {
@@ -983,7 +1003,21 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     }
     public string RemainingText => TimeSpan.FromSeconds(Math.Max(0, ProjectDuration - Playhead)).ToString(@"mm\:ss\.ff");
     public string CanvasInfoText => $"{SelectedProject?.Width ?? 1920} x {SelectedProject?.Height ?? 1080} · {(SelectedProject?.FrameRate ?? 25):0.###} fps design canvas";
-    public bool Loop { get => _loop; set { _loop = value; Raise(); } }
+    public bool Loop
+    {
+        get => SelectedProject?.Loop ?? _loop;
+        set
+        {
+            _loop = value;
+            if (SelectedProject is not null)
+            {
+                SelectedProject.Loop = value;
+                SyncLayersToProject();
+                _main.SaveCgProjects();
+            }
+            Raise();
+        }
+    }
     public bool AutoKey { get => _autoKey; set { if (_autoKey == value) return; _autoKey = value; Raise(); } }
     public bool ShowCanvasGrid { get => _showCanvasGrid; set { if (_showCanvasGrid == value) return; _showCanvasGrid = value; Raise(); RenderPreview(); } }
     public double TimelineZoom
@@ -1107,6 +1141,244 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             CreateProject(dialog.ProjectName, dialog.ProjectWidth, dialog.ProjectHeight, dialog.ProjectFrameRate, dialog.ProjectDurationSeconds);
     }
     private void AddText_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer { Name="Text", Type="Text", Text="KASHTRIX TITLE", X=180, Y=780, Width=1050, Height=100, FontSize=48, UseBackground=false, Background="#00000000", AnimationIn="None", AnimationOut="None", AnimationInSeconds=0, AnimationOutSeconds=0 });
+    private void AddFlipCard_Click(object sender, RoutedEventArgs e)
+    {
+        var groupId = Guid.NewGuid();
+        var pw = SelectedProject?.Width > 0 ? SelectedProject.Width : 1920;
+        var ph = SelectedProject?.Height > 0 ? SelectedProject.Height : 1080;
+        var cardW = 600.0;
+        var cardH = 400.0;
+        var cardX = Math.Max(0.0, (pw - cardW) / 2.0);
+        var cardY = Math.Max(0.0, (ph - cardH) / 2.0);
+
+        var card = new CgLayer
+        {
+            Name = "3D Flip Card Plate",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = cardX,
+            Y = cardY,
+            Width = cardW,
+            Height = cardH,
+            Background = "#151B26",
+            UseGradient = true,
+            GradientColor2 = "#283548",
+            BorderColor = "#00E5FF",
+            BorderWidth = 3,
+            UseBorder = true,
+            CornerRadius = 16,
+            AnchorX = 0.5,
+            AnchorY = 0.5,
+            Perspective = 1000,
+            KeyframeRepeat = -1,
+            GroupId = groupId,
+            Keyframes = [
+                new() { TimeSeconds = 0.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 0, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 2.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 180, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 4.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+            ]
+        };
+        var textFront = new CgLayer
+        {
+            Name = "3D Flip Card Text",
+            Type = "Text",
+            Text = "KASHTRIX 3D FLIP\nBROADCAST CARD",
+            FontFamily = "Segoe UI",
+            FontSize = 36,
+            Bold = true,
+            Fill = "#00E5FF",
+            HorizontalTextAlignment = "Center",
+            VerticalTextAlignment = "Center",
+            X = cardX,
+            Y = cardY,
+            Width = cardW,
+            Height = cardH,
+            AnchorX = 0.5,
+            AnchorY = 0.5,
+            Perspective = 1000,
+            KeyframeRepeat = -1,
+            GroupId = groupId,
+            Keyframes = [
+                new() { TimeSeconds = 0.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 0, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 1.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 90, Opacity = 0.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 3.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 270, Opacity = 0.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 4.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+            ]
+        };
+        var textBack = new CgLayer
+        {
+            Name = "3D Flip Card Back Text",
+            Type = "Text",
+            Text = "BACK SIDE REVEAL\nLIVE BROADCAST",
+            FontFamily = "Segoe UI",
+            FontSize = 36,
+            Bold = true,
+            Fill = "#FFB300",
+            HorizontalTextAlignment = "Center",
+            VerticalTextAlignment = "Center",
+            X = cardX,
+            Y = cardY,
+            Width = cardW,
+            Height = cardH,
+            AnchorX = 0.5,
+            AnchorY = 0.5,
+            Perspective = 1000,
+            KeyframeRepeat = -1,
+            GroupId = groupId,
+            Keyframes = [
+                new() { TimeSeconds = 0.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 0, Opacity = 0.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 1.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 90, Opacity = 0.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 1.05, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 95, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 2.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 180, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 2.95, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 265, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 3.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 270, Opacity = 0.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                new() { TimeSeconds = 4.0, X = cardX, Y = cardY, Width = cardW, Height = cardH, RotationY = 360, Opacity = 0.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+            ]
+        };
+        if (SelectedProject != null && !SelectedProject.Groups.Any(g => g.Id == groupId))
+        {
+            SelectedProject.Groups.Add(new CgGroup { Id = groupId, Name = "3D Flip Card Group" });
+        }
+        AddLayer(card);
+        AddLayer(textFront);
+        AddLayer(textBack);
+    }
+    private void Add3dRotatingBox_Click(object sender, RoutedEventArgs e)
+    {
+        var groupId = Guid.NewGuid();
+        if (SelectedProject != null && !SelectedProject.Groups.Any(g => g.Id == groupId))
+        {
+            SelectedProject.Groups.Add(new CgGroup { Id = groupId, Name = "3D Rotating Box Group" });
+        }
+        var pw = SelectedProject?.Width > 0 ? SelectedProject.Width : 1920;
+        var ph = SelectedProject?.Height > 0 ? SelectedProject.Height : 1080;
+        var boxW = 500.0;
+        var boxH = 400.0;
+        var boxX = Math.Max(0.0, (pw - boxW) / 2.0);
+        var boxY = Math.Max(0.0, (ph - boxH) / 2.0);
+
+        (string name, string text, string stroke, double angle)[] faces = [
+            ("Face 1 (Front)", "KASHTRIX 3D BOX\nFACE 1 · ON AIR", "#00E5FF", 0),
+            ("Face 2 (Right)", "BROADCAST PLAYOUT\nFACE 2 · 4K READY", "#00E676", 90),
+            ("Face 3 (Back)", "CG ENGINE SYSTEM\nFACE 3 · MULTI-LAYER", "#FFB300", 180),
+            ("Face 4 (Left)", "AUTOMATION HUB\nFACE 4 · ROCK SOLID", "#FF4081", 270)
+        ];
+        foreach (var face in faces)
+        {
+            var plate = new CgLayer
+            {
+                Name = $"3D Box {face.name}",
+                Type = "Shape",
+                ShapeKind = "Rectangle",
+                X = boxX,
+                Y = boxY,
+                Width = boxW,
+                Height = boxH,
+                Background = "#0B1522",
+                UseGradient = true,
+                GradientColor2 = "#05090F",
+                BorderColor = face.stroke,
+                BorderWidth = 3,
+                UseBorder = true,
+                CornerRadius = 14,
+                AnchorX = 0.5,
+                AnchorY = 0.5,
+                Perspective = 1100,
+                KeyframeRepeat = -1,
+                GroupId = groupId,
+                Keyframes = [
+                    new() { TimeSeconds = 0.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationY = face.angle, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                    new() { TimeSeconds = 4.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationY = face.angle + 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+                ]
+            };
+            var textLayer = new CgLayer
+            {
+                Name = $"3D Box Text {face.name}",
+                Type = "Text",
+                Text = face.text,
+                FontFamily = "Segoe UI",
+                FontSize = 30,
+                Bold = true,
+                Fill = face.stroke,
+                HorizontalTextAlignment = "Center",
+                VerticalTextAlignment = "Center",
+                X = boxX,
+                Y = boxY,
+                Width = boxW,
+                Height = boxH,
+                AnchorX = 0.5,
+                AnchorY = 0.5,
+                Perspective = 1100,
+                KeyframeRepeat = -1,
+                GroupId = groupId,
+                Keyframes = [
+                    new() { TimeSeconds = 0.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationY = face.angle, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                    new() { TimeSeconds = 4.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationY = face.angle + 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+                ]
+            };
+            AddLayer(plate);
+            AddLayer(textLayer);
+        }
+    }
+    private void AddMarketTicker_Click(object sender, RoutedEventArgs e)
+    {
+        var bar = new CgLayer
+        {
+            Name = "Market Ticker Bar",
+            Type = "Shape",
+            ShapeKind = "Rectangle",
+            X = 60,
+            Y = 940,
+            Width = 1800,
+            Height = 90,
+            Background = "#0B1522",
+            UseGradient = true,
+            GradientColor2 = "#142236",
+            BorderColor = "#FFB300",
+            BorderWidth = 2,
+            UseBorder = true,
+            CornerRadius = 10
+        };
+        var badge = new CgLayer
+        {
+            Name = "Market Badge",
+            Type = "Text",
+            Text = "NEPSE LIVE",
+            FontFamily = "Segoe UI",
+            FontSize = 24,
+            Bold = true,
+            Fill = "#FFFFD600",
+            Background = "#800818",
+            UseBackground = true,
+            HorizontalTextAlignment = "Center",
+            VerticalTextAlignment = "Center",
+            X = 60,
+            Y = 940,
+            Width = 200,
+            Height = 90
+        };
+        var ticker = new CgLayer
+        {
+            Name = "Market Stock Ticker",
+            Type = "Ticker",
+            Text = "NEPSE 2,684.50 ▲ +34.20 (+1.29%)  •  FLOAT 472.10 ▲ +5.12 (+1.10%)  •  BANK 1,420.30 ▼ -8.40 (-0.59%)  •  HYDRO 3,110.80 ▲ +52.60 (+1.72%)  •  MICRO 4,890.15 ▼ -18.20 (-0.37%)  •  INSUR 11,250.00 ▲ +112.50 (+1.01%)",
+            FontFamily = "Segoe UI",
+            FontSize = 32,
+            Bold = true,
+            Fill = "#FFFFFF",
+            HorizontalTextAlignment = "Left",
+            VerticalTextAlignment = "Center",
+            X = 270,
+            Y = 940,
+            Width = 1590,
+            Height = 90,
+            TickerSpeed = 140,
+            Speed = 140
+        };
+        AddLayer(bar);
+        AddLayer(badge);
+        AddLayer(ticker);
+    }
     private void AddTimer_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer
     {
         Name = "Broadcast Timer",
@@ -1893,6 +2165,11 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         StyleJson = k.StyleJson,
         Ease = k.Ease,
         Hold = k.Hold,
+        Cp1X = k.Cp1X,
+        Cp1Y = k.Cp1Y,
+        Cp2X = k.Cp2X,
+        Cp2Y = k.Cp2Y,
+        SpeedOffset = k.SpeedOffset,
         TargetProperty = k.TargetProperty
     };
 
@@ -1951,6 +2228,41 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         if(SelectedLayer is null||SelectedKeyframe is null)return;SelectedLayer.Keyframes.Remove(SelectedKeyframe);Keyframes.Remove(SelectedKeyframe);SelectedKeyframe=Keyframes.FirstOrDefault();SyncLayersToProject();RenderAll();
     }
+    private void SpeedCurves_Click(object sender, RoutedEventArgs e)
+    {
+        var kf = SelectedKeyframe;
+        if (kf == null && SelectedLayer != null)
+        {
+            if (SelectedLayer.Keyframes.Count > 0)
+            {
+                kf = SelectedLayer.Keyframes.OrderBy(k => Math.Abs(k.TimeSeconds - Playhead)).FirstOrDefault();
+            }
+            else
+            {
+                kf = CaptureCurrentKeyframe(Playhead);
+                SelectedLayer.Keyframes.Add(kf);
+                Keyframes.Add(kf);
+            }
+            SelectedKeyframe = kf;
+        }
+
+        if (kf == null)
+        {
+            MessageBox.Show(this, "Please select a layer with keyframes or create a keyframe first.", "Speed Curves", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new KeyframeCurveEditorWindow(kf) { Owner = this };
+        if (dlg.ShowDialog() == true)
+        {
+            EnsureEaseInCollection(kf.Ease);
+            SortSelectedKeyframes();
+            SyncLayersToProject();
+            _main.SaveCgProjects();
+            Raise(nameof(SelectedKeyframe));
+            RenderAll();
+        }
+    }
     private void SortSelectedKeyframes()
     {
         if(SelectedLayer is null)return;var ordered=SelectedLayer.Keyframes.OrderBy(x=>x.TimeSeconds).ToList();SelectedLayer.Keyframes=ordered;Keyframes.Clear();foreach(var k in ordered)Keyframes.Add(k);if(SelectedKeyframe is not null&&!Keyframes.Contains(SelectedKeyframe))SelectedKeyframe=Keyframes.FirstOrDefault();
@@ -1971,7 +2283,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         X=l.X+dx, Y=l.Y+dy, Z=l.Z, Width=l.Width, Height=l.Height, ScaleX=l.ScaleX, ScaleY=l.ScaleY, ScaleZ=l.ScaleZ, RotationX=l.RotationX, RotationY=l.RotationY, AnchorX=l.AnchorX, AnchorY=l.AnchorY, AnchorZ=l.AnchorZ, Perspective=l.Perspective, FontSize=l.FontSize, FontFamily=l.FontFamily,
         Fill=l.Fill, Background=l.Background, StartSeconds=l.StartSeconds, EndSeconds=l.EndSeconds,
         AnimationIn=l.AnimationIn, AnimationOut=l.AnimationOut, AnimationInSeconds=l.AnimationInSeconds, AnimationOutSeconds=l.AnimationOutSeconds, Speed=l.Speed, Rotation=l.Rotation, Opacity=l.Opacity,
-        CornerRadius=l.CornerRadius, CornerRadiusTopLeft=l.CornerRadiusTopLeft, CornerRadiusTopRight=l.CornerRadiusTopRight, CornerRadiusBottomRight=l.CornerRadiusBottomRight, CornerRadiusBottomLeft=l.CornerRadiusBottomLeft, CornerRadiusAsPercent=l.CornerRadiusAsPercent, CornerRadiusTopLeftPercent=l.CornerRadiusTopLeftPercent, CornerRadiusTopRightPercent=l.CornerRadiusTopRightPercent, CornerRadiusBottomRightPercent=l.CornerRadiusBottomRightPercent, CornerRadiusBottomLeftPercent=l.CornerRadiusBottomLeftPercent, BorderColor=l.BorderColor, BorderWidth=l.BorderWidth,
+        CornerRadius=l.CornerRadius, CornerRadiusTopLeft=l.CornerRadiusTopLeft, CornerRadiusTopRight=l.CornerRadiusTopRight, CornerRadiusBottomRight=l.CornerRadiusBottomRight, CornerRadiusBottomLeft=l.CornerRadiusBottomLeft, CornerRadiusAsPercent=l.CornerRadiusAsPercent, CornerRadiusTopLeftPercent=l.CornerRadiusTopLeftPercent, CornerRadiusTopRightPercent=l.CornerRadiusTopRightPercent, CornerRadiusBottomRightPercent=l.CornerRadiusBottomRightPercent, CornerRadiusBottomLeftPercent=l.CornerRadiusBottomLeftPercent, BorderColor=l.BorderColor, BorderWidth=l.BorderWidth, UseBorder=l.UseBorder, UseOutline=l.UseOutline, FitToAr=l.FitToAr, LightSweepEnabled=l.LightSweepEnabled, LightSweepProgress=l.LightSweepProgress, LightSweepWidth=l.LightSweepWidth, LightSweepAngle=l.LightSweepAngle, LightSweepIntensity=l.LightSweepIntensity, LightSweepColor=l.LightSweepColor,
         HorizontalTextAlignment=l.HorizontalTextAlignment, VerticalTextAlignment=l.VerticalTextAlignment,
         Bold=l.Bold, Italic=l.Italic, Underline=l.Underline, OutlineColor=l.OutlineColor, OutlineWidth=l.OutlineWidth,
         ShadowColor=l.ShadowColor, ShadowOffsetX=l.ShadowOffsetX, ShadowOffsetY=l.ShadowOffsetY, ShadowBlur=l.ShadowBlur,
@@ -1985,7 +2297,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         SequenceLoop=l.SequenceLoop, SequenceHoldLastFrame=l.SequenceHoldLastFrame, SequenceAdvanceDataItem=l.SequenceAdvanceDataItem,
         SequenceOverlayIntervalItems=l.SequenceOverlayIntervalItems,
         UseBackground=l.UseBackground, AnimationGlowColor=l.AnimationGlowColor, AnimationGlowRadius=l.AnimationGlowRadius, AnimationBlurRadius=l.AnimationBlurRadius,
-        Keyframes=l.Keyframes.Select(k=>new CgKeyframe { TimeSeconds=k.TimeSeconds,X=k.X+dx,Y=k.Y+dy,Z=k.Z,Width=k.Width,Height=k.Height,RotationX=k.RotationX,RotationY=k.RotationY,Rotation=k.Rotation,Opacity=k.Opacity,ScaleX=k.ScaleX,ScaleY=k.ScaleY,ScaleZ=k.ScaleZ,AnchorX=k.AnchorX,AnchorY=k.AnchorY,AnchorZ=k.AnchorZ,SkewX=k.SkewX,SkewY=k.SkewY,BlurRadius=k.BlurRadius,StyleJson=k.StyleJson,Ease=k.Ease,Hold=k.Hold }).ToList(),
+        Keyframes=l.Keyframes.Select(k=>new CgKeyframe { TimeSeconds=k.TimeSeconds,X=k.X+dx,Y=k.Y+dy,Z=k.Z,Width=k.Width,Height=k.Height,RotationX=k.RotationX,RotationY=k.RotationY,Rotation=k.Rotation,Opacity=k.Opacity,ScaleX=k.ScaleX,ScaleY=k.ScaleY,ScaleZ=k.ScaleZ,AnchorX=k.AnchorX,AnchorY=k.AnchorY,AnchorZ=k.AnchorZ,SkewX=k.SkewX,SkewY=k.SkewY,BlurRadius=k.BlurRadius,StyleJson=k.StyleJson,Ease=k.Ease,Hold=k.Hold,Cp1X=k.Cp1X,Cp1Y=k.Cp1Y,Cp2X=k.Cp2X,Cp2Y=k.Cp2Y,SpeedOffset=k.SpeedOffset,TargetProperty=k.TargetProperty }).ToList(),
         Visible=l.Visible
     };
 
@@ -2131,7 +2443,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private void BrowseTickerSeparatorLogo_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedLayer is null) return;
-        var d = new Microsoft.Win32.OpenFileDialog
+        var d = new OpenFileDialog
         {
             Title = "Select Ticker Separator Logo Image",
             Filter = "Image Files|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.tga|All Files|*.*"
@@ -2337,7 +2649,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (centerX <= 0 || centerY <= 0) return;
         var angle = Math.Atan2(point.Y - centerY, point.X - centerX) * 180.0 / Math.PI;
         SelectedLayer.GradientAngle = Math.Round((angle % 360 + 360) % 360, 1);
-        SelectedLayer.UseGradient = true;
         SyncLayersToProject();
         Raise(nameof(SelectedLayer));
         RenderPreview();
@@ -2348,7 +2659,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (!IsLoaded || SelectedLayer is null || _gradientDialDragging || sender is not TextBox textBox) return;
         if (!double.TryParse(textBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var angle) || !double.IsFinite(angle)) return;
         SelectedLayer.GradientAngle = (angle % 360 + 360) % 360;
-        SelectedLayer.UseGradient = true;
         SyncLayersToProject();
         Raise(nameof(SelectedLayer));
         RenderPreview();
@@ -2357,7 +2667,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private void GradientStopSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (!IsLoaded || SelectedLayer is null) return;
-        SelectedLayer.UseGradient = true;
         SyncLayersToProject();
         Raise(nameof(SelectedLayer));
         RenderPreview();
@@ -2411,6 +2720,51 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         {
             ApplyTextAnimationPreset(preset);
         }
+    }
+
+    private void AutoKeyLightSweep_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedLayer is null || SelectedProject is null) return;
+        var l = SelectedLayer;
+        l.LightSweepEnabled = true;
+        var k1 = l.Keyframes.FirstOrDefault(k => Math.Abs(k.TimeSeconds - l.StartSeconds) < 0.05);
+        if (k1 is null)
+        {
+            k1 = new CgKeyframe { TimeSeconds = l.StartSeconds, Ease = "power2.inOut" };
+            CopyLayerTransformToKeyframe(l, k1, string.Empty);
+            l.Keyframes.Add(k1);
+        }
+        else if (k1.Width <= 0.001 || k1.Height <= 0.001)
+        {
+            CopyLayerTransformToKeyframe(l, k1, k1.StyleJson ?? string.Empty);
+        }
+
+        var k2 = l.Keyframes.FirstOrDefault(k => Math.Abs(k.TimeSeconds - l.EndSeconds) < 0.05);
+        if (k2 is null)
+        {
+            k2 = new CgKeyframe { TimeSeconds = l.EndSeconds, Ease = "power2.inOut" };
+            CopyLayerTransformToKeyframe(l, k2, string.Empty);
+            l.Keyframes.Add(k2);
+        }
+        else if (k2.Width <= 0.001 || k2.Height <= 0.001)
+        {
+            CopyLayerTransformToKeyframe(l, k2, k2.StyleJson ?? string.Empty);
+        }
+
+        l.Keyframes = l.Keyframes.OrderBy(k => k.TimeSeconds).ToList();
+        l.LightSweepProgress = 1.0;
+        k2.StyleJson = CgAnimationEngine.CaptureStyleJson(l);
+        l.LightSweepProgress = 0.0;
+        k1.StyleJson = CgAnimationEngine.CaptureStyleJson(l);
+        if (ReferenceEquals(l, SelectedLayer))
+        {
+            Keyframes.Clear();
+            foreach (var item in l.Keyframes) Keyframes.Add(item);
+            SelectedKeyframe = k1;
+        }
+        SyncLayersToProject();
+        _main.SaveCgProjects();
+        RenderAll();
     }
 
     private void TextAnimationPreset_Click(object sender, RoutedEventArgs e)
@@ -3110,6 +3464,17 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     private void Inspector_LostFocus(object sender, RoutedEventArgs e)
     {
+        if (SelectedLayer is { } selLayer && (string.Equals(selLayer.Type, "DateTime", StringComparison.OrdinalIgnoreCase) || string.Equals(selLayer.Type, "DigitalClock", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!string.IsNullOrWhiteSpace(selLayer.Text) && selLayer.Text != "KASHTRIX" && selLayer.DataFormat != selLayer.Text)
+            {
+                selLayer.DataFormat = selLayer.Text;
+            }
+            else if (!string.IsNullOrWhiteSpace(selLayer.DataFormat) && selLayer.DataFormat != "{0}" && selLayer.Text != selLayer.DataFormat)
+            {
+                selLayer.Text = selLayer.DataFormat;
+            }
+        }
         RecordUndoSnapshot();
         CommitInspectorAutoKey();
         SyncLayersToProject();
@@ -3332,11 +3697,21 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var textEvalTime = visualLayer.DataSourceId != Guid.Empty ? ContinuousPlaybackSeconds : Playhead;
             var resolvedText=CgAnimationEngine.ResolveAnimatedText(visualLayer,CgDataSourceService.ResolveLayerText(project,visualLayer,ContinuousPlaybackSeconds),textEvalTime);
             var el = BuildElement(project, visualLayer, sx, sy, resolvedText); if (el is null) continue;
-            // EvaluateLayer already bakes keyframed scale, Z perspective and X/Y rotation
-            // foreshortening into X/Y/Width/Height. Use that geometry exactly as the software
-            // compositor does so editor, controller and program remain pixel-proportional.
-            var baseW = Math.Max(2, motion.Width * sx); var baseH = Math.Max(2, motion.Height * sy);
+            // For 3D rotated elements, keep base layout dimensions so text wrapping does not collapse
+            // into vertical single-character columns, and apply foreshortening/perspective via ScaleTransform.
+            var is3dRotated = Math.Abs(motion.RotationX) > 0.01 || Math.Abs(motion.RotationY) > 0.01 || Math.Abs(motion.Z) > 0.01 || (visualLayer.Name?.Contains("3D", StringComparison.OrdinalIgnoreCase) ?? false);
+            var baseW = Math.Max(2, (is3dRotated ? visualLayer.Width : motion.Width) * sx);
+            var baseH = Math.Max(2, (is3dRotated ? visualLayer.Height : motion.Height) * sy);
             var x = motion.X * sx; var y = motion.Y * sy; var w = baseW; var h = baseH;
+            if (is3dRotated)
+            {
+                var ax = Math.Clamp(motion.AnchorX, 0, 1);
+                var ay = Math.Clamp(motion.AnchorY, 0, 1);
+                var anchorProjX = motion.X + motion.Width * ax;
+                var anchorProjY = motion.Y + motion.Height * ay;
+                x = (anchorProjX - visualLayer.Width * ax) * sx;
+                y = (anchorProjY - visualLayer.Height * ay) * sy;
+            }
             if (string.Equals(visualLayer.Type, "Ticker", StringComparison.OrdinalIgnoreCase))
             {
                 w = baseW;
@@ -3381,8 +3756,15 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var anchorPxX = w * Math.Clamp(motion.AnchorX, 0, 1);
             var anchorPxY = h * Math.Clamp(motion.AnchorY, 0, 1);
             var group = new TransformGroup();
-            var skewX = Math.Clamp(motion.SkewX + Math.Tan(motion.RotationY * Math.PI / 180.0) * 35.0, -75, 75);
-            var skewY = Math.Clamp(motion.SkewY - Math.Tan(motion.RotationX * Math.PI / 180.0) * 35.0, -75, 75);
+            if (is3dRotated)
+            {
+                var scale3dX = motion.Width / Math.Max(1.0, visualLayer.Width);
+                var scale3dY = motion.Height / Math.Max(1.0, visualLayer.Height);
+                if (Math.Abs(scale3dX - 1.0) > 0.001 || Math.Abs(scale3dY - 1.0) > 0.001)
+                    group.Children.Add(new ScaleTransform(scale3dX, scale3dY, anchorPxX, anchorPxY));
+            }
+            var skewX = Math.Clamp(motion.SkewX, -75, 75);
+            var skewY = Math.Clamp(motion.SkewY, -75, 75);
             if (Math.Abs(skewX) > .001 || Math.Abs(skewY) > .001)
                 group.Children.Add(new SkewTransform(skewX, skewY, anchorPxX, anchorPxY));
             if (Math.Abs(motion.Rotation) > .001)
@@ -3804,6 +4186,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         AddPreviewHandle(layer, "s", x + pS.X - 5, y + pS.Y - 5, Cursors.SizeNS);
         AddPreviewHandle(layer, "w", x + pW.X - 5, y + pW.Y - 5, Cursors.SizeWE);
         AddPreviewHandle(layer, "e", x + pE.X - 5, y + pE.Y - 5, Cursors.SizeWE);
+        var rotHandleOffset = group.Transform(new Point(baseW / 2, -24));
+        AddPreviewHandle(layer, "rot", x + rotHandleOffset.X - 5, y + rotHandleOffset.Y - 5, Cursors.Hand, Brushes.Gold, Brushes.Black);
         var label = new Border { Background = new SolidColorBrush(Color.FromArgb(220, 31, 16, 42)), Padding = new Thickness(5,2,5,2), IsHitTestVisible = false,
             Child = new TextBlock { Text = $"{layer.Name}  X {motion.X:0}  Y {motion.Y:0}  {motion.Width:0}×{motion.Height:0}", Foreground = Brushes.White, FontSize = 8.5 } };
         Canvas.SetLeft(label, Math.Max(0, x + pNW.X)); Canvas.SetTop(label, Math.Max(0, y + pNW.Y - 22)); Panel.SetZIndex(label, 1001); PreviewCanvas.Children.Add(label);
@@ -3818,7 +4202,68 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         _previewSelectionHandles[mode] = handle;
     }
 
+    private FrameworkElement? WrapWithLightSweepIfEnabled(FrameworkElement? element, CgLayer layer, double sx = 1.0, double sy = 1.0)
+    {
+        if (element is null || !layer.LightSweepEnabled || layer.LightSweepIntensity <= 0.01)
+            return element;
+
+        var container = new Grid { ClipToBounds = true };
+        container.Children.Add(element);
+
+        var p = Math.Clamp(layer.LightSweepProgress, 0.0, 1.0);
+        var angle = layer.LightSweepAngle;
+        var intensity = Math.Clamp(layer.LightSweepIntensity, 0.0, 1.0);
+
+        Color sweepColor;
+        try { sweepColor = (Color)ColorConverter.ConvertFromString(string.IsNullOrWhiteSpace(layer.LightSweepColor) ? "#FFFFFF" : layer.LightSweepColor); }
+        catch { sweepColor = Colors.White; }
+
+        var layerW = Math.Max(1.0, layer.Width * sx);
+        var layerH = Math.Max(1.0, layer.Height * sy);
+        var widthRatio = Math.Clamp(layer.LightSweepWidth > 0 ? layer.LightSweepWidth : 0.25, 0.05, 1.0);
+        var sweepWidth = layerW * widthRatio;
+        var diag = Math.Sqrt(layerW * layerW + layerH * layerH) * 2.5;
+        var travelDist = layerW + sweepWidth * 2.0 + Math.Abs(Math.Sin(angle * Math.PI / 180.0)) * layerH;
+        var currentCenterX = -sweepWidth + p * travelDist;
+
+        var shineBrush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(1, 0)
+        };
+        var alpha = (byte)Math.Clamp(intensity * 255, 0, 255);
+        shineBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, sweepColor.R, sweepColor.G, sweepColor.B), 0.0));
+        shineBrush.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, sweepColor.R, sweepColor.G, sweepColor.B), 0.5));
+        shineBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, sweepColor.R, sweepColor.G, sweepColor.B), 1.0));
+
+        var shine = new Rectangle
+        {
+            Width = sweepWidth,
+            Height = diag,
+            Fill = shineBrush,
+            IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = intensity,
+            RenderTransformOrigin = new Point(0.5, 0.5)
+        };
+
+        var transGroup = new TransformGroup();
+        transGroup.Children.Add(new RotateTransform(angle));
+        transGroup.Children.Add(new TranslateTransform(currentCenterX - sweepWidth / 2.0, 0));
+        shine.RenderTransform = transGroup;
+
+        container.Children.Add(shine);
+        return container;
+    }
+
     private FrameworkElement? BuildElement(CgProject project, CgLayer layer, double sx, double sy, string? resolvedText)
+    {
+        var rawElement = BuildCoreElement(project, layer, sx, sy, resolvedText);
+        return WrapWithLightSweepIfEnabled(rawElement, layer, sx, sy);
+    }
+
+    private FrameworkElement? BuildCoreElement(CgProject project, CgLayer layer, double sx, double sy, string? resolvedText)
     {
         var fill=BrushFrom(layer.Fill, Brushes.White); var bg=BrushFrom(layer.Background, Brushes.Transparent);
         switch ((layer.Type??"Text").ToUpperInvariant())
@@ -3826,7 +4271,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             case "SHAPE": return ShapePreview(layer, bg, fill);
             case "LINE": return ShapePreview(layer, bg, fill);
             case "IMAGE": case "IMAGESEQUENCE":
-                var path=string.Equals(layer.Type, "ImageSequence", StringComparison.OrdinalIgnoreCase) ? CgDataSourceService.ResolveSequenceFrame(project,layer,ContinuousPlaybackSeconds) : layer.Source;
+                var rawPath = string.Equals(layer.Type, "ImageSequence", StringComparison.OrdinalIgnoreCase) ? CgDataSourceService.ResolveSequenceFrame(project,layer,ContinuousPlaybackSeconds) : layer.Source;
+                var path = CgCompositor.ResolveImagePath(rawPath);
                 if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
                 {
                     try
@@ -4717,25 +5163,51 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             };
         }
         var effectiveBg = layer.UseBackground ? bg : Brushes.Transparent;
+        FrameworkElement contentChild = tb;
+        if (layer.FitToAr)
+        {
+            contentChild = new Viewbox
+            {
+                Stretch = Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly,
+                HorizontalAlignment = isCenter ? HorizontalAlignment.Center : (isRight ? HorizontalAlignment.Right : HorizontalAlignment.Left),
+                VerticalAlignment = tb.VerticalAlignment,
+                Child = tb
+            };
+        }
+        var borderThick = (layer.UseBorder && layer.BorderWidth > 0) ? Math.Max(0, layer.BorderWidth) * .5 : 0.0;
         return new Border
         {
             Background = effectiveBg,
             BorderBrush = BrushFrom(layer.BorderColor, Brushes.Transparent),
-            BorderThickness = new Thickness(Math.Max(0, layer.BorderWidth) * .5),
+            BorderThickness = new Thickness(borderThick),
             CornerRadius = LayerCornerRadius(layer, .5),
             Padding = new Thickness(8, 2, 8, 2),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            Child = tb
+            Child = contentChild
         };
     }
 
     private FrameworkElement ShapePreview(CgLayer layer, Brush bg, Brush fill)
     {
-        if(layer.UseGradient) bg=CreatePreviewGradientBrush(layer,layer.Background,layer.GradientColor2);
-        var kind=(layer.ShapeKind??"Rectangle").ToUpperInvariant();
+        var effectiveBg = bg;
+        if ((effectiveBg == Brushes.Transparent || string.IsNullOrWhiteSpace(layer.Background) || string.Equals(layer.Background, "Transparent", StringComparison.OrdinalIgnoreCase)) &&
+            !string.IsNullOrWhiteSpace(layer.Fill) && !string.Equals(layer.Fill, "Transparent", StringComparison.OrdinalIgnoreCase))
+        {
+            effectiveBg = fill;
+        }
+        if (layer.UseGradient)
+        {
+            var primaryCol = !string.IsNullOrWhiteSpace(layer.Background) && !string.Equals(layer.Background, "Transparent", StringComparison.OrdinalIgnoreCase)
+                ? layer.Background
+                : (!string.IsNullOrWhiteSpace(layer.Fill) ? layer.Fill : "#FFFFFF");
+            effectiveBg = CreatePreviewGradientBrush(layer, primaryCol, layer.GradientColor2);
+        }
+        bg = effectiveBg;
+        var kind = (layer.ShapeKind ?? "Rectangle").ToUpperInvariant();
         var strokeBrush = BrushFrom(layer.BorderColor, fill);
-        var strokeThickness = Math.Max(0, layer.BorderWidth) * .5;
+        var strokeThickness = (layer.UseBorder && layer.BorderWidth > 0) ? Math.Max(0, layer.BorderWidth) * .5 : 0.0;
 
         if (kind is "CUSTOM PATH" or "PEN PATH")
         {
@@ -5443,7 +5915,32 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var rightHandle = new Rectangle { Width = 6, Height = 18, Fill = Brushes.White, Opacity = .86, Tag = new TimelineLayerHit { Layer = l, Mode = "end" }, Cursor = Cursors.SizeWE, ToolTip = "Drag to trim layer end" };
             Canvas.SetLeft(rightHandle, x + Math.Max(0, w - 6)); Canvas.SetTop(rightHandle, y + 2); TimelineCanvas.Children.Add(rightHandle);
 
-            foreach (var k in l.Keyframes ?? [])
+            var sortedKeyframes = (l.Keyframes ?? []).OrderBy(k => k.TimeSeconds).ToList();
+            for (int kIdx = 0; kIdx < sortedKeyframes.Count - 1; kIdx++)
+            {
+                var k1 = sortedKeyframes[kIdx];
+                var k2 = sortedKeyframes[kIdx + 1];
+                var x1 = TimelineTimeToX(k1.TimeSeconds);
+                var x2 = TimelineTimeToX(k2.TimeSeconds);
+                if (x2 > x1 + 1)
+                {
+                    var spanBar = new Rectangle
+                    {
+                        Width = Math.Max(2, x2 - x1),
+                        Height = 4,
+                        Fill = l == SelectedLayer
+                            ? new SolidColorBrush(Color.FromArgb(180, 255, 215, 0))
+                            : new SolidColorBrush(Color.FromArgb(120, 112, 128, 144)),
+                        RadiusX = 1, RadiusY = 1,
+                        IsHitTestVisible = false
+                    };
+                    Canvas.SetLeft(spanBar, x1);
+                    Canvas.SetTop(spanBar, y + 9);
+                    TimelineCanvas.Children.Add(spanBar);
+                }
+            }
+
+            foreach (var k in sortedKeyframes)
             {
                 var kx = TimelineTimeToX(k.TimeSeconds);
                 var diamond = new Polygon { Points = new PointCollection { new Point(0,5), new Point(5,0), new Point(10,5), new Point(5,10) }, Fill = l == SelectedLayer ? Brushes.Gold : Brushes.SlateGray, Stroke = Brushes.Black, StrokeThickness = .5, ToolTip = $"{k.TimeSeconds:0.000}s · {k.Ease}", Tag = new TimelineKeyframeHit { Layer = l, Keyframe = k }, Cursor = Cursors.SizeWE };
@@ -5518,11 +6015,37 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                         StrokeThickness = 0.5
                     });
 
-                    foreach (var k in l.Keyframes ?? [])
-                    {
-                        if (!string.IsNullOrEmpty(k.TargetProperty) && !k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) && !k.TargetProperty.Contains(propName, StringComparison.OrdinalIgnoreCase))
-                            continue;
+                    var matchingKeys = (l.Keyframes ?? [])
+                        .Where(k => string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(propName, StringComparison.OrdinalIgnoreCase))
+                        .OrderBy(k => k.TimeSeconds)
+                        .ToList();
 
+                    for (int pkIdx = 0; pkIdx < matchingKeys.Count - 1; pkIdx++)
+                    {
+                        var pk1 = matchingKeys[pkIdx];
+                        var pk2 = matchingKeys[pkIdx + 1];
+                        var px1 = TimelineTimeToX(pk1.TimeSeconds);
+                        var px2 = TimelineTimeToX(pk2.TimeSeconds);
+                        if (px2 > px1 + 1)
+                        {
+                            var propSpanBar = new Rectangle
+                            {
+                                Width = Math.Max(2, px2 - px1),
+                                Height = 3,
+                                Fill = l == SelectedLayer
+                                    ? new SolidColorBrush(Color.FromArgb(150, 218, 165, 32))
+                                    : new SolidColorBrush(Color.FromArgb(100, 100, 149, 237)),
+                                RadiusX = 1, RadiusY = 1,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(propSpanBar, px1);
+                            Canvas.SetTop(propSpanBar, subY + 8);
+                            TimelineCanvas.Children.Add(propSpanBar);
+                        }
+                    }
+
+                    foreach (var k in matchingKeys)
+                    {
                         var kx = TimelineTimeToX(k.TimeSeconds);
                         var propDiamond = new Polygon
                         {
@@ -6683,7 +7206,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 return;
             }
             var selectionModifiers = Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift);
-            if (selectionModifiers != ModifierKeys.None)
+            if (selectionModifiers != ModifierKeys.None && ph.Mode == "move" && !ReferenceEquals(ph.Layer, SelectedLayer))
             {
                 SelectTimelineLayer(ph.Layer, selectionModifiers);
                 e.Handled = true;
@@ -6691,6 +7214,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             }
             RecordUndoSnapshot();
             SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
+            ReorderSelectedLayers(true, false);
             _previewDragLayer = ph.Layer;
             _previewDragMode = ph.Mode;
             _previewDragStart = point;
@@ -6731,6 +7255,9 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 _previewEditKeyframe = null;
                 _previewStartX = ph.Layer.X; _previewStartY = ph.Layer.Y; _previewStartW = ph.Layer.Width; _previewStartH = ph.Layer.Height;
             }
+            _previewStartSkewX = ph.Layer.SkewX;
+            _previewStartSkewY = ph.Layer.SkewY;
+            _previewStartRotation = ph.Layer.Rotation;
 
             PreviewCanvas.CaptureMouse();
             e.Handled = true;
@@ -6775,8 +7302,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var anchorPxY = baseH * Math.Clamp(motion.AnchorY, 0, 1);
 
         var group = new TransformGroup();
-        var skewX = Math.Clamp(motion.SkewX + Math.Tan(motion.RotationY * Math.PI / 180.0) * 35.0, -75, 75);
-        var skewY = Math.Clamp(motion.SkewY - Math.Tan(motion.RotationX * Math.PI / 180.0) * 35.0, -75, 75);
+        var skewX = Math.Clamp(motion.SkewX, -75, 75);
+        var skewY = Math.Clamp(motion.SkewY, -75, 75);
         if (Math.Abs(skewX) > .001 || Math.Abs(skewY) > .001)
             group.Children.Add(new SkewTransform(skewX, skewY, anchorPxX, anchorPxY));
         if (Math.Abs(motion.Rotation) > .001)
@@ -6850,6 +7377,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (_previewSelectionHandles.TryGetValue("s", out var sH)) { Canvas.SetLeft(sH, rawX + pS.X - 5); Canvas.SetTop(sH, rawY + pS.Y - 5); }
         if (_previewSelectionHandles.TryGetValue("w", out var wH)) { Canvas.SetLeft(wH, rawX + pW.X - 5); Canvas.SetTop(wH, rawY + pW.Y - 5); }
         if (_previewSelectionHandles.TryGetValue("e", out var eH)) { Canvas.SetLeft(eH, rawX + pE.X - 5); Canvas.SetTop(eH, rawY + pE.Y - 5); }
+        var rotHandleOffset = group.Transform(new Point(baseW / 2, -24));
+        if (_previewSelectionHandles.TryGetValue("rot", out var rotH)) { Canvas.SetLeft(rotH, rawX + rotHandleOffset.X - 5); Canvas.SetTop(rotH, rawY + rotHandleOffset.Y - 5); }
         if (_previewSelectionLabel is not null)
         {
             Canvas.SetLeft(_previewSelectionLabel, Math.Max(0, rawX + pNW.X));
@@ -6939,6 +7468,55 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (_previewDragMode == "rot")
+        {
+            var isAltDown = Keyboard.Modifiers.HasFlag(ModifierKeys.Alt);
+            if (isAltDown)
+            {
+                var rotStepX = -dy * 0.4;
+                var rotStepY = dx * 0.4;
+                var newRotX = Math.Clamp(l.RotationX + rotStepX, -85, 85);
+                var newRotY = Math.Clamp(l.RotationY + rotStepY, -85, 85);
+                l.RotationX = Math.Round(newRotX, 1);
+                l.RotationY = Math.Round(newRotY, 1);
+                ApplyInteractivePreviewGeometry(project, l);
+                RequestInteractiveRender();
+                return;
+            }
+
+            var centerCanvasX = (l.X + l.Width * Math.Clamp(l.AnchorX, 0, 1)) * canvasW / project.Width;
+            var centerCanvasY = (l.Y + l.Height * Math.Clamp(l.AnchorY, 0, 1)) * canvasH / project.Height;
+            var angleRad = Math.Atan2(p.Y - centerCanvasY, p.X - centerCanvasX);
+            var angleDeg = (angleRad * 180.0 / Math.PI) + 90.0;
+            var roundedAngle = Math.Round((angleDeg % 360 + 360) % 360, 1);
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                roundedAngle = Math.Round(roundedAngle / 15.0) * 15.0;
+            }
+            if (key is not null) key.Rotation = roundedAngle;
+            l.Rotation = roundedAngle;
+            ApplyInteractivePreviewGeometry(project, l);
+            RequestInteractiveRender();
+            return;
+        }
+
+        var isCtrlDown = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+        var isShiftDown = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
+        if (isCtrlDown && (_previewDragMode is "nw" or "ne" or "sw" or "se" or "w" or "e" or "n" or "s" or "move"))
+        {
+            var skewStepX = dx * 0.15;
+            var skewStepY = dy * 0.15;
+            var newSkewX = Math.Clamp(_previewStartSkewX + skewStepX, -75, 75);
+            var newSkewY = Math.Clamp(_previewStartSkewY + skewStepY, -75, 75);
+            if (key is not null) { key.SkewX = newSkewX; key.SkewY = newSkewY; }
+            l.SkewX = newSkewX;
+            l.SkewY = newSkewY;
+            ApplyInteractivePreviewGeometry(project, l);
+            RequestInteractiveRender();
+            return;
+        }
+
         switch (_previewDragMode)
         {
             case "nw": x += dx; y += dy; w = Math.Max(min, w - dx); h = Math.Max(min, h - dy); break;
@@ -6950,6 +7528,31 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             case "w": x += dx; w = Math.Max(min, w - dx); break;
             case "e": w = Math.Max(min, w + dx); break;
             default: x += dx; y += dy; break;
+        }
+
+        if (isShiftDown && _previewStartW > 0 && _previewStartH > 0 && _previewDragMode is "nw" or "ne" or "sw" or "se" or "w" or "e" or "n" or "s")
+        {
+            var origAspect = _previewStartW / _previewStartH;
+            if (_previewDragMode is "w" or "e")
+            {
+                h = Math.Max(min, w / origAspect);
+                y = _previewStartY + (_previewStartH - h) / 2.0;
+            }
+            else if (_previewDragMode is "n" or "s")
+            {
+                w = Math.Max(min, h * origAspect);
+                x = _previewStartX + (_previewStartW - w) / 2.0;
+            }
+            else
+            {
+                var currentScale = Math.Max(w / _previewStartW, h / _previewStartH);
+                w = Math.Max(min, _previewStartW * currentScale);
+                h = Math.Max(min, _previewStartH * currentScale);
+                if (_previewDragMode == "nw") { x = (_previewStartX + _previewStartW) - w; y = (_previewStartY + _previewStartH) - h; }
+                else if (_previewDragMode == "ne") { x = _previewStartX; y = (_previewStartY + _previewStartH) - h; }
+                else if (_previewDragMode == "sw") { x = (_previewStartX + _previewStartW) - w; y = _previewStartY; }
+                else if (_previewDragMode == "se") { x = _previewStartX; y = _previewStartY; }
+            }
         }
 
         if (key is not null)
@@ -7231,7 +7834,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private Button? InspectorDockButton => FindName("InspectorDockBtn") as Button;
     private Button? LibraryDockButton => FindName("LibraryDockBtn") as Button;
 
-    private Window? _timelineDockWindow;
+    private KashtrixDockWindow? _timelineDockWindow;
     private Grid? _timelineHomeGrid;
 
     private void TimelineDockOut_Click(object sender, RoutedEventArgs e)
@@ -7247,16 +7850,14 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         TimelineRow.Height = new GridLength(0);
         TimelinePanel.Margin = new Thickness(0);
         if (TimelineDockButton != null) TimelineDockButton.Content = "DOCK IN";
-        var dock = new Window
+        var dock = new KashtrixDockWindow("Kashtrix CG Timeline", "TIMELINE", Color.FromRgb(140, 90, 220), TimelinePanel, "INTERACTIVE KEYFRAME & DURATION COMPOSER")
         {
-            Title = "Kashtrix CG Timeline", Width = 1320, Height = 440, MinWidth = 900, MinHeight = 260,
-            Background = new SolidColorBrush(Color.FromRgb(7, 11, 16)), Content = TimelinePanel,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen, ResizeMode = ResizeMode.CanResizeWithGrip, SizeToContent = SizeToContent.Manual, ShowInTaskbar = true, Icon = Icon
+            Width = 1320, Height = 440, MinWidth = 900, MinHeight = 260, Icon = Icon
         };
         _timelineDockWindow = dock;
         dock.Closed += (_, _) =>
         {
-            dock.Content = null;
+            dock.SetDockContent(null);
             TimelinePanel.Margin = oldMargin;
             Grid.SetRow(TimelinePanel, 2);
             _timelineHomeGrid.Children.Add(TimelinePanel);
@@ -7270,7 +7871,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         Dispatcher.BeginInvoke(new Action(RenderTimeline));
     }
 
-    private Window? _canvasDockWindow;
+    private KashtrixDockWindow? _canvasDockWindow;
     private Grid? _canvasHomeGrid;
 
     private void CanvasDockOut_Click(object sender, RoutedEventArgs e)
@@ -7284,16 +7885,14 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         CanvasColumn.Width = new GridLength(0);
         CanvasPanel.Margin = new Thickness(0);
         if (CanvasDockButton != null) CanvasDockButton.Content = "DOCK IN";
-        var dock = new Window
+        var dock = new KashtrixDockWindow("Kashtrix CG Canvas Preview", "CANVAS", Color.FromRgb(40, 160, 220), CanvasPanel, "REALTIME GRAPHICS VIEWPORT")
         {
-            Title = "Kashtrix CG Canvas Preview", Width = 1000, Height = 640, MinWidth = 640, MinHeight = 400,
-            Background = new SolidColorBrush(Color.FromRgb(7, 11, 16)), Content = CanvasPanel,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen, ResizeMode = ResizeMode.CanResizeWithGrip, SizeToContent = SizeToContent.Manual, ShowInTaskbar = true, Icon = Icon
+            Width = 1000, Height = 640, MinWidth = 640, MinHeight = 400, Icon = Icon
         };
         _canvasDockWindow = dock;
         dock.Closed += (_, _) =>
         {
-            dock.Content = null;
+            dock.SetDockContent(null);
             CanvasPanel.Margin = oldMargin;
             Grid.SetColumn(CanvasPanel, 1);
             _canvasHomeGrid.Children.Add(CanvasPanel);
@@ -7306,7 +7905,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         Dispatcher.BeginInvoke(new Action(RenderPreview));
     }
 
-    private Window? _inspectorDockWindow;
+    private KashtrixDockWindow? _inspectorDockWindow;
     private Grid? _inspectorHomeGrid;
 
     private void InspectorDockOut_Click(object sender, RoutedEventArgs e)
@@ -7320,16 +7919,14 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         InspectorColumn.Width = new GridLength(0);
         InspectorPanel.Margin = new Thickness(0);
         if (InspectorDockButton != null) InspectorDockButton.Content = "DOCK IN";
-        var dock = new Window
+        var dock = new KashtrixDockWindow("Kashtrix CG Inspector & Properties", "INSPECTOR", Color.FromRgb(220, 140, 40), InspectorPanel, "GRAPHIC LAYER ATTRIBUTES & ANIMATION PROPERTIES")
         {
-            Title = "Kashtrix CG Inspector & Properties", Width = 460, Height = 800, MinWidth = 360, MinHeight = 500,
-            Background = new SolidColorBrush(Color.FromRgb(7, 11, 16)), Content = InspectorPanel,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen, ResizeMode = ResizeMode.CanResizeWithGrip, SizeToContent = SizeToContent.Manual, ShowInTaskbar = true, Icon = Icon
+            Width = 460, Height = 800, MinWidth = 360, MinHeight = 500, Icon = Icon
         };
         _inspectorDockWindow = dock;
         dock.Closed += (_, _) =>
         {
-            dock.Content = null;
+            dock.SetDockContent(null);
             InspectorPanel.Margin = oldMargin;
             Grid.SetColumn(InspectorPanel, 2);
             _inspectorHomeGrid.Children.Add(InspectorPanel);
@@ -7340,7 +7937,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         dock.Show();
     }
 
-    private Window? _libraryDockWindow;
+    private KashtrixDockWindow? _libraryDockWindow;
     private Grid? _libraryHomeGrid;
 
     private void LibraryDockOut_Click(object sender, RoutedEventArgs e)
@@ -7354,16 +7951,14 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         LibraryColumn.Width = new GridLength(0);
         LibraryPanel.Margin = new Thickness(0);
         if (LibraryDockButton != null) LibraryDockButton.Content = "DOCK IN";
-        var dock = new Window
+        var dock = new KashtrixDockWindow("Kashtrix CG Layers & Sources", "LAYERS", Color.FromRgb(60, 180, 120), LibraryPanel, "LAYER STACK & MEDIA ASSET PALETTE")
         {
-            Title = "Kashtrix CG Layers & Sources", Width = 380, Height = 700, MinWidth = 280, MinHeight = 400,
-            Background = new SolidColorBrush(Color.FromRgb(7, 11, 16)), Content = LibraryPanel,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen, ResizeMode = ResizeMode.CanResizeWithGrip, SizeToContent = SizeToContent.Manual, ShowInTaskbar = true, Icon = Icon
+            Width = 380, Height = 700, MinWidth = 280, MinHeight = 400, Icon = Icon
         };
         _libraryDockWindow = dock;
         dock.Closed += (_, _) =>
         {
-            dock.Content = null;
+            dock.SetDockContent(null);
             LibraryPanel.Margin = oldMargin;
             Grid.SetColumn(LibraryPanel, 0);
             _libraryHomeGrid.Children.Add(LibraryPanel);

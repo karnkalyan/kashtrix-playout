@@ -33,7 +33,8 @@ public enum OutputInputSource
 {
     PlayoutProgram,
     CgProgram,
-    Manual
+    Manual,
+    KashtrixStudio
 }
 
 public class OutputChannel : INotifyPropertyChanged
@@ -79,6 +80,7 @@ public class OutputChannel : INotifyPropertyChanged
     public string InputSourceDisplayName => InputSource switch
     {
         OutputInputSource.CgProgram => "CG PROGRAM BUS",
+        OutputInputSource.KashtrixStudio => "KASHTRIX STUDIO PROGRAM",
         OutputInputSource.Manual => string.IsNullOrWhiteSpace(ManualInputSource) ? "MANUAL INPUT" : $"MANUAL · {ManualInputSource}",
         _ => "PLAYOUT PROGRAM BUS"
     };

@@ -294,6 +294,14 @@ namespace Kashtrix.OutputEngine
                     _dvbService.Log("ROUTING", "Output Engine source routed to Playout Program Bus", "INFO");
                     break;
 
+                case "SourceTabStudio":
+                    _selectedInputSource = OutputInputSource.KashtrixStudio;
+                    _selectedManualInput = string.Empty;
+                    if (CustomInputsDrawer != null) CustomInputsDrawer.Visibility = Visibility.Collapsed;
+                    if (ActiveInputSourceLabel != null) ActiveInputSourceLabel.Text = "KASHTRIX STUDIO LIVE PROGRAM";
+                    _dvbService.Log("ROUTING", "Output Engine source routed to Kashtrix Studio Live Program", "INFO");
+                    break;
+
                 case "SourceTabCg":
                     _selectedInputSource = OutputInputSource.CgProgram;
                     _selectedManualInput = string.Empty;

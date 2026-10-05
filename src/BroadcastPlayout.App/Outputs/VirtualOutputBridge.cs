@@ -19,6 +19,8 @@ public sealed class VirtualOutputBridge : IDisposable
     public const string CgProgramAudioMapName = "KashtrixPlayout.CgProgram.Audio.v1";
     public const string CustomPreviewVideoMapName = "KashtrixPlayout.CustomPreview.Video.v1";
     public const string CustomPreviewAudioMapName = "KashtrixPlayout.CustomPreview.Audio.v1";
+    public const string StudioProgramVideoMapName = "KashtrixStudio.Program.Video.v1";
+    public const string StudioProgramAudioMapName = "KashtrixStudio.Program.Audio.v1";
     private readonly object _sync = new();
     private readonly string _videoMapName;
     private readonly string _audioMapName;

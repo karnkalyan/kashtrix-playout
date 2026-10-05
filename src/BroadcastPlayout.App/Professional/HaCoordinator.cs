@@ -31,6 +31,8 @@ public sealed class HaCoordinatorService : IDisposable
     public void ForceActive(string channelId,string nodeId,TimeSpan duration,string reason)
     {lock(_gate)_forced[channelId]=(nodeId,DateTime.UtcNow+duration,string.IsNullOrWhiteSpace(reason)?"MANUAL FAILOVER":reason.Trim());}
     public void Release(string channelId){lock(_gate)_forced.Remove(channelId);}
+    public void IngestHeartbeat(HaHeartbeat h){if(h is null)return;lock(_gate)_beats[h.ChannelId+"|"+h.NodeId]=(h,DateTime.UtcNow);SnapshotChanged?.Invoke();}
+    public void RemoveNode(string channelId,string nodeId){lock(_gate){_beats.Remove(channelId+"|"+nodeId);_forced.Remove(channelId);}SnapshotChanged?.Invoke();}
 
     private async Task Receive(CancellationToken ct)
     {

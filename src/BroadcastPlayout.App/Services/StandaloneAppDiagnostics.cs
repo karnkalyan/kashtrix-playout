@@ -31,7 +31,7 @@ public static class StandaloneAppDiagnostics
                     or "FrameComparisonWindow" or "MultiviewWindow" or "CgEditorWindow" or "CgControllerWindow"
                     or "SchedulerWindow" or "ChannelManagerWindow" or "ChannelControllerWindow" or "AuditLogWindow"
                     or "VideoProcessorWindow" or "InputSourceWindow" or "AudioMixerWindow" or "QcControllerWindow"
-                    or "FileManagerWindow" or "UserManagementWindow" or "EpgOutputSettingsWindow" or "BroadcastTimersClockWindow")
+                    or "FileManagerWindow" or "PlaylistEditorWindow" or "UserManagementWindow" or "EpgOutputSettingsWindow" or "BroadcastTimersClockWindow")
                     return;
                 try { window.Close(); e.Handled = true; } catch { }
             }));

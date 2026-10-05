@@ -29,6 +29,12 @@ public static unsafe class FfmpegInput
 
             AVFormatContext* context = null;
             var result = ffmpeg.avformat_open_input(&context, source, inputFormat, &options);
+            if (result < 0 && preferredMediaType == AVMediaType.AVMEDIA_TYPE_AUDIO && !string.IsNullOrWhiteSpace(item.AlternateAudioUrl))
+            {
+                // Fallback attempt: if resolved AlternateAudioUrl failed, fallback to FilePath
+                source = item.FilePath.Trim();
+                result = ffmpeg.avformat_open_input(&context, source, inputFormat, &options);
+            }
             if (result < 0 && item.SourceKind.Equals("DirectShow", StringComparison.OrdinalIgnoreCase))
             {
                 // Fallback attempt 1: Drop strict framerate requirement.
@@ -103,8 +109,7 @@ public static unsafe class FfmpegInput
         }
 
         if (item.SourceKind.Equals("Screen", StringComparison.OrdinalIgnoreCase)) return "desktop";
-        if (item.SourceKind.Equals("URL", StringComparison.OrdinalIgnoreCase) &&
-            preferredMediaType == AVMediaType.AVMEDIA_TYPE_AUDIO &&
+        if (preferredMediaType == AVMediaType.AVMEDIA_TYPE_AUDIO &&
             !string.IsNullOrWhiteSpace(item.AlternateAudioUrl))
             return item.AlternateAudioUrl.Trim();
         if (string.IsNullOrWhiteSpace(item.FilePath)) throw new InvalidOperationException("Input source is empty.");
@@ -143,20 +148,22 @@ public static unsafe class FfmpegInput
             return;
         }
 
-        if (item.SourceKind.Equals("URL", StringComparison.OrdinalIgnoreCase))
+        var source = (preferredMediaType == AVMediaType.AVMEDIA_TYPE_AUDIO && !string.IsNullOrWhiteSpace(item.AlternateAudioUrl))
+            ? item.AlternateAudioUrl.Trim()
+            : item.FilePath?.Trim() ?? string.Empty;
+
+        if (source.StartsWith("rtsp://", StringComparison.OrdinalIgnoreCase))
         {
-            var source = item.FilePath.Trim();
-            if (source.StartsWith("rtsp://", StringComparison.OrdinalIgnoreCase))
-            {
-                Set("rtsp_transport", "tcp");
-                Set("rw_timeout", "5000000");
-            }
-            else if (source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                Set("reconnect", "1");
-                Set("reconnect_streamed", "1");
-                Set("reconnect_delay_max", "5");
-            }
+            Set("rtsp_transport", "tcp");
+            Set("rw_timeout", "5000000");
+        }
+        else if (source.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            Set("reconnect", "1");
+            Set("reconnect_streamed", "1");
+            Set("reconnect_delay_max", "5");
+            Set("timeout", "10000000");
+            Set("user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
         }
     }
 

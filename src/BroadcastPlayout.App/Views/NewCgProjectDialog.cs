@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -47,7 +47,7 @@ internal sealed class NewCgProjectDialog : Window
         _resolution.SelectedIndex = 0;
         _resolution.SelectionChanged += (_, _) => ApplyResolutionPreset();
 
-        _fps.ItemsSource = new[] { "23.976", "24", "25", "29.97", "30", "50", "59.94", "60" };
+        _fps.ItemsSource = new[] { "23.976", "24", "25", "29.97", "30", "50", "59.94", "60", "120" };
         _fps.SelectedItem = "25";
 
         var root = new Grid { Margin = new Thickness(18) };

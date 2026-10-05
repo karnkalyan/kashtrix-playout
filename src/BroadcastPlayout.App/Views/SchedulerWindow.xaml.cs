@@ -8,7 +8,8 @@ using BroadcastPlayout.Ffmpeg;
 using BroadcastPlayout.Models;
 using BroadcastPlayout.Services;
 using BroadcastPlayout.ViewModels;
-using Microsoft.Win32;
+using OpenFileDialog = BroadcastPlayout.Views.KashtrixFileDialog;
+using SaveFileDialog = BroadcastPlayout.Views.KashtrixSaveFileDialog;
 
 namespace BroadcastPlayout.Views;
 

@@ -10,8 +10,8 @@ using BroadcastPlayout.Professional;
 using Forms = System.Windows.Forms;
 using WpfApplication = System.Windows.Application;
 using WpfMessageBox = BroadcastPlayout.Views.MessageBox;
-using WpfOpenFileDialog = Microsoft.Win32.OpenFileDialog;
-using WpfSaveFileDialog = Microsoft.Win32.SaveFileDialog;
+using WpfOpenFileDialog = BroadcastPlayout.Views.KashtrixFileDialog;
+using WpfSaveFileDialog = BroadcastPlayout.Views.KashtrixSaveFileDialog;
 
 namespace BroadcastPlayout.ViewModels;
 
@@ -291,6 +291,37 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         foreach (var cat in _settings.Categories ?? AppSettings.GetDefaultCategories())
             Categories.Add(cat);
 
+        ConditionalCgRules.Clear();
+        List<ConditionalCgRule>? initialConditionalRules = _settings.ConditionalCgRules;
+        if (initialConditionalRules is null || initialConditionalRules.Count == 0)
+        {
+            try
+            {
+                var chs = ChannelRegistryStore.Load();
+                var ch = chs.FirstOrDefault(x => x.ChannelId.Equals(_channelId, StringComparison.OrdinalIgnoreCase));
+                if (ch?.ConditionalCgRules is { Count: > 0 })
+                    initialConditionalRules = ch.ConditionalCgRules;
+            }
+            catch { }
+        }
+        if (initialConditionalRules is { Count: > 0 })
+        {
+            foreach (var r in initialConditionalRules) ConditionalCgRules.Add(r);
+        }
+        else
+        {
+            ConditionalCgRules.Add(new ConditionalCgRule
+            {
+                Name = "Music Song / Lower Third Trigger",
+                ChannelId = _channelId,
+                ConditionExpression = "category = music and title = arijit",
+                TargetCgProjectName = "Market · Live Stock & Indices Ticker",
+                DelaySeconds = 2.0,
+                DurationSeconds = 12.0,
+                Enabled = false
+            });
+        }
+
         var playlistView = System.Windows.Data.CollectionViewSource.GetDefaultView(Playlist);
         if (playlistView is not null)
         {
@@ -483,6 +514,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<RundownTimelineItem> TimelineBlocks { get; } = [];
     public ObservableCollection<RundownBlockNode> RundownBlocks { get; } = [];
     public ObservableCollection<CgProject> CgProjects { get; } = [];
+    public ObservableCollection<ConditionalCgRule> ConditionalCgRules { get; } = [];
     public event EventHandler? CgProjectsChanged;
     public ObservableCollection<string> RecentEvents { get; } = [];
     public IReadOnlyList<string> OutputPresets => OutputProfile.Presets;
@@ -616,6 +648,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 _autoCgProjectActive = false;
             }
             ApplyRundownCgTransition(previousCurrent, value);
+            EvaluateConditionalCg(value);
             _autoNowPlayingShown = false;
             _autoComingUpShown = false;
             _autoCgOnAirUntilSeconds = -1;
@@ -1552,6 +1585,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _settings.AutoRemovePlayedItems = AutoRemovePlayedItems;
         _settings.HidePlayedItems = HidePlayedItems;
         _settings.DimCompletedItems = DimCompletedItems;
+        _settings.ConditionalCgRules = ConditionalCgRules.ToList();
         _settings.PlaylistRowHeight = PlaylistRowHeight;
         _settings.PlaylistFontSize = PlaylistFontSize;
         _settings.PlaylistDefaultRowColor = PlaylistDefaultRowColor;
@@ -1714,6 +1748,16 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (!InputSources.Any(x => SameInputSource(x, item))) InputSources.Add(item);
     }
 
+    public void RemoveInputSource(PlaylistItem item)
+    {
+        if (item is null) return;
+        var existing = InputSources.FirstOrDefault(x => SameInputSource(x, item) || x.Id == item.Id);
+        if (existing is not null)
+        {
+            InputSources.Remove(existing);
+        }
+    }
+
     private static bool SameInputSource(PlaylistItem a, PlaylistItem b) =>
         string.Equals(a.SourceKind, b.SourceKind, StringComparison.OrdinalIgnoreCase) &&
         string.Equals(a.FilePath, b.FilePath, StringComparison.OrdinalIgnoreCase) &&
@@ -1764,9 +1808,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (item.OutPoint <= item.InPoint)
         {
-            var duration = item.SourceDuration > TimeSpan.Zero ? item.SourceDuration : TimeSpan.FromHours(1);
-            item.InPoint = TimeSpan.Zero;
-            item.OutPoint = duration;
+            var baseSpan = item.SourceDuration > item.InPoint ? item.SourceDuration - item.InPoint : (item.SourceDuration > TimeSpan.Zero ? item.SourceDuration : TimeSpan.FromHours(1));
+            item.OutPoint = item.InPoint + baseSpan;
         }
     }
 
@@ -2492,6 +2535,113 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ActiveCgProject.OnAir = true;
         Raise(nameof(CgEnabled));
         Raise(nameof(CgStatusText));
+    }
+
+    private CancellationTokenSource? _conditionalCgCts;
+    private CgProject? _conditionalCgActiveProject;
+
+    public void SaveConditionalCgRules()
+    {
+        _settings.ConditionalCgRules = ConditionalCgRules.ToList();
+        SettingsStore.Save(_settings);
+
+        try
+        {
+            var allChannels = ChannelRegistryStore.Load();
+            var ch = allChannels.FirstOrDefault(x => x.ChannelId.Equals(ChannelId, StringComparison.OrdinalIgnoreCase));
+            if (ch is not null)
+            {
+                ch.ConditionalCgRules = ConditionalCgRules.ToList();
+                ChannelRegistryStore.Save(allChannels);
+            }
+        }
+        catch { }
+    }
+
+    private void EvaluateConditionalCg(PlaylistItem? current)
+    {
+        _conditionalCgCts?.Cancel();
+        _conditionalCgCts = null;
+
+        if (_conditionalCgActiveProject is not null)
+        {
+            _conditionalCgActiveProject.OnAir = false;
+            if (ReferenceEquals(ActiveCgProject, _conditionalCgActiveProject))
+            {
+                ActiveCgProject = null;
+            }
+            _conditionalCgActiveProject = null;
+            Raise(nameof(CgEnabled));
+            Raise(nameof(CgStatusText));
+        }
+
+        if (current is null || ConditionalCgRules.Count == 0) return;
+
+        var matchingRule = ConditionalCgRules.FirstOrDefault(r =>
+            (string.IsNullOrWhiteSpace(r.ChannelId) || r.ChannelId.Equals(ChannelId, StringComparison.OrdinalIgnoreCase)) &&
+            r.Matches(current));
+
+        if (matchingRule is null) return;
+
+        var targetName = matchingRule.TargetCgProjectName?.Trim() ?? string.Empty;
+        var targetProj = CgProjects.FirstOrDefault(p =>
+            p.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase) ||
+            p.Name.Contains(targetName, StringComparison.OrdinalIgnoreCase));
+
+        if (targetProj is null && CgProjects.Count > 0)
+        {
+            targetProj = CgProjects.FirstOrDefault();
+        }
+
+        if (targetProj is null) return;
+
+        var cts = new CancellationTokenSource();
+        _conditionalCgCts = cts;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (matchingRule.DelaySeconds > 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(matchingRule.DelaySeconds), cts.Token).ConfigureAwait(false);
+                }
+                if (cts.IsCancellationRequested) return;
+
+                Ui(() =>
+                {
+                    if (cts.IsCancellationRequested) return;
+                    ActiveCgProject = targetProj;
+                    targetProj.OnAir = true;
+                    _activeCgStartedUtc = DateTime.UtcNow;
+                    _conditionalCgActiveProject = targetProj;
+                    AddRecentEvent($"CONDITIONAL CG · {matchingRule.Name} -> {targetProj.Name}");
+                    Raise(nameof(CgEnabled));
+                    Raise(nameof(CgStatusText));
+                });
+
+                if (matchingRule.DurationSeconds > 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(matchingRule.DurationSeconds), cts.Token).ConfigureAwait(false);
+                    if (cts.IsCancellationRequested) return;
+
+                    Ui(() =>
+                    {
+                        if (cts.IsCancellationRequested) return;
+                        if (ReferenceEquals(_conditionalCgActiveProject, targetProj))
+                        {
+                            targetProj.OnAir = false;
+                            if (ReferenceEquals(ActiveCgProject, targetProj)) ActiveCgProject = null;
+                            _conditionalCgActiveProject = null;
+                            Raise(nameof(CgEnabled));
+                            Raise(nameof(CgStatusText));
+                        }
+                    });
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch { }
+        });
     }
 
     private void OnVideo(VideoFrameData frame)
@@ -4135,11 +4285,26 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 // stack must not survive behind a cleared Controller monitor.
                 if (ActiveCgProject is not null) ActiveCgProject.OnAir = false;
                 ActiveCgProject = null;
-                if (_logoOverlayProject is not null) _logoOverlayProject.OnAir = false;
-                _logoOverlayProject = null;
+                // Station logo bug is persistent and preserved across all graphics clears
                 _autoCgProjectActive = false;
                 _autoCgOnAirUntilSeconds = -1;
                 lock (_programCgTimelineGate) _programCgTimelineAnchors.Clear();
+            }
+            else if (command.Project is not null)
+            {
+                bool Matches(CgProject? p) => p is not null && (p.Id == command.Project.Id || string.Equals(p.Name, command.Project.Name, StringComparison.OrdinalIgnoreCase));
+                if (Matches(ActiveCgProject))
+                {
+                    ActiveCgProject!.OnAir = false;
+                    ActiveCgProject = null;
+                    _autoCgProjectActive = false;
+                    _autoCgOnAirUntilSeconds = -1;
+                }
+                if (Matches(_logoOverlayProject))
+                {
+                    _logoOverlayProject!.OnAir = false;
+                    _logoOverlayProject = null;
+                }
             }
             Raise(nameof(CgEnabled)); Raise(nameof(CgStatusText));
             var targetDesc = command.Project?.Name ?? (command.Layer >= 0 ? $"LAYER {command.Layer}" : "ALL");
@@ -4582,8 +4747,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         foreach (var project in remove) CgProjects.Remove(project);
         foreach (var project in defaults)
         {
-            if (!CgProjects.Any(x => string.Equals(x.Name, project.Name, StringComparison.OrdinalIgnoreCase)))
+            var existing = CgProjects.FirstOrDefault(x => string.Equals(x.Name, project.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                var idx = CgProjects.IndexOf(existing);
+                project.Id = existing.Id;
+                project.OnAir = existing.OnAir;
+                CgProjects[idx] = project;
+            }
+            else
+            {
                 CgProjects.Add(project);
+            }
         }
 
         ActiveCgProject = activeWasGenerated
@@ -4612,7 +4787,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 var index = CgProjects.IndexOf(existing);
                 demo.Id = existing.Id;
                 demo.OnAir = existing.OnAir;
-                // Do not overwrite user customized demo with factory default
+                // If demo has been modernized (e.g. Market template modernized to 2 rotating slots with Push Up), sync it
+                if (demo.Name.StartsWith("Market", StringComparison.OrdinalIgnoreCase) && existing.Layers.Count > 10)
+                {
+                    CgProjects[index] = demo;
+                }
                 continue;
             }
             CgProjects.Add(demo);
@@ -4906,12 +5085,36 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 HaStatus = _professional.HaStatus,
                 CapabilityStatus = ProfessionalBroadcastStatus
             });
-            RuntimeDiagnosticsService.WriteProcessHeartbeat(EngineStatus);
+            PublishCgOnAirSnapshot(); RuntimeDiagnosticsService.WriteProcessHeartbeat(EngineStatus);
         }
         catch (Exception ex)
         {
             RuntimeDiagnosticsService.WriteException("PLAYOUT_TELEMETRY_ERROR", ex);
         }
+    }
+
+    private void PublishCgOnAirSnapshot()
+    {
+        try
+        {
+            var items = new List<CgOnAirItem>();
+            lock (_controllerCgStackGate)
+            {
+                foreach (var p in _controllerProgramStack.Where(x => x.OnAir))
+                    items.Add(CgOnAirRegistry.FromProject(ChannelId, p, "CONTROLLER"));
+            }
+            if (_activeCgProject is { OnAir: true } active && !items.Any(i => i.ProjectId == active.Id.ToString("D")))
+                items.Add(CgOnAirRegistry.FromProject(ChannelId, active, "PLAYOUT"));
+            if (_logoOverlayProject is { OnAir: true } logo && !items.Any(i => i.ProjectId == logo.Id.ToString("D")))
+                items.Add(CgOnAirRegistry.FromProject(ChannelId, logo, "LOGO"));
+            CgOnAirRegistry.Publish(new CgOnAirSnapshot
+            {
+                ChannelId = ChannelId,
+                ChannelName = ChannelName,
+                Items = items.OrderBy(i => i.Layer).ThenBy(i => i.StartedUtc).ToList()
+            });
+        }
+        catch { }
     }
 
     private static void CancelOnly(CancellationTokenSource? source)

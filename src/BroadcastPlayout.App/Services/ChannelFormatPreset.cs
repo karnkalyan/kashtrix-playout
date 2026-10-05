@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using BroadcastPlayout.Models;
 
@@ -35,9 +35,9 @@ public static partial class ChannelFormatPreset
     public static IReadOnlyList<string> Supported { get; } =
     [
         "2160p50", "2160p25",
-        "1080p59.94", "1080p50", "1080p30", "1080p29.97", "1080p25", "1080p24", "1080p23.976",
+        "1080p120", "1080p59.94", "1080p50", "1080p30", "1080p29.97", "1080p25", "1080p24", "1080p23.976",
         "1080i59.94", "1080i50",
-        "720p59.94", "720p50", "720p30", "720p25"
+        "720p120", "720p59.94", "720p50", "720p30", "720p25"
     ];
 
     public static ChannelFormatSpec Resolve(string? preset)

@@ -1,15 +1,17 @@
 using FFmpeg.AutoGen.Abstractions;
 using BroadcastPlayout.Models;
+using BroadcastPlayout.Outputs;
+using BroadcastPlayout.Services;
 
 namespace BroadcastPlayout.Ffmpeg;
 
 public sealed unsafe class AudioDecoder : IDisposable
 {
-    private readonly AVFormatContext* _format;
+    private AVFormatContext* _format;
     private readonly AVCodecContext* _codec;
     private readonly AVFrame* _frame;
     private readonly AVPacket* _packet;
-    private readonly SwrContext* _swr;
+    private SwrContext* _swr;
     private readonly int _streamIndex;
     private readonly AVRational _timeBase;
     private bool _inputEof;
@@ -17,11 +19,33 @@ public sealed unsafe class AudioDecoder : IDisposable
     private const int OutRate = 48000;
     private readonly int _outChannels;
     private readonly PlaylistItem _item;
+    private readonly SharedAudioBusReader? _sharedAudioReader;
 
     public AudioDecoder(string file) : this(new PlaylistItem { FilePath = file, SourceKind = "File" }) { }
 
     public AudioDecoder(PlaylistItem item)
     {
+        _item = item;
+
+        if (item.SourceKind.Equals("SharedMemory", StringComparison.OrdinalIgnoreCase) ||
+            item.SourceKind.Equals("KashtrixStudio", StringComparison.OrdinalIgnoreCase) ||
+            item.FilePath.StartsWith("KashtrixStudio.", StringComparison.OrdinalIgnoreCase))
+        {
+            var audioMap = !string.IsNullOrWhiteSpace(item.AlternateAudioUrl) && item.AlternateAudioUrl.StartsWith("Kashtrix", StringComparison.OrdinalIgnoreCase)
+                ? item.AlternateAudioUrl
+                : VirtualOutputBridge.StudioProgramAudioMapName;
+            _sharedAudioReader = new SharedAudioBusReader(audioMap);
+            _format = null;
+            _codec = null;
+            _frame = null;
+            _packet = null;
+            _swr = null;
+            _streamIndex = -1;
+            _timeBase = default;
+            _outChannels = 2;
+            return;
+        }
+
         FfmpegRuntime.EnsureReady();
 
         _format = FfmpegInput.Open(item, AVMediaType.AVMEDIA_TYPE_AUDIO);
@@ -49,9 +73,86 @@ public sealed unsafe class AudioDecoder : IDisposable
             _streamIndex = requestedStream;
         else
             _streamIndex = ffmpeg.av_find_best_stream(
-                _format, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, &decoder, 0).ThrowIfError();
+                _format, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, &decoder, 0);
 
-        if (decoder == null) throw new InvalidOperationException(item.AudioTrackIndex >= 0
+        if (_streamIndex < 0 || decoder == null)
+        {
+            // If separate AlternateAudioUrl was tried and failed or had no audio, try falling back to FilePath
+            if (!string.IsNullOrWhiteSpace(item.AlternateAudioUrl))
+            {
+                try
+                {
+                    var fallbackItem = new PlaylistItem
+                    {
+                        FilePath = item.FilePath,
+                        SourceKind = item.SourceKind,
+                        InputFormat = item.InputFormat,
+                        InputOptions = item.InputOptions,
+                        AudioTrackIndex = item.AudioTrackIndex,
+                        AudioChannelMode = item.AudioChannelMode
+                    };
+                    var fallbackFormat = FfmpegInput.Open(fallbackItem, AVMediaType.AVMEDIA_TYPE_AUDIO);
+                    ffmpeg.avformat_find_stream_info(fallbackFormat, null).ThrowIfError();
+                    _streamIndex = ffmpeg.av_find_best_stream(fallbackFormat, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, &decoder, 0);
+                    if (_streamIndex >= 0 && decoder != null)
+                    {
+                        var oldFmt = _format;
+                        _format = fallbackFormat;
+                        ffmpeg.avformat_close_input(&oldFmt);
+                    }
+                    else
+                    {
+                        ffmpeg.avformat_close_input(&fallbackFormat);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        if (_streamIndex < 0 || decoder == null)
+        {
+            var webUrl = YtDlpResolver.LooksLikeWebVideoPage(item.FilePath)
+                ? item.FilePath
+                : (YtDlpResolver.LooksLikeWebVideoPage(item.AlternateAudioUrl) ? item.AlternateAudioUrl : null);
+
+            if (!string.IsNullOrWhiteSpace(webUrl))
+            {
+                try
+                {
+                    var resolved = YtDlpResolver.ResolveAsync(webUrl).GetAwaiter().GetResult();
+                    var targetUrl = !string.IsNullOrWhiteSpace(resolved.AudioUrl) ? resolved.AudioUrl : resolved.MediaUrl;
+                    if (!string.IsNullOrWhiteSpace(targetUrl))
+                    {
+                        var ytItem = new PlaylistItem
+                        {
+                            FilePath = targetUrl,
+                            SourceKind = "URL",
+                            InputFormat = item.InputFormat,
+                            InputOptions = item.InputOptions,
+                            AudioTrackIndex = item.AudioTrackIndex,
+                            AudioChannelMode = item.AudioChannelMode
+                        };
+                        var ytFormat = FfmpegInput.Open(ytItem, AVMediaType.AVMEDIA_TYPE_AUDIO);
+                        ffmpeg.avformat_find_stream_info(ytFormat, null).ThrowIfError();
+                        var testStream = ffmpeg.av_find_best_stream(ytFormat, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, &decoder, 0);
+                        if (testStream >= 0 && decoder != null)
+                        {
+                            _streamIndex = testStream;
+                            var oldFmt = _format;
+                            _format = ytFormat;
+                            if (oldFmt != null) ffmpeg.avformat_close_input(&oldFmt);
+                        }
+                        else
+                        {
+                            ffmpeg.avformat_close_input(&ytFormat);
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+
+        if (_streamIndex < 0 || decoder == null) throw new InvalidOperationException(item.AudioTrackIndex >= 0
             ? $"Audio track {item.AudioTrackIndex} does not have a supported decoder."
             : "No audio decoder was found.");
 
@@ -86,20 +187,37 @@ public sealed unsafe class AudioDecoder : IDisposable
 
     public void Seek(TimeSpan time)
     {
+        if (_sharedAudioReader is not null) return;
         var tb = ffmpeg.av_q2d(_timeBase);
         var ts = tb > 0 ? (long)(Math.Max(0, time.TotalSeconds) / tb) : 0;
-        ffmpeg.av_seek_frame(_format, _streamIndex, ts, ffmpeg.AVSEEK_FLAG_BACKWARD).ThrowIfError();
-        ffmpeg.avcodec_flush_buffers(_codec);
-        ffmpeg.swr_close(_swr);
-        ffmpeg.swr_init(_swr).ThrowIfError();
-        _inputEof = false;
-        _flushSent = false;
-        ffmpeg.av_packet_unref(_packet);
-        ffmpeg.av_frame_unref(_frame);
+        var res = ffmpeg.av_seek_frame(_format, _streamIndex, ts, ffmpeg.AVSEEK_FLAG_BACKWARD);
+        if (res < 0)
+        {
+            // Fallback without BACKWARD flag (some HTTP/HLS protocols require forward or default seek)
+            res = ffmpeg.av_seek_frame(_format, _streamIndex, ts, 0);
+        }
+        if (res >= 0)
+        {
+            ffmpeg.avcodec_flush_buffers(_codec);
+            if (_swr != null)
+            {
+                ffmpeg.swr_close(_swr);
+                try { ffmpeg.swr_init(_swr); } catch { }
+            }
+            _inputEof = false;
+            _flushSent = false;
+            ffmpeg.av_packet_unref(_packet);
+            ffmpeg.av_frame_unref(_frame);
+        }
+        // If res < 0, stream is unseekable via protocol. Decoder remains intact and reads sequentially.
     }
 
     public bool TryRead(out AudioChunk chunk)
     {
+        if (_sharedAudioReader is not null)
+        {
+            return _sharedAudioReader.TryRead(out chunk);
+        }
         while (true)
         {
             // Drain every buffered decoded audio frame before feeding another packet.
@@ -161,6 +279,11 @@ public sealed unsafe class AudioDecoder : IDisposable
                     _inputEof = true;
                     break;
                 }
+                if (read == ffmpeg.AVERROR(ffmpeg.EAGAIN))
+                {
+                    Thread.Sleep(2);
+                    continue;
+                }
                 read.ThrowIfError();
 
                 if (_packet->stream_index != _streamIndex)
@@ -178,6 +301,11 @@ public sealed unsafe class AudioDecoder : IDisposable
 
     public void Dispose()
     {
+        if (_sharedAudioReader is not null)
+        {
+            _sharedAudioReader.Dispose();
+            return;
+        }
         var swr = _swr;
         ffmpeg.swr_free(&swr);
         var frame = _frame;

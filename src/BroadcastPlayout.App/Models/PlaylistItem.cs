@@ -203,6 +203,8 @@ public sealed class PlaylistItem : INotifyPropertyChanged
     public string ParsedTitle => BroadcastPlayout.Services.MediaNameParser.Parse(FilePath, Title).Title;
     public string ParsedArtist => BroadcastPlayout.Services.MediaNameParser.Parse(FilePath, Title).Artist;
     public string ParsedExtra => BroadcastPlayout.Services.MediaNameParser.Parse(FilePath, Title).Extra;
+    public string Description => !string.IsNullOrWhiteSpace(_episodeDescription) ? _episodeDescription : (!string.IsNullOrWhiteSpace(_originalDescription) ? _originalDescription : _notes);
+    public string Artist => !string.IsNullOrWhiteSpace(ParsedArtist) ? ParsedArtist : (!string.IsNullOrWhiteSpace(_leadActors) ? _leadActors : _director);
     public int Sequence { get => _sequence; set => Set(ref _sequence, value); }
     public string EventType { get => _eventType; set { if (Set(ref _eventType, string.IsNullOrWhiteSpace(value) ? "CLIP" : value.Trim().ToUpperInvariant())) { Raise(nameof(IsCgEvent)); Raise(nameof(IsControlEvent)); Raise(nameof(IsEditorialItem)); Raise(nameof(IsDtmfEvent)); Raise(nameof(IsDialToneEvent)); Raise(nameof(IsTcpEvent)); Raise(nameof(IsMosEvent)); Raise(nameof(IsProfessionalControlEvent)); Raise(nameof(CategoryColor)); } } }
     public string Title { get => _title; set => Set(ref _title, string.IsNullOrWhiteSpace(value) ? "Untitled" : value.Trim()); }
@@ -511,6 +513,7 @@ public sealed class PlaylistItem : INotifyPropertyChanged
         field = value; Raise(propertyName); return true;
     }
     private void Raise([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    public PlaylistItem Clone() => (PlaylistItem)MemberwiseClone();
     public override string ToString() => Title;
 }
 

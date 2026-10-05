@@ -24,7 +24,7 @@ public static class AutoCgFactory
         var targetName = string.IsNullOrWhiteSpace(templateName) ? "Commercial · Back In Countdown Lower Third" : templateName.Trim();
         var template = all.FirstOrDefault(x => string.Equals(x.Name, targetName, StringComparison.OrdinalIgnoreCase))
             ?? all.FirstOrDefault(x => x.Name.Contains("Back In", StringComparison.OrdinalIgnoreCase))
-            ?? CgUniqueDemoFactory.CreatePlayoutTemplate(targetName)
+            ?? all.FirstOrDefault()
             ?? new CgProject { Name = targetName, DurationSeconds = Math.Max(10, remainingSeconds), FrameRate = 50, Width = 1920, Height = 1080 };
 
         var dummy = new PlaylistItem

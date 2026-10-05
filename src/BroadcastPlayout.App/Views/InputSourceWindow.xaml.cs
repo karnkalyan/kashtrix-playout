@@ -16,10 +16,19 @@ public partial class InputSourceWindow : Window
 {
     private MediaInfo? _urlProbe;
     private string? _resolvedWebAudioUrl;
+    private string? _resolvedWebVideoUrl;
+    private string? _originalWebPageUrl;
+    private bool _isResolvingWebUrl;
     private CancellationTokenSource? _previewCts;
     private CancellationTokenSource? _ndiScanCts;
     private readonly DispatcherTimer _ndiScanTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private long _previewGeneration;
+    private volatile bool _isPreviewPaused;
+    private TimeSpan _currentPreviewPosition = TimeSpan.Zero;
+    private TimeSpan _currentPreviewInPoint = TimeSpan.Zero;
+    private TimeSpan _currentPreviewDuration = TimeSpan.Zero;
+    private volatile bool _isUserSeeking;
+    private VideoDecoder? _activePreviewDecoder;
     public PlaylistItem? ResultItem { get; private set; }
 
     public InputSourceWindow()
@@ -110,6 +119,9 @@ public partial class InputSourceWindow : Window
             var probeItem = new PlaylistItem { SourceKind = "URL", FilePath = url, AlternateAudioUrl = _resolvedWebAudioUrl ?? string.Empty, InputFormat = UrlFormatBox.Text.Trim(), IsLiveSource = false };
             var info = await Task.Run(() => MediaProbe.Read(probeItem));
             _urlProbe = info;
+            _currentPreviewDuration = info.Duration;
+            PreviewDurationText.Text = Format(info.Duration);
+            PreviewSeekSlider.Maximum = Math.Max(1, info.Duration.TotalSeconds);
             UrlDurationBox.Text = Format(info.Duration);
             UrlLiveCheck.IsChecked = false;
             UrlProbeStatus.Text = $"VOD detected · {info.Width}x{info.Height} · {info.FramesPerSecond:0.###} fps · {info.VideoCodec} · {Format(info.Duration)}";
@@ -152,16 +164,25 @@ public partial class InputSourceWindow : Window
         }
 
         UrlProbeStatus.Text = "Resolving web page with yt-dlp...";
-        var result = await YtDlpResolver.ResolveAsync(value);
-        UrlBox.Text = result.MediaUrl;
-        _resolvedWebAudioUrl = result.AudioUrl;
-        if (string.IsNullOrWhiteSpace(TitleBox.Text) || TitleBox.Text.Equals("URL INPUT", StringComparison.OrdinalIgnoreCase))
-            TitleBox.Text = result.Title;
-        UrlLiveCheck.IsChecked = false;
-        UrlProbeStatus.Text = result.AudioUrl is null
-            ? $"Resolved web video: {result.Title} · direct A/V media URL ready"
-            : $"Resolved web video: {result.Title} · separate video + audio streams ready";
-        QueuePreviewRestart();
+        _isResolvingWebUrl = true;
+        try
+        {
+            var result = await YtDlpResolver.ResolveAsync(value);
+            _originalWebPageUrl = value;
+            _resolvedWebVideoUrl = result.MediaUrl;
+            _resolvedWebAudioUrl = result.AudioUrl;
+            if (string.IsNullOrWhiteSpace(TitleBox.Text) || TitleBox.Text.Equals("URL INPUT", StringComparison.OrdinalIgnoreCase))
+                TitleBox.Text = result.Title;
+            UrlLiveCheck.IsChecked = false;
+            UrlProbeStatus.Text = result.AudioUrl is null
+                ? $"Resolved web video: {result.Title} · direct A/V media URL ready"
+                : $"Resolved web video: {result.Title} · separate video + audio streams ready";
+            QueuePreviewRestart();
+        }
+        finally
+        {
+            _isResolvingWebUrl = false;
+        }
     }
 
     private PlaylistItem CreateSelectedItem() => SourceTabs.SelectedIndex switch
@@ -171,6 +192,7 @@ public partial class InputSourceWindow : Window
         2 => CreateNdiItem(),
         3 => CreateScreenItem(),
         4 => CreateCustomItem(),
+        5 => CreateStudioItem(),
         _ => throw new InvalidOperationException("Select an input source type.")
     };
 
@@ -196,7 +218,14 @@ public partial class InputSourceWindow : Window
     }
     private void SourceTabs_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (IsLoaded) QueuePreviewRestart(); }
     private void PreviewField_Changed(object sender, RoutedEventArgs e) { if (IsLoaded) QueuePreviewRestart(); }
-    private void UrlBox_TextChanged(object sender, TextChangedEventArgs e) { _resolvedWebAudioUrl = null; _urlProbe = null; }
+    private void UrlBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_isResolvingWebUrl) return;
+        _resolvedWebAudioUrl = null;
+        _resolvedWebVideoUrl = null;
+        _originalWebPageUrl = null;
+        _urlProbe = null;
+    }
 
     private void QueuePreviewRestart()
     {
@@ -218,8 +247,45 @@ public partial class InputSourceWindow : Window
         });
     }
 
+    private async void PreviewPlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (_previewCts == null || _previewCts.IsCancellationRequested)
+        {
+            _isPreviewPaused = false;
+            await StartPreviewAsync();
+        }
+        else
+        {
+            _isPreviewPaused = false;
+            SetPreviewState("LIVE PREVIEW", true, "Preview running.");
+        }
+    }
+
+    private void PreviewPause_Click(object sender, RoutedEventArgs e)
+    {
+        if (_previewCts != null && !_previewCts.IsCancellationRequested)
+        {
+            _isPreviewPaused = !_isPreviewPaused;
+            if (_isPreviewPaused)
+            {
+                SetPreviewState("PAUSED", false, "Preview paused.");
+            }
+            else
+            {
+                SetPreviewState("LIVE PREVIEW", true, "Preview running.");
+            }
+        }
+    }
+
+    private void PreviewStop_Click(object sender, RoutedEventArgs e)
+    {
+        _isPreviewPaused = false;
+        StopPreview();
+    }
+
     private async Task StartPreviewAsync()
     {
+        _isPreviewPaused = false;
         StopPreview();
         PlaylistItem item;
         try { item = CreateSelectedItem(); }
@@ -247,15 +313,28 @@ public partial class InputSourceWindow : Window
             while (!ct.IsCancellationRequested && generation == Interlocked.Read(ref _previewGeneration))
             {
                 using var decoder = new VideoDecoder(item);
+                _activePreviewDecoder = decoder;
+                var initialSeek = _currentPreviewInPoint > TimeSpan.Zero ? _currentPreviewInPoint : (_currentPreviewPosition > TimeSpan.Zero ? _currentPreviewPosition : TimeSpan.Zero);
+                if (!item.IsLiveSource && initialSeek > TimeSpan.Zero)
+                {
+                    try { decoder.Seek(initialSeek); } catch { }
+                }
+
                 var firstPts = double.NaN;
                 var clock = System.Diagnostics.Stopwatch.StartNew();
                 while (!ct.IsCancellationRequested && generation == Interlocked.Read(ref _previewGeneration) && decoder.TryRead(out var frame))
                 {
+                    while (!ct.IsCancellationRequested && _isPreviewPaused && generation == Interlocked.Read(ref _previewGeneration))
+                    {
+                        Thread.Sleep(30);
+                    }
                     if (double.IsNaN(firstPts)) firstPts = frame.PtsSeconds;
                     var target = Math.Max(0, frame.PtsSeconds - firstPts);
                     while (!ct.IsCancellationRequested && clock.Elapsed.TotalSeconds + .002 < target)
                         Thread.Sleep(2);
                     var image = ToBitmapSource(frame);
+                    var currentPos = TimeSpan.FromSeconds(Math.Max(0, frame.PtsSeconds));
+                    _currentPreviewPosition = currentPos;
                     if (!IsDispatcherAlive()) return;
                     try
                     {
@@ -265,6 +344,15 @@ public partial class InputSourceWindow : Window
                             InputPreviewImage.Source = image;
                             PreviewFormatText.Text = $"{frame.Width}×{frame.Height}\n{frame.FramesPerSecond:0.###} fps";
                             SetPreviewState("LIVE PREVIEW", true, item.IsLiveSource ? "Preview running continuously." : "Preview running. VOD loops automatically.");
+                            if (!_isUserSeeking)
+                            {
+                                if (_currentPreviewDuration > TimeSpan.Zero)
+                                {
+                                    PreviewSeekSlider.Maximum = _currentPreviewDuration.TotalSeconds;
+                                    PreviewSeekSlider.Value = Math.Min(currentPos.TotalSeconds, PreviewSeekSlider.Maximum);
+                                }
+                                PreviewPositionText.Text = Format(currentPos);
+                            }
                         });
                     }
                     catch (InvalidOperationException) { return; }
@@ -285,6 +373,58 @@ public partial class InputSourceWindow : Window
             }
             catch (InvalidOperationException) { }
         }
+        finally
+        {
+            _activePreviewDecoder = null;
+        }
+    }
+
+    private void MarkIn_Click(object sender, RoutedEventArgs e)
+    {
+        _currentPreviewInPoint = _currentPreviewPosition;
+        PreviewInPointBadge.Text = $"IN: {Format(_currentPreviewInPoint)}";
+    }
+
+    private void ResetIn_Click(object sender, RoutedEventArgs e)
+    {
+        _currentPreviewInPoint = TimeSpan.Zero;
+        PreviewInPointBadge.Text = "IN: 00:00:00";
+    }
+
+    private void PreviewSeekSlider_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _isUserSeeking = true;
+    }
+
+    private void PreviewSeekSlider_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        _isUserSeeking = false;
+        var target = TimeSpan.FromSeconds(PreviewSeekSlider.Value);
+        _currentPreviewPosition = target;
+        _currentPreviewInPoint = target;
+        PreviewInPointBadge.Text = $"IN: {Format(_currentPreviewInPoint)}";
+        PreviewPositionText.Text = Format(target);
+        if (_activePreviewDecoder != null)
+        {
+            try { _activePreviewDecoder.Seek(target); }
+            catch { QueuePreviewRestart(); }
+        }
+        else
+        {
+            QueuePreviewRestart();
+        }
+    }
+
+    private void PreviewSeekSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isUserSeeking)
+        {
+            var pos = TimeSpan.FromSeconds(e.NewValue);
+            _currentPreviewPosition = pos;
+            _currentPreviewInPoint = pos;
+            PreviewInPointBadge.Text = $"IN: {Format(_currentPreviewInPoint)}";
+            PreviewPositionText.Text = Format(pos);
+        }
     }
 
     private void RunAudioMeters(PlaylistItem item, long generation, CancellationToken ct)
@@ -293,9 +433,16 @@ public partial class InputSourceWindow : Window
         if (item.SourceKind.Equals("DirectShow", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(item.AudioDevice)) return;
         try
         {
+            using var audioOut = new BroadcastPlayout.Outputs.LocalAudioOutput();
             using var decoder = new AudioDecoder(item);
             while (!ct.IsCancellationRequested && generation == Interlocked.Read(ref _previewGeneration) && decoder.TryRead(out var chunk))
             {
+                if (_isPreviewPaused)
+                {
+                    Thread.Sleep(30);
+                    continue;
+                }
+                audioOut.Send(chunk);
                 var (l, r) = Measure(chunk.Pcm16Stereo48k);
                 if (!IsDispatcherAlive()) return;
                 try
@@ -315,6 +462,7 @@ public partial class InputSourceWindow : Window
 
     private void StopPreview()
     {
+        _isPreviewPaused = false;
         Interlocked.Increment(ref _previewGeneration);
         var old = Interlocked.Exchange(ref _previewCts, null);
         if (old is not null)
@@ -358,6 +506,18 @@ public partial class InputSourceWindow : Window
         return (Math.Clamp(l / 32768.0, 0, 1), Math.Clamp(r / 32768.0, 0, 1));
     }
 
+    private (TimeSpan InPoint, TimeSpan OutPoint, TimeSpan SourceDuration) CalculatePoints(TimeSpan specifiedDuration, bool isLive)
+    {
+        var inPoint = _currentPreviewInPoint > TimeSpan.Zero ? _currentPreviewInPoint : (_currentPreviewPosition > TimeSpan.Zero ? _currentPreviewPosition : TimeSpan.Zero);
+        if (isLive)
+        {
+            return (TimeSpan.Zero, specifiedDuration, specifiedDuration);
+        }
+        var totalDur = specifiedDuration > TimeSpan.Zero ? specifiedDuration : (_currentPreviewDuration > TimeSpan.Zero ? _currentPreviewDuration : inPoint + TimeSpan.FromHours(1));
+        var outPoint = totalDur > inPoint ? totalDur : inPoint + TimeSpan.FromHours(1);
+        return (inPoint, outPoint, totalDur);
+    }
+
     private PlaylistItem CreateUrlItem()
     {
         var url = UrlBox.Text.Trim();
@@ -365,11 +525,15 @@ public partial class InputSourceWindow : Window
         var duration = ParseDuration(UrlDurationBox.Text);
         var live = UrlLiveCheck.IsChecked == true;
         var probe = live ? null : _urlProbe;
+        var (inPoint, outPoint, sourceDuration) = CalculatePoints(duration, live);
+        var targetPath = (!string.IsNullOrWhiteSpace(_originalWebPageUrl) && YtDlpResolver.LooksLikeWebVideoPage(_originalWebPageUrl))
+            ? _originalWebPageUrl
+            : url;
         return new PlaylistItem
         {
             Title = CleanTitle(TitleBox.Text, "URL INPUT"), EventType = live ? "LIVE" : "URL",
-            SourceKind = "URL", FilePath = url, AlternateAudioUrl = _resolvedWebAudioUrl ?? string.Empty, InputFormat = UrlFormatBox.Text.Trim(), IsLiveSource = live,
-            SourceDuration = duration, InPoint = TimeSpan.Zero, OutPoint = duration,
+            SourceKind = "URL", FilePath = targetPath, AlternateAudioUrl = _resolvedWebAudioUrl ?? string.Empty, InputFormat = UrlFormatBox.Text.Trim(), IsLiveSource = live,
+            SourceDuration = sourceDuration, InPoint = inPoint, OutPoint = outPoint,
             SourceFrameRate = probe is { FramesPerSecond: > 0 } ? probe.FramesPerSecond : 25.0,
             Codec = probe?.VideoCodec ?? "Network", VideoFormat = probe is null ? (live ? "Network Live" : "Network VOD") : $"{probe.Width}x{probe.Height} {probe.FramesPerSecond:0.###}p"
         };
@@ -380,11 +544,12 @@ public partial class InputSourceWindow : Window
         if (NdiSourceBox.SelectedItem is not NdiDiscoveryService.NdiSourceInfo source || string.IsNullOrWhiteSpace(source.Name))
             throw new InvalidOperationException("Select an NDI source. The source list refreshes every 10 seconds.");
         var duration = ParseDuration(NdiDurationBox.Text);
+        var (inPoint, outPoint, sourceDuration) = CalculatePoints(duration, isLive: true);
         return new PlaylistItem
         {
             Title = CleanTitle(TitleBox.Text, source.Name), EventType = "NDI", Category = "Input",
             SourceKind = "NDI", FilePath = source.Name, InputOptions = source.Address, IsLiveSource = true,
-            SourceDuration = duration, InPoint = TimeSpan.Zero, OutPoint = duration, SourceFrameRate = 25, VideoFormat = "NDI Network"
+            SourceDuration = sourceDuration, InPoint = inPoint, OutPoint = outPoint, SourceFrameRate = 25, VideoFormat = "NDI Network"
         };
     }
 
@@ -397,11 +562,12 @@ public partial class InputSourceWindow : Window
         var fps = GetComboText(CaptureFpsBox).StartsWith("AUTO", StringComparison.OrdinalIgnoreCase) ? 0 : ParseDouble(GetComboText(CaptureFpsBox), 25);
         var duration = ParseDuration(CaptureDurationBox.Text);
         var formatText = width > 0 && height > 0 ? $"{width}x{height} " + (fps > 0 ? $"{fps:0.###}p" : "device fps") : "Device Default";
+        var (inPoint, outPoint, sourceDuration) = CalculatePoints(duration, isLive: true);
         return new PlaylistItem
         {
             Title = CleanTitle(TitleBox.Text, "CAPTURE INPUT"), EventType = "CARD", SourceKind = "DirectShow",
             FilePath = video, VideoDevice = video, AudioDevice = audio, InputFormat = "dshow", IsLiveSource = true,
-            SourceDuration = duration, InPoint = TimeSpan.Zero, OutPoint = duration, CaptureWidth = width, CaptureHeight = height, SourceFrameRate = fps,
+            SourceDuration = sourceDuration, InPoint = inPoint, OutPoint = outPoint, CaptureWidth = width, CaptureHeight = height, SourceFrameRate = fps,
             Codec = "Windows Capture", VideoFormat = formatText
         };
     }
@@ -411,10 +577,11 @@ public partial class InputSourceWindow : Window
         var fps = ParseDouble(GetComboText(ScreenFpsBox), 25);
         var duration = ParseDuration(ScreenDurationBox.Text);
         var options = DrawMouseCheck.IsChecked == true ? "draw_mouse=1" : "draw_mouse=0";
+        var (inPoint, outPoint, sourceDuration) = CalculatePoints(duration, isLive: true);
         return new PlaylistItem
         {
             Title = CleanTitle(TitleBox.Text, "DESKTOP INPUT"), EventType = "SCREEN", SourceKind = "Screen", FilePath = "desktop", InputFormat = "gdigrab", InputOptions = options, IsLiveSource = true,
-            SourceDuration = duration, InPoint = TimeSpan.Zero, OutPoint = duration, SourceFrameRate = fps, Codec = "Desktop Capture", VideoFormat = $"Desktop {fps:0.###}p"
+            SourceDuration = sourceDuration, InPoint = inPoint, OutPoint = outPoint, SourceFrameRate = fps, Codec = "Desktop Capture", VideoFormat = $"Desktop {fps:0.###}p"
         };
     }
 
@@ -424,12 +591,42 @@ public partial class InputSourceWindow : Window
         if (source.Length == 0) throw new InvalidOperationException("Enter a custom source address.");
         var live = CustomLiveCheck.IsChecked == true;
         var duration = ParseDuration(CustomDurationBox.Text);
+        var (inPoint, outPoint, sourceDuration) = CalculatePoints(duration, live);
         return new PlaylistItem
         {
             Title = CleanTitle(TitleBox.Text, "CUSTOM INPUT"), EventType = live ? "LIVE" : "INPUT", SourceKind = "Custom",
             FilePath = source, InputFormat = CustomFormatBox.Text.Trim(), InputOptions = CustomOptionsBox.Text.Trim(), IsLiveSource = live,
-            SourceDuration = duration, InPoint = TimeSpan.Zero, OutPoint = duration, Codec = "External Source", VideoFormat = "External Source"
+            SourceDuration = sourceDuration, InPoint = inPoint, OutPoint = outPoint, Codec = "External Source", VideoFormat = "External Source"
         };
+    }
+    private PlaylistItem CreateStudioItem()
+    {
+        var duration = ParseDuration(StudioDurationBox.Text);
+        var (inPoint, outPoint, sourceDuration) = CalculatePoints(duration, isLive: true);
+        return new PlaylistItem
+        {
+            Title = CleanTitle(TitleBox.Text, "KASHTRIX STUDIO LIVE"),
+            EventType = "LIVE",
+            Category = "Input",
+            SourceKind = "SharedMemory",
+            FilePath = BroadcastPlayout.Outputs.VirtualOutputBridge.StudioProgramVideoMapName,
+            AlternateAudioUrl = BroadcastPlayout.Outputs.VirtualOutputBridge.StudioProgramAudioMapName,
+            IsLiveSource = true,
+            SourceDuration = sourceDuration,
+            InPoint = inPoint,
+            OutPoint = outPoint,
+            SourceFrameRate = 50.0,
+            Codec = "Studio Shared Memory",
+            VideoFormat = "1920x1080 50p Studio PGM"
+        };
+    }
+
+    private void ConnectKashtrixStudio_Click(object sender, RoutedEventArgs e)
+    {
+        SourceTabs.SelectedIndex = 5;
+        TitleBox.Text = "Kashtrix Studio Live";
+        ResultItem = CreateStudioItem();
+        DialogResult = true;
     }
 
     private void LoadDemo_Click(object sender, RoutedEventArgs e)

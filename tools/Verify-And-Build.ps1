@@ -433,7 +433,7 @@ if ($mediaFrames -notmatch 'public double FramesPerSecond') { throw 'Media frame
 if ($multiviewCode -match 'class MultiviewTile\s*\(') { throw 'Multiview guard failed: avoid primary-constructor capture warning in MultiviewTile.' }
 if ($mainVmText -match '_isFillerPlayback') { throw 'Filler guard failed: stale unused _isFillerPlayback field remains.' }
 if ($mainVmText -match '_liveFirstPts') { throw 'Warning cleanup guard failed: stale unused _liveFirstPts field remains.' }
-$expectedProjects = @('Kashtrix.Playout','Kashtrix.CGEditor','Kashtrix.Scheduler','Kashtrix.PlaylistEditor','Kashtrix.Settings','Kashtrix.Multiview','Kashtrix.ChannelController','Kashtrix.CGController','Kashtrix.FileManager','Kashtrix.QCController','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.OutputEngine')
+$expectedProjects = @('Kashtrix.Playout','Kashtrix.CGEditor','Kashtrix.Scheduler','Kashtrix.PlaylistEditor','Kashtrix.Settings','Kashtrix.Multiview','Kashtrix.ChannelController','Kashtrix.CGController','Kashtrix.FileManager','Kashtrix.QCController','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.OutputEngine','Kashtrix.InputEngine')
 $solutionText = Get-Content $solution -Raw
 foreach ($name in $expectedProjects) {
     if ($solutionText -notmatch [regex]::Escape('"' + $name + '"')) { throw "Solution guard failed: $name is missing." }
@@ -449,7 +449,7 @@ if ($fileManagerXaml -notmatch 'x:Name="MaxGlyph"') { throw 'WPF compile guard f
 Write-Host '  Scheduler/Playlist Editor WPF control namespaces and File Manager chrome fields are compile-safe.' -ForegroundColor Green
 
 Write-Host 'Checking standalone WPF application namespace guards...' -ForegroundColor Cyan
-$standaloneProjects = @('Kashtrix.CGEditor','Kashtrix.Scheduler','Kashtrix.PlaylistEditor','Kashtrix.Settings','Kashtrix.Multiview','Kashtrix.ChannelController','Kashtrix.CGController','Kashtrix.FileManager','Kashtrix.QCController','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway')
+$standaloneProjects = @('Kashtrix.CGEditor','Kashtrix.Scheduler','Kashtrix.PlaylistEditor','Kashtrix.Settings','Kashtrix.Multiview','Kashtrix.ChannelController','Kashtrix.CGController','Kashtrix.FileManager','Kashtrix.QCController','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.InputEngine')
 foreach ($standaloneName in $standaloneProjects) {
     $standaloneDir = Join-Path $ProjectRoot ('src\' + $standaloneName)
     $appCodePath = Join-Path $standaloneDir 'App.xaml.cs'
@@ -650,7 +650,8 @@ $projectMap = @(
     @{ Name = 'Kashtrix.Prompter'; Path = 'src\Kashtrix.Prompter\Kashtrix.Prompter.csproj' },
     @{ Name = 'Kashtrix.HAController'; Path = 'src\Kashtrix.HAController\Kashtrix.HAController.csproj' },
     @{ Name = 'Kashtrix.ApiGateway'; Path = 'src\Kashtrix.ApiGateway\Kashtrix.ApiGateway.csproj' },
-    @{ Name = 'Kashtrix.OutputEngine'; Path = 'src\Kashtrix.OutputEngine\Kashtrix.OutputEngine.csproj' }
+    @{ Name = 'Kashtrix.OutputEngine'; Path = 'src\Kashtrix.OutputEngine\Kashtrix.OutputEngine.csproj' },
+    @{ Name = 'Kashtrix.InputEngine'; Path = 'src\Kashtrix.InputEngine\Kashtrix.InputEngine.csproj' }
 )
 foreach ($entry in $projectMap) {
     $projectPath = Join-Path $ProjectRoot $entry.Path
@@ -819,7 +820,7 @@ if ($fix27Ingest -notmatch 'XDCAM HD422 MXF' -or $fix27Ingest -notmatch 'DV PAL 
 if ($fix27Multi -notmatch '_vm\.InputSources\.Where\(x=>x\.IsLiveSource\)\.Take\(12\)' -or $fix27Multi -notmatch 'NdiDiscoveryService\.ScanAsync' -or $fix27Multi -notmatch 'channels\.Take\(16\)' -or $fix27Multi -match '_vm\.Playlist\.Take\(' -or $fix27Multi -match '_vm\.CgProjects\.Take\(') { throw 'FIX27 guard failed: Multiview must show live inputs/NDI/channel outputs without rundown or CG-catalog auto tiles.' }
 if ($fix27CgEditor -notmatch 'Stopwatch _playbackClock' -or $fix27CgEditor -notmatch 'first PLAY must') { throw 'FIX27 guard failed: CG Editor real-time animation clock is missing.' }
 if ($fix27CgController -notmatch 'BuildFullProjectSnapshot' -or $fix27CgController -match 'BuildSingleLayerProject' -or $fix27CgController -notmatch 'Layers = source.Layers' -or $fix27CgController -notmatch 'Groups = source.Groups' -or $fix27CgController -notmatch 'DataSources = source.DataSources' -or $fix27CgController -notmatch 'HtmlSources = source.HtmlSources' -or $fix27CgControllerXaml -notmatch 'complete selected CG project as one composition') { throw 'FIX27 guard failed: CG Controller PLAY must route the complete project, not a single selected layer.' }
-$iconProjects = @('Kashtrix.CGController','Kashtrix.CGEditor','Kashtrix.ChannelController','Kashtrix.FileManager','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.Multiview','Kashtrix.PlaylistEditor','Kashtrix.QCController','Kashtrix.Scheduler','Kashtrix.Settings','Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway')
+$iconProjects = @('Kashtrix.CGController','Kashtrix.CGEditor','Kashtrix.ChannelController','Kashtrix.FileManager','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.Multiview','Kashtrix.PlaylistEditor','Kashtrix.QCController','Kashtrix.Scheduler','Kashtrix.Settings','Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.InputEngine')
 foreach ($iconProject in $iconProjects) { $iconCsproj = Get-Content (Join-Path $ProjectRoot ("src\$iconProject\$iconProject.csproj")) -Raw; if ($iconCsproj -notmatch '<ApplicationIcon>') { throw "FIX27 guard failed: executable icon missing for $iconProject." } }
 Write-Host '  Pre-fader audio metering, playlist appearance, EPG/audit access, ingest presets, multiview expansion, whole-project CG playback, CG timing and executable icons passed.' -ForegroundColor Green
 
@@ -1066,7 +1067,7 @@ $fix45Nrcs = Get-Content (Join-Path $ProjectRoot 'src\BroadcastPlayout.App\Servi
 $fix45HaBus = Get-Content (Join-Path $ProjectRoot 'src\BroadcastPlayout.App\Services\HaControlBus.cs') -Raw
 $fix45HaUi = Get-Content (Join-Path $ProjectRoot 'src\Kashtrix.HAController\MainWindow.xaml.cs') -Raw
 $fix45SettingsXaml = Get-Content (Join-Path $ProjectRoot 'src\BroadcastPlayout.App\Views\SettingsWindow.xaml') -Raw
-foreach ($required in @('Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway')) { if ($fix45Launcher -notmatch [regex]::Escape($required)) { throw "FIX45 guard failed: launcher mapping missing $required." } }
+foreach ($required in @('Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.InputEngine')) { if ($fix45Launcher -notmatch [regex]::Escape($required)) { throw "FIX45 guard failed: launcher mapping missing $required." } }
 if ($fix45Vm -notmatch 'StartPlatformControlWatcher' -or $fix45Vm -notmatch 'SynchronizeWarmStandby') { throw 'FIX45 guard failed: common playout command bus or warm standby synchronization is not wired.' }
 if ($fix45Ha -notmatch 'HaDirective' -or $fix45Ha -notmatch 'HaControlPort' -or $fix45Ha -notmatch 'SyncStateReceived') { throw 'FIX45 guard failed: HA coordinator directive/control/warm-sync path is incomplete.' }
 if ($fix45Coordinator -notmatch 'AUTO N\+M' -or $fix45Coordinator -notmatch 'Capacity') { throw 'FIX45 guard failed: N+M capacity coordinator is missing.' }
@@ -1081,9 +1082,9 @@ foreach ($apiGuard in @('/api/v1/channel-controller/commands','/api/v1/cg-contro
 if ($fix45HaBus -notmatch 'SubmitAndWaitAsync' -or $fix45HaBus -notmatch 'PublishSnapshot') { throw 'FIX45 guard failed: HA control IPC/snapshot bus is incomplete.' }
 if ($fix45HaUi -notmatch 'StartControlWatcher' -or $fix45HaUi -notmatch 'force_active' -or $fix45HaUi -notmatch 'HaControlBus.PublishSnapshot') { throw 'FIX45 guard failed: HA Controller is not executing coordinator commands or publishing state.' }
 foreach ($settingsGuard in @('PROFESSIONAL I/O / HA','HaMode','HaCapacity','OPEN HA CONTROLLER','OPEN API GATEWAY','OPEN NRCS','OPEN PROMPTER')) { if ($fix45SettingsXaml -notmatch [regex]::Escape($settingsGuard)) { throw "FIX45 guard failed: Professional I/O/HA settings control missing $settingsGuard." } }
-foreach ($standalone45 in @('Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway')) { if (-not (Test-Path (Join-Path $ProjectRoot "src\$standalone45\GlobalUsings.cs"))) { throw "FIX45 guard failed: GlobalUsings missing for $standalone45." } }
+foreach ($standalone45 in @('Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.InputEngine')) { if (-not (Test-Path (Join-Path $ProjectRoot "src\$standalone45\GlobalUsings.cs"))) { throw "FIX45 guard failed: GlobalUsings missing for $standalone45." } }
 $wrapperProps45 = Get-Content (Join-Path $ProjectRoot 'Directory.Build.props') -Raw
-foreach ($wrapper in @('Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway')) { if ($wrapperProps45 -notmatch [regex]::Escape($wrapper)) { throw "FIX45 guard failed: wrapper-project build recursion protection missing $wrapper." } }
+foreach ($wrapper in @('Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway','Kashtrix.InputEngine')) { if ($wrapperProps45 -notmatch [regex]::Escape($wrapper)) { throw "FIX45 guard failed: wrapper-project build recursion protection missing $wrapper." } }
 Write-Host '  FIX45 NRCS, Prompter, MOS-to-CG, HA 1+1/N+M, API Gateway and common command-bus guards passed.' -ForegroundColor Green
 
 Write-Host 'Checking FIX46 CG auto-key / alpha output / enterprise MAM-ingest guards...' -ForegroundColor Cyan

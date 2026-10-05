@@ -52,6 +52,7 @@
                             <MenuItem Header="Preset 4×4" Click="LayoutPreset_Click" Tag="4x4"/>
                         </MenuItem>
                         <MenuItem Header="Sources &amp; Tools">
+                            <MenuItem Header="+ Add Kashtrix Studio Feed..." Click="AddStudioTile_Click"/>
                             <MenuItem Header="Add / Configure Source..." Click="OpenInput_Click"/>
                             <MenuItem Header="Scan UDP MPTS Programs..." Click="ScanMptsPrograms_Click"/>
                             <Separator/>
@@ -89,16 +90,16 @@
                         <Grid.RowDefinitions><RowDefinition Height="26"/><RowDefinition Height="*"/><RowDefinition Height="26"/></Grid.RowDefinitions>
                         <Grid Background="#120E1D" Margin="0">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <Border Background="#47266D" Padding="6,2" Margin="4,2"><TextBlock Text="PREVIEW (PVW)" Foreground="#E4D1FA" FontSize="9" FontWeight="Bold"/></Border>
-                            <TextBlock Grid.Column="1" Text="{Binding SelectedTile.Name}" Foreground="#B78BE7" FontSize="9" VerticalAlignment="Center" Margin="4,0" TextTrimming="CharacterEllipsis"/>
+                            <Border Background="#2E1643" BorderBrush="{StaticResource PinkBrush}" BorderThickness="1" Padding="6,2" Margin="4,2"><TextBlock Text="PREVIEW (PVW)" Foreground="{StaticResource TextBrush}" FontSize="9" FontWeight="Bold"/></Border>
+                            <TextBlock Grid.Column="1" Text="{Binding SelectedTile.Name}" Foreground="{StaticResource PinkBrush}" FontSize="9" VerticalAlignment="Center" Margin="4,0" TextTrimming="CharacterEllipsis"/>
                         </Grid>
                         <Grid Grid.Row="1" Background="#020304" ClipToBounds="True">
                             <Image x:Name="PreviewImage" Stretch="Uniform"/>
                         </Grid>
                         <Grid Grid.Row="2" Background="#0C1016">
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding PreviewSeekText}" FontFamily="Digital-7, DSEG7 Classic, Consolas" FontSize="11" Foreground="#C89BED" VerticalAlignment="Center" Margin="8,0"/>
-                            <TextBlock Grid.Column="1" Text="CUE BUS" FontSize="8.5" Foreground="#7E8A93" VerticalAlignment="Center" Margin="8,0"/>
+                            <TextBlock Text="{Binding PreviewSeekText}" FontFamily="Digital-7, DSEG7 Classic, Consolas" FontSize="11" Foreground="{StaticResource PinkBrush}" VerticalAlignment="Center" Margin="8,0"/>
+                            <TextBlock Grid.Column="1" Text="CUE BUS" FontSize="8.5" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="8,0"/>
                         </Grid>
                     </Grid>
                 </Border>
@@ -109,18 +110,18 @@
                         <Grid.RowDefinitions><RowDefinition Height="26"/><RowDefinition Height="*"/><RowDefinition Height="26"/></Grid.RowDefinitions>
                         <Grid Background="#1D0E11" Margin="0">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <Border Background="#7B1E2B" Padding="6,2" Margin="4,2"><TextBlock Text="PROGRAM (PGM)" Foreground="#FFF0F2" FontSize="9" FontWeight="Bold"/></Border>
-                            <TextBlock Grid.Column="1" Text="{Binding ChannelName}" Foreground="#FFB0B8" FontSize="9" VerticalAlignment="Center" Margin="4,0" TextTrimming="CharacterEllipsis"/>
+                            <Border Background="#3D141C" BorderBrush="{StaticResource OnAirBrush}" BorderThickness="1" Padding="6,2" Margin="4,2"><TextBlock Text="PROGRAM (PGM)" Foreground="{StaticResource TextBrush}" FontSize="9" FontWeight="Bold"/></Border>
+                            <TextBlock Grid.Column="1" Text="{Binding ChannelName}" Foreground="{StaticResource OnAirBrush}" FontSize="9" VerticalAlignment="Center" Margin="4,0" TextTrimming="CharacterEllipsis"/>
                         </Grid>
                         <Grid Grid.Row="1" Background="#020304" ClipToBounds="True">
                             <Image x:Name="ProgramImage" Stretch="Uniform"/>
                         </Grid>
                         <Grid Grid.Row="2" Background="#0C1016">
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding CurrentElapsedText, Mode=OneWay}" FontFamily="Digital-7, DSEG7 Classic, Consolas" FontSize="11" Foreground="#55C878" VerticalAlignment="Center" Margin="8,0"/>
+                            <TextBlock Text="{Binding CurrentElapsedText, Mode=OneWay}" FontFamily="Digital-7, DSEG7 Classic, Consolas" FontSize="11" Foreground="{StaticResource GoodBrush}" VerticalAlignment="Center" Margin="8,0"/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0" VerticalAlignment="Center">
-                                <Ellipse Width="6" Height="6" Fill="#55C878" Margin="0,0,4,0"/>
-                                <TextBlock Text="ON AIR" FontSize="8.5" Foreground="#55C878" FontWeight="Bold"/>
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource GoodBrush}" Margin="0,0,4,0"/>
+                                <TextBlock Text="ON AIR" FontSize="8.5" Foreground="{StaticResource GoodBrush}" FontWeight="Bold"/>
                             </StackPanel>
                         </Grid>
                     </Grid>
@@ -129,22 +130,41 @@
                 <!-- SELECTED INPUT DETAIL & QUICK TAKES -->
                 <Border Grid.Column="2" Style="{StaticResource PanelBorder}" Margin="4,0" Padding="6">
                     <Grid>
-                        <Grid.RowDefinitions><RowDefinition Height="22"/><RowDefinition Height="*"/><RowDefinition Height="30"/></Grid.RowDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="24"/>
+                            <RowDefinition Height="26"/>
+                        </Grid.RowDefinitions>
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="SELECTED INPUT" FontWeight="Bold" FontSize="9.5" Foreground="#D6B7EE" VerticalAlignment="Center"/>
+                            <TextBlock Text="SELECTED INPUT" FontWeight="Bold" FontSize="9.5" Foreground="{StaticResource PinkBrush}" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="1" Text="{Binding SelectedTile.Format}" Foreground="{StaticResource AccentBrush}" FontSize="8.5" VerticalAlignment="Center"/>
                         </Grid>
-                        <Grid Grid.Row="1" Background="#020304" Margin="0,4" ClipToBounds="True">
+                        <Grid Grid.Row="1" Background="#020304" Margin="0,3" ClipToBounds="True">
                             <Image Source="{Binding SelectedTile.Image}" Stretch="Uniform"/>
                             <Border Background="#A0000000" VerticalAlignment="Bottom" Padding="4,2">
-                                <TextBlock Text="{Binding SelectedTile.Name}" Foreground="White" FontSize="9.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding SelectedTile.Name}" Foreground="{StaticResource TextBrush}" FontSize="9.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                             </Border>
                         </Grid>
-                        <Grid Grid.Row="2">
+                        <!-- Transport Play / Pause / Stop -->
+                        <Grid Grid.Row="2" Margin="0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="2"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="2"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="▶ PLAY" Click="SelectedPlay_Click" Background="#16291C" BorderBrush="{StaticResource GoodBrush}" FontSize="8.5" ToolTip="Play or resume selected input feed"/>
+                            <Button Grid.Column="2" Content="⏸ PAUSE" Click="SelectedPause_Click" Background="#261E10" BorderBrush="{StaticResource WarningBrush}" FontSize="8.5" ToolTip="Pause selected input feed"/>
+                            <Button Grid.Column="4" Content="⏹ STOP" Click="SelectedStop_Click" Background="#2A161E" BorderBrush="{StaticResource OnAirBrush}" FontSize="8.5" ToolTip="Stop selected input feed"/>
+                        </Grid>
+                        <!-- Take PVW / Take PGM -->
+                        <Grid Grid.Row="3" Margin="0,2,0,0">
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="TAKE PVW" Click="TakePreview_Click" Background="#331747" BorderBrush="{StaticResource PinkBrush}" FontSize="9"/>
-                            <Button Grid.Column="2" Content="TAKE PGM" Click="TakeProgram_Click" Background="#431416" BorderBrush="{StaticResource OnAirBrush}" FontSize="9"/>
+                            <Button Grid.Column="0" Content="TAKE PVW" Click="TakePreview_Click" Background="#2E1643" BorderBrush="{StaticResource PinkBrush}" FontSize="9"/>
+                            <Button Grid.Column="2" Content="TAKE PGM" Click="TakeProgram_Click" Background="#3D141C" BorderBrush="{StaticResource OnAirBrush}" FontSize="9"/>
                         </Grid>
                     </Grid>
                 </Border>
@@ -157,26 +177,34 @@
                         <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,4">
                             <Grid Margin="0,2">
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Black Frame Detector" FontSize="8.5" Foreground="#98A2A9"/>
-                                <TextBlock Grid.Column="1" Text="ACTIVE · OK" FontSize="8.5" Foreground="#55C878" FontWeight="SemiBold"/>
+                                <TextBlock Text="Black Frame Detector" FontSize="8.5" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Grid.Column="1" Text="ACTIVE · OK" FontSize="8.5" Foreground="{StaticResource GoodBrush}" FontWeight="SemiBold"/>
                             </Grid>
                             <Grid Margin="0,2">
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Video Freeze Guard" FontSize="8.5" Foreground="#98A2A9"/>
-                                <TextBlock Grid.Column="1" Text="ACTIVE · OK" FontSize="8.5" Foreground="#55C878" FontWeight="SemiBold"/>
+                                <TextBlock Text="Video Freeze Guard" FontSize="8.5" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Grid.Column="1" Text="ACTIVE · OK" FontSize="8.5" Foreground="{StaticResource GoodBrush}" FontWeight="SemiBold"/>
                             </Grid>
                             <Grid Margin="0,2">
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="SCTE-35 Splice Monitor" FontSize="8.5" Foreground="#98A2A9"/>
-                                <TextBlock Grid.Column="1" Text="ARMED · SCAN" FontSize="8.5" Foreground="#E5B64C" FontWeight="SemiBold"/>
+                                <TextBlock Text="SCTE-35 Splice Monitor" FontSize="8.5" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Grid.Column="1" Text="ARMED · SCAN" FontSize="8.5" Foreground="{StaticResource WarningBrush}" FontWeight="SemiBold"/>
                             </Grid>
                             <Grid Margin="0,2">
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Audio Silence Detection" FontSize="8.5" Foreground="#98A2A9"/>
-                                <TextBlock Grid.Column="1" Text="NOMINAL" FontSize="8.5" Foreground="#55C878" FontWeight="SemiBold"/>
+                                <TextBlock Text="Audio Silence Detection" FontSize="8.5" Foreground="{StaticResource MutedBrush}"/>
+                                <TextBlock Grid.Column="1" Text="NOMINAL" FontSize="8.5" Foreground="{StaticResource GoodBrush}" FontWeight="SemiBold"/>
                             </Grid>
                         </StackPanel>
-                        <Button Grid.Row="2" Content="ADD / CONFIG SOURCE" Click="OpenInput_Click" Style="{StaticResource SmallTool}" Height="24" FontSize="9"/>
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="4"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="+ STUDIO" Click="AddStudioTile_Click" Style="{StaticResource SmallTool}" Height="24" FontSize="8.5" Background="#33144D" BorderBrush="#8B2FC9" Foreground="#FFFFFF" ToolTip="Add Kashtrix Studio live confidence tile"/>
+                            <Button Grid.Column="2" Content="CONFIG" Click="OpenInput_Click" Style="{StaticResource SmallTool}" Height="24" FontSize="8.5"/>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
@@ -193,10 +221,14 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Margin="3" MinHeight="110" Background="#030507" BorderBrush="#352646" BorderThickness="1" CornerRadius="2"
+                                <Border Margin="3" MinHeight="110" Background="#030507" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="2"
                                         MouseLeftButtonDown="Tile_Click" MouseRightButtonDown="Tile_RightClick" Tag="{Binding}" Cursor="Hand">
                                     <Border.ContextMenu>
-                                        <ContextMenu Background="#121519" BorderBrush="{StaticResource AccentBrush}" Foreground="#F4F6F8">
+                                        <ContextMenu Background="#121519" BorderBrush="{StaticResource AccentBrush}" Foreground="{StaticResource TextBrush}">
+                                            <MenuItem Header="▶ Play Feed" Click="TilePlay_Click"/>
+                                            <MenuItem Header="⏸ Pause Feed" Click="TilePause_Click"/>
+                                            <MenuItem Header="⏹ Stop Feed" Click="TileStop_Click"/>
+                                            <Separator/>
                                             <MenuItem Header="Fullscreen Audio &amp; Video Inspection" Click="TileFullscreenMonitor_Click"/>
                                             <Separator/>
                                             <MenuItem Header="Take Preview (PVW)" Click="TakePreview_Click"/>
@@ -282,10 +314,10 @@
                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <TextBlock x:Name="FooterStatus" Text="Kashtrix Multiview · Master Wall · Top PVW/PGM Monitors · NDI + SDI/DirectShow + MPTS UDP · Live QC Alerts" Foreground="{StaticResource MutedBrush}" FontSize="9" VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="GRID: " Foreground="#8A949C" FontSize="9"/>
-                        <TextBlock x:Name="CurrentGridText" Text="4×4 (16 Tiles)" Foreground="#D6B7EE" FontSize="9" FontWeight="SemiBold" Margin="0,0,12,0"/>
-                        <TextBlock Text="SOURCES: " Foreground="#8A949C" FontSize="9"/>
-                        <TextBlock Text="{Binding Tiles.Count, Mode=OneWay}" Foreground="#55C878" FontSize="9" FontWeight="SemiBold"/>
+                        <TextBlock Text="GRID: " Foreground="{StaticResource MutedBrush}" FontSize="9"/>
+                        <TextBlock x:Name="CurrentGridText" Text="4×4 (16 Tiles)" Foreground="{StaticResource PinkBrush}" FontSize="9" FontWeight="SemiBold" Margin="0,0,12,0"/>
+                        <TextBlock Text="SOURCES: " Foreground="{StaticResource MutedBrush}" FontSize="9"/>
+                        <TextBlock Text="{Binding Tiles.Count, Mode=OneWay}" Foreground="{StaticResource GoodBrush}" FontSize="9" FontWeight="SemiBold"/>
                     </StackPanel>
                 </Grid>
             </Border>

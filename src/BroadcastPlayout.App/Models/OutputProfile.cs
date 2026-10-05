@@ -26,7 +26,7 @@ public sealed class OutputProfile : INotifyPropertyChanged
     ];
 
     public static IReadOnlyList<string> ScalingModes { get; } = ["Fit", "Fill", "Stretch"];
-    public static IReadOnlyList<double> FrameRates { get; } = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
+    public static IReadOnlyList<double> FrameRates { get; } = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60, 120];
     public static IReadOnlyList<string> ScanModes { get; } = ["Progressive", "Interlaced Upper First", "Interlaced Lower First"];
     public static IReadOnlyList<string> AlphaModes { get; } = ["Straight (Unmatted)", "Premultiplied"];
 

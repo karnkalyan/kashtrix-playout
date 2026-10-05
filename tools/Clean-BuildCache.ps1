@@ -35,7 +35,8 @@ $kashtrixProcessNames = @(
     'Kashtrix.FileManager','Kashtrix.IngestServer','Kashtrix.MAM','Kashtrix.Multiview',
     'Kashtrix.PlaylistEditor','Kashtrix.QCController','Kashtrix.Scheduler','Kashtrix.Settings',
     'Kashtrix.NRCS','Kashtrix.Prompter','Kashtrix.HAController','Kashtrix.ApiGateway',
-    'Kashtrix.OutputEngine'
+    'Kashtrix.OutputEngine',
+    'Kashtrix.InputEngine'
 )
 $stopped = 0
 foreach ($name in $kashtrixProcessNames) {
@@ -50,6 +51,16 @@ foreach ($name in $kashtrixProcessNames) {
         }
     }
 }
+try {
+    $dotnetProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'dotnet.exe' -and $_.CommandLine -like '*Kashtrix*' }
+    foreach ($dp in $dotnetProcs) {
+        try {
+            Write-Host ("Closing running Kashtrix dotnet host: PID {0}" -f $dp.ProcessId) -ForegroundColor Yellow
+            Stop-Process -Id $dp.ProcessId -Force -ErrorAction Stop
+            $stopped++
+        } catch { }
+    }
+} catch { }
 if ($stopped -gt 0) { Start-Sleep -Milliseconds 600 }
 
 # Legacy in-tree bin/obj folders are no longer the active build output. Their deletion is

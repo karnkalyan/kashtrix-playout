@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -91,7 +91,11 @@ public sealed class HighAvailabilityService : IDisposable
     {
         Stop(); _s=s; _channel=channelId; _state=state;
         if(s.HaMode.Equals("Standalone",StringComparison.OrdinalIgnoreCase))
-        { ShouldArmOutputs=s.OutputArmed;Role="Standalone";Status="STANDALONE";return; }
+        {
+            ShouldArmOutputs=s.OutputArmed;Role="Standalone";Status="STANDALONE";
+            try{_cts=new CancellationTokenSource();_tx=new UdpClient(AddressFamily.InterNetwork);_=Task.Run(()=>Transmit(_cts.Token));}catch{}
+            return;
+        }
         try
         {
             _cts=new CancellationTokenSource();
@@ -121,8 +125,10 @@ public sealed class HighAvailabilityService : IDisposable
         {
             try
             {
-                Evaluate(); var st=_state?.Invoke()??default;
-                var beat=new HaHeartbeat(_s!.HaNodeId,_channel,_s.HaPriority,Math.Max(1,_s.HaCapacity),_s.HaMode,Role,ShouldArmOutputs,st.ItemId,st.Position,DateTime.UtcNow.Ticks);
+                if(!Role.Equals("Standalone",StringComparison.OrdinalIgnoreCase))Evaluate();
+                var st=_state?.Invoke()??default;
+                var beatRole=Role.Equals("Standalone",StringComparison.OrdinalIgnoreCase)?"ACTIVE":Role;
+                var beat=new HaHeartbeat(_s!.HaNodeId,_channel,_s.HaPriority,Math.Max(1,_s.HaCapacity),_s.HaMode,beatRole,ShouldArmOutputs,st.ItemId,st.Position,DateTime.UtcNow.Ticks);
                 var b=JsonSerializer.SerializeToUtf8Bytes(beat);
                 await _tx!.SendAsync(b,new IPEndPoint(IPAddress.Parse(_s.HaMulticastAddress),_s.HaHeartbeatPort),ct);
                 await Task.Delay(Math.Clamp(_s.HaHeartbeatMilliseconds,100,5000),ct);

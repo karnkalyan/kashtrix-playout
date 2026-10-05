@@ -12,26 +12,7 @@ public static class CgDemoValidator
         project.DurationSeconds = Math.Clamp(project.DurationSeconds, 2, 86400);
         if (string.IsNullOrWhiteSpace(project.Category))
         {
-            var n = (project.Name ?? string.Empty).ToUpperInvariant();
-            if (n.Contains("AP1") || n.Contains("AP 1")) project.Category = "AP1 HD";
-            else if (n.Contains("PRIME")) project.Category = "PRIME HD";
-            else if (n.Contains("SPACE")) project.Category = "SPACE 4K";
-            else if (n.Contains("AAJ") || n.Contains("TAK")) project.Category = "AAJ TAK";
-            else if (n.Contains("ABP")) project.Category = "ABP NEWS";
-            else if (n.Contains("INDIA") || n.Contains("TV")) project.Category = "INDIA TV";
-            else if (n.Contains("REPUBLIC")) project.Category = "REPUBLIC BHARAT";
-            else if (n.Contains("BREAKING")) project.Category = "BREAKING NEWS";
-            else if (n.Contains("WEATHER")) project.Category = "WEATHER";
-            else if (n.Contains("SPORT") || n.Contains("CRICKET") || n.Contains("FOOTBALL") || n.Contains("MATCH")) project.Category = "SPORTS";
-            else if (n.Contains("FINANCE") || n.Contains("STOCK") || n.Contains("MARKET") || n.Contains("SENSEX") || n.Contains("CRYPTO")) project.Category = "FINANCE";
-            else if (n.Contains("ELECTION") || n.Contains("VOTE") || n.Contains("POLL")) project.Category = "ELECTION";
-            else if (n.Contains("ENTERTAINMENT") || n.Contains("HOLLYWOOD") || n.Contains("BOLLYWOOD")) project.Category = "ENTERTAINMENT";
-            else if (n.Contains("MUSIC") || n.Contains("SONG") || n.Contains("TRACK")) project.Category = "MUSIC";
-            else if (n.Contains("TICKER")) project.Category = "TICKERS";
-            else if (n.Contains("LOWER THIRD") || n.Contains("STRAP") || n.Contains("NAME CARD") || n.Contains("NAME PLATE") || n.Contains("SUPER")) project.Category = "LOWER THIRDS";
-            else if (n.Contains("GRAPHICS PACK") || n.Contains("GFX PACK") || n.Contains("PACK ")) project.Category = "GRAPHICS PACK";
-            else if (n.Contains("NEWS")) project.Category = "NEWS";
-            else project.Category = "BROADCAST PACK";
+            project.Category = "GENERAL";
         }
         var duration = project.DurationSeconds;
         var ids = new HashSet<Guid>();

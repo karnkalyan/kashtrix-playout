@@ -25,18 +25,25 @@ public static class CgDataSourceService
         var raw = source.Source?.Trim() ?? string.Empty;
         if (raw.Length == 0) throw new InvalidOperationException("Data source path/URL is empty.");
 
-        return type switch
+        try
         {
-            "URLJSON" or "URL JSON" => ParseJson(await Http.GetStringAsync(raw, ct), source.Selector),
-            "LOCALJSON" or "JSON" or "LOCAL JSON" => ParseJson(await File.ReadAllTextAsync(ResolveLocalSourcePath(raw), ct), source.Selector),
-            "XML" => ParseXml(await ReadTextSourceAsync(raw, ct), source.Selector, rss: false),
-            "RSS" => ParseXml(await ReadTextSourceAsync(raw, ct), source.Selector, rss: true),
-            "TXT" or "TEXT" => ParseText(await ReadTextSourceAsync(raw, ct)),
-            "CSV" => ParseDelimited(await ReadTextSourceAsync(raw, ct), source.Delimiter, source.FirstRowHeader),
-            "EXCEL" or "XLSX" => ParseXlsx(ResolveLocalSourcePath(raw), source.FirstRowHeader),
-            "OPENWEATHER" or "WEATHER" => await LoadOpenWeatherAsync(source, ct).ConfigureAwait(false),
-            _ => throw new InvalidOperationException($"Unsupported CG data source type '{source.SourceType}'.")
-        };
+            return type switch
+            {
+                "URLJSON" or "URL JSON" => ParseJson(await Http.GetStringAsync(raw, ct), source.Selector),
+                "LOCALJSON" or "JSON" or "LOCAL JSON" => ParseJson(await File.ReadAllTextAsync(ResolveLocalSourcePath(raw), ct), source.Selector),
+                "XML" => ParseXml(await ReadTextSourceAsync(raw, ct), source.Selector, rss: false),
+                "RSS" => ParseXml(await ReadTextSourceAsync(raw, ct), source.Selector, rss: true),
+                "TXT" or "TEXT" => ParseText(await ReadTextSourceAsync(raw, ct)),
+                "CSV" => ParseDelimited(await ReadTextSourceAsync(raw, ct), source.Delimiter, source.FirstRowHeader),
+                "EXCEL" or "XLSX" => ParseXlsx(ResolveLocalSourcePath(raw), source.FirstRowHeader),
+                "OPENWEATHER" or "WEATHER" => await LoadOpenWeatherAsync(source, ct).ConfigureAwait(false),
+                _ => throw new InvalidOperationException($"Unsupported CG data source type '{source.SourceType}'.")
+            };
+        }
+        catch when (!string.IsNullOrWhiteSpace(source.CachedItemsJson))
+        {
+            return ParseJson(source.CachedItemsJson, source.Selector);
+        }
     }
 
     public static string ResolveLocalSourcePath(string source)
@@ -487,6 +494,94 @@ public static class CgDataSourceService
             try { return string.Format(layer.DataFormat ?? "{0}", catVal); } catch { return catVal; }
         }
 
+        var nameUpper = (layer.Name ?? string.Empty).ToUpperInvariant();
+        var fieldUpper = (layer.DataField ?? string.Empty).ToUpperInvariant();
+        var isTopMoverRequest = nameUpper.Contains("MOVER") || nameUpper.Contains("GAINER") || fieldUpper.Contains("MOVER") || fieldUpper.Contains("GAINER") || fieldUpper.StartsWith("TOP") || fieldUpper.StartsWith("RANK");
+
+        if (isTopMoverRequest && rows.Count > 0)
+        {
+            var rankedRows = rows.OrderByDescending(r =>
+            {
+                if (r.TryGetValue("percent", out var p) || r.TryGetValue("pct", out p) || r.TryGetValue("pchange", out p))
+                {
+                    p = p.Trim().Trim('(', ')', '%', '+');
+                    if (double.TryParse(p, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d))
+                    {
+                        var isDown = (r.TryGetValue("direction", out var dir) && dir.Equals("DOWN", StringComparison.OrdinalIgnoreCase)) ||
+                                     (r.TryGetValue("percent", out var origP) && origP.Contains('-'));
+                        return isDown ? -Math.Abs(d) : Math.Abs(d);
+                    }
+                }
+                return double.MinValue;
+            }).ToList();
+
+            int moverSlot = -1;
+            bool isSlot1 = fieldUpper.Contains("SLOT_1") || fieldUpper.Contains("SLOT1") || nameUpper.Contains("MOVER 1") || nameUpper.Contains("SLOT 1");
+            bool isSlot2 = fieldUpper.Contains("SLOT_2") || fieldUpper.Contains("SLOT2") || nameUpper.Contains("MOVER 2") || nameUpper.Contains("SLOT 2");
+
+            var activeSec = Math.Max(0, timelineSeconds - layer.StartSeconds);
+            var itemDur = Math.Max(0.05, itemDuration > 0 ? itemDuration : (layer.DataItemDurationSeconds > 0 ? layer.DataItemDurationSeconds : 4.0));
+            var cycleIdx = (int)Math.Floor(activeSec / itemDur);
+
+            Dictionary<string, string>? targetRow = null;
+            if (isSlot1 && (layer.DataItemDurationSeconds > 0 || fieldUpper.Contains("SLOT") || nameUpper.Contains("TOP MOVER 1")))
+            {
+                // Rotating Slot 1: takes item 0, 2, 4... across different ranked items
+                var idx = ((cycleIdx * 2) + layer.DataItemOffset) % rankedRows.Count;
+                if (idx < 0) idx += rankedRows.Count;
+                targetRow = rankedRows[idx];
+            }
+            else if (isSlot2 && (layer.DataItemDurationSeconds > 0 || fieldUpper.Contains("SLOT") || nameUpper.Contains("TOP MOVER 2")))
+            {
+                // Rotating Slot 2: takes item 1, 3, 5... across different ranked items
+                var idx = ((cycleIdx * 2 + 1) + layer.DataItemOffset) % rankedRows.Count;
+                if (idx < 0) idx += rankedRows.Count;
+                targetRow = rankedRows[idx];
+            }
+            else if (fieldUpper.StartsWith("MOVER") && int.TryParse(fieldUpper[5..], out var mNum))
+            {
+                moverSlot = mNum - 1;
+                targetRow = rankedRows[moverSlot % rankedRows.Count];
+            }
+            else if (fieldUpper.StartsWith("RANK") && int.TryParse(fieldUpper[4..], out var rNum))
+            {
+                moverSlot = rNum - 1;
+                targetRow = rankedRows[moverSlot % rankedRows.Count];
+            }
+            else if (fieldUpper.StartsWith("TOP") && int.TryParse(fieldUpper[3..], out var tNum))
+            {
+                moverSlot = tNum - 1;
+                targetRow = rankedRows[moverSlot % rankedRows.Count];
+            }
+            else if (nameUpper.Contains("MOVER 3") || nameUpper.Contains("RANK 3") || nameUpper.Contains("GAINER 3")) moverSlot = 2;
+            else if (nameUpper.Contains("MOVER 4") || nameUpper.Contains("RANK 4") || nameUpper.Contains("GAINER 4")) moverSlot = 3;
+            else if (nameUpper.Contains("MOVER 5") || nameUpper.Contains("RANK 5") || nameUpper.Contains("GAINER 5")) moverSlot = 4;
+
+            if (targetRow == null && moverSlot >= 0)
+            {
+                targetRow = rankedRows[moverSlot % rankedRows.Count];
+            }
+            else if (targetRow == null)
+            {
+                var idx = (cycleIdx + layer.DataItemOffset) % rankedRows.Count;
+                if (idx < 0) idx += rankedRows.Count;
+                targetRow = rankedRows[idx];
+            }
+
+            var sName = ResolveField(targetRow, "name");
+            if (string.IsNullOrWhiteSpace(sName)) sName = ResolveField(targetRow, "symbol");
+            var sVal = ResolveField(targetRow, "value");
+            var sChg = ResolveField(targetRow, "change");
+            var sPct = ResolveField(targetRow, "percent");
+            var isDown = (targetRow.TryGetValue("direction", out var dir) && dir.Equals("DOWN", StringComparison.OrdinalIgnoreCase)) ||
+                         sChg.StartsWith('-') || sPct.StartsWith('-');
+            var iconImg = isDown ? "market-down.png" : "market-up.png";
+            var iconFallback = isDown ? "▼" : "▲";
+            var color = isDown ? "#FF1744" : "#00E676";
+            var formattedVal = $"{sName}  {sVal}\n<kcg img=\"{iconImg}\" fallback=\"{iconFallback}\"/>    <kcg color=\"{color}\">{sChg} ({sPct})</kcg>".Trim();
+            try { return string.Format(layer.DataFormat ?? "{0}", formattedVal); } catch { return formattedVal; }
+        }
+
         var activeSeconds = Math.Max(0, timelineSeconds - layer.StartSeconds);
         var index = (int)Math.Floor(activeSeconds / Math.Max(.05, itemDuration)) + layer.DataItemOffset;
         index = ((index % rows.Count) + rows.Count) % rows.Count;
@@ -661,14 +756,182 @@ public static class CgDataSourceService
             }
         }
 
-        // 5. Fallback: all non-category values
+        // 5. Dynamic tabular row conversion for any data source (JSON, Excel, CSV, TXT, XML)
+        // Detect row-level styling and trends dynamically without any hardcoding
+        string? rowColor = null;
+        string? trendArrow = null;
+
+        // Check for color in row dynamically (by key name or hex color value)
         foreach (var kv in row)
         {
-            if (kv.Key.Equals("category", StringComparison.OrdinalIgnoreCase) ||
-                kv.Key.Equals("badge", StringComparison.OrdinalIgnoreCase) ||
-                kv.Key.Equals("id", StringComparison.OrdinalIgnoreCase))
+            var k = kv.Key.ToLowerInvariant();
+            var v = kv.Value?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(v)) continue;
+
+            if (k is "color" or "colour" or "textcolor" or "fgcolor" or "fontcolor")
+            {
+                rowColor = v;
+                break;
+            }
+            if (v.StartsWith('#') && (v.Length is 7 or 9 or 4))
+            {
+                rowColor = v;
+                break;
+            }
+        }
+
+        // Check for direction/trend dynamically (UP/DOWN/GAIN/LOSS or +/- numeric deltas)
+        foreach (var kv in row)
+        {
+            var k = kv.Key.ToLowerInvariant();
+            var v = kv.Value?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(v)) continue;
+
+            if (k is "direction" or "dir" or "trend" or "indicator")
+            {
+                var upper = v.ToUpperInvariant();
+                if (upper is "UP" or "GAIN" or "HIGH" or "POSITIVE" or "+") trendArrow = "▲";
+                else if (upper is "DOWN" or "LOSS" or "LOW" or "NEGATIVE" or "-") trendArrow = "▼";
+                break;
+            }
+        }
+
+        if (trendArrow == null)
+        {
+            // Infer trend from numeric signs in change/percent columns if present
+            foreach (var kv in row)
+            {
+                var v = kv.Value?.Trim() ?? string.Empty;
+                if (v.StartsWith('+')) { trendArrow = "▲"; break; }
+                if (v.StartsWith('-')) { trendArrow = "▼"; break; }
+            }
+        }
+
+        // Check if this row represents structured market / financial ticker data
+        string? sym = null;
+        string? val = null;
+        string? chg = null;
+        string? pct = null;
+
+        foreach (var kv in row)
+        {
+            var k = kv.Key.ToLowerInvariant();
+            var v = kv.Value?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(v)) continue;
+            if (sym == null && (k is "symbol" or "ticker" or "code" or "stock")) sym = v;
+            else if (val == null && (k is "value" or "price" or "close" or "ltp" or "last" or "rate")) val = v;
+            else if (chg == null && (k is "change" or "chg" or "diff" or "net" or "point")) chg = v;
+            else if (pct == null && (k is "percent" or "pct" or "percentage" or "pchange")) pct = v;
+        }
+
+        if (sym != null && val != null && (chg != null || pct != null))
+        {
+            var trendNumbers = new StringBuilder();
+            if (chg != null) trendNumbers.Append(chg);
+            if (pct != null)
+            {
+                if (trendNumbers.Length > 0 && !trendNumbers.ToString().EndsWith(' ')) trendNumbers.Append(' ');
+                var formattedPct = pct.StartsWith('(') ? pct : $"({pct})";
+                trendNumbers.Append(formattedPct);
+            }
+
+            var isDown = trendArrow == "▼" || (chg != null && chg.StartsWith('-')) || (pct != null && pct.StartsWith('-')) ||
+                         (row.TryGetValue("direction", out var dirVal) && dirVal.Equals("DOWN", StringComparison.OrdinalIgnoreCase));
+            var iconImg = isDown ? "market-down.png" : "market-up.png";
+            var fallbackSymbol = isDown ? "▼" : "▲";
+
+            var numbersFormatted = !string.IsNullOrWhiteSpace(rowColor)
+                ? $"<kcg color=\"{rowColor}\">{trendNumbers.ToString().Trim()}</kcg>"
+                : trendNumbers.ToString().Trim();
+
+            // Broadcast gap after symbol and value, and graphic icon placed outside color tag so text color does NOT tint the arrow image
+            var item = $"{sym}    {val}    <kcg img=\"{iconImg}\" fallback=\"{fallbackSymbol}\"/>  {numbersFormatted}";
+
+            result.Add(item);
+            return result;
+        }
+
+        // Collect all displayable data fields in column order
+        var displayValues = new List<string>();
+        foreach (var kv in row)
+        {
+            var k = kv.Key.ToLowerInvariant();
+            var v = kv.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(v)) continue;
+
+            // Skip internal metadata / grouping keys
+            if (k is "category" or "badge" or "id" or "_id" or "guid" or "row_id" or "index")
                 continue;
-            ParseAndAdd(kv.Value);
+
+            // Skip color fields and hex values
+            if (k is "color" or "colour" or "textcolor" or "fgcolor" or "bgcolor")
+                continue;
+            if (v.StartsWith('#') && (v.Length is 7 or 9 or 4))
+                continue;
+
+            // Skip image / graphic files (icons, backgrounds, logos)
+            if (v.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                v.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                v.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                v.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ||
+                v.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ||
+                v.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase) ||
+                v.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
+                v.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // Skip pure direction flag words (arrow or delta sign will represent it)
+            if (k is "direction" or "dir" or "trend" or "indicator" && (v.Equals("UP", StringComparison.OrdinalIgnoreCase) || v.Equals("DOWN", StringComparison.OrdinalIgnoreCase) || v.Equals("FLAT", StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            displayValues.Add(v);
+        }
+
+        if (displayValues.Count > 0)
+        {
+            // Build unified row record
+            var sb = new StringBuilder();
+            for (int i = 0; i < displayValues.Count; i++)
+            {
+                var valItem = displayValues[i];
+                if (i > 0) sb.Append("  ");
+
+                var isDelta = valItem.StartsWith('+') || valItem.StartsWith('-') || valItem.EndsWith('%');
+                if (trendArrow != null && isDelta)
+                {
+                    var isDown = trendArrow == "▼" || valItem.StartsWith('-');
+                    var iconImg = isDown ? "market-down.png" : "market-up.png";
+                    var fallbackSymbol = isDown ? "▼" : "▲";
+                    if (!string.IsNullOrWhiteSpace(rowColor))
+                        sb.Append($"<kcg img=\"{iconImg}\" fallback=\"{fallbackSymbol}\"/>  <kcg color=\"{rowColor}\">{valItem}</kcg>");
+                    else
+                        sb.Append($"<kcg img=\"{iconImg}\" fallback=\"{fallbackSymbol}\"/>  {valItem}");
+                    trendArrow = null; // applied
+                }
+                else if (isDelta && !string.IsNullOrWhiteSpace(rowColor))
+                {
+                    sb.Append($"<kcg color=\"{rowColor}\">{valItem}</kcg>");
+                }
+                else
+                {
+                    sb.Append(valItem);
+                }
+            }
+
+            // If trend arrow wasn't attached to a +/- delta, attach it if not already used
+            if (trendArrow != null)
+            {
+                var isDown = trendArrow == "▼";
+                var iconImg = isDown ? "market-down.png" : "market-up.png";
+                var fallbackSymbol = isDown ? "▼" : "▲";
+                sb.Append($"    <kcg img=\"{iconImg}\" fallback=\"{fallbackSymbol}\"/>");
+            }
+
+            var rowText = sb.ToString().Trim();
+            if (!string.IsNullOrWhiteSpace(rowText))
+            {
+                result.Add(rowText);
+            }
         }
 
         return result;
@@ -955,16 +1218,35 @@ public static class CgDataSourceService
         text.Replace("\r", string.Empty)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(line => !string.IsNullOrWhiteSpace(line))
-            .Select((line, i) => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            .Select((line, i) =>
             {
-                ["index"] = i.ToString(),
-                ["line"] = line.Trim(),
-                ["text"] = line.Trim(),
-                ["value"] = line.Trim(),
-                ["headline"] = line.Trim(),
-                ["title"] = line.Trim(),
-                ["brk_text"] = line.Trim(),
-                ["flash_text"] = line.Trim()
+                var clean = line.Trim();
+                var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["index"] = i.ToString(),
+                    ["line"] = clean,
+                    ["text"] = clean,
+                    ["value"] = clean,
+                    ["headline"] = clean,
+                    ["title"] = clean,
+                    ["brk_text"] = clean,
+                    ["flash_text"] = clean
+                };
+                if (clean.Contains("<kcg", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parsed = KashtrixMarkupParser.Parse(clean);
+                    row["clean_text"] = parsed.CleanText;
+                    row["text"] = parsed.CleanText;
+                    row["headline"] = parsed.CleanText;
+                    row["title"] = parsed.CleanText;
+                    row["line"] = parsed.CleanText;
+                    row["value"] = parsed.CleanText;
+                    foreach (var v in parsed.Variables)
+                    {
+                        row[v.Key] = v.Value;
+                    }
+                }
+                return row;
             }).ToList();
 
     private static IReadOnlyList<Dictionary<string, string>> ParseDelimited(string text, string? delimiter, bool firstHeader)
@@ -1118,12 +1400,15 @@ public static class CgDataSourceService
         if (string.IsNullOrEmpty(text)) return 0;
         try
         {
+            var displayText = KashtrixMarkupParser.Parse(text).CleanText;
             var style = bold ? FontStyle.Bold : FontStyle.Regular;
             if (italic) style |= FontStyle.Italic;
             using var font = new Font(string.IsNullOrWhiteSpace(fontFamily) ? "Segoe UI" : fontFamily, (float)Math.Max(8, fontSize), style, GraphicsUnit.Pixel);
             using var bmp = new Bitmap(1, 1);
             using var g = Graphics.FromImage(bmp);
-            return g.MeasureString(text, font).Width;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            var sz = g.MeasureString(displayText, font, PointF.Empty, StringFormat.GenericTypographic);
+            return Math.Ceiling(sz.Width);
         }
         catch
         {

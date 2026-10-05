@@ -2,9 +2,26 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Kashtrix Input Sources" Width="1220" Height="760" MinWidth="1080" MinHeight="680"
-        WindowStartupLocation="CenterOwner" WindowStyle="None" ResizeMode="CanResizeWithGrip" ShowInTaskbar="True"
+        WindowStartupLocation="CenterOwner" WindowStyle="None" ResizeMode="CanResize" ShowInTaskbar="True"
         Background="{StaticResource Bg0Brush}" Foreground="{StaticResource TextBrush}">
-    <Grid Margin="14">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+    <Window.Resources>
+        <Style x:Key="StandardActionBtn" TargetType="Button">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="Background" Value="#121820"/>
+            <Setter Property="BorderBrush" Value="#253240"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+    <Border BorderBrush="{StaticResource LineStrongBrush}" BorderThickness="1" Background="{StaticResource Bg0Brush}">
+    <Grid Margin="12">
         <Grid.RowDefinitions><RowDefinition Height="58"/><RowDefinition Height="*"/><RowDefinition Height="52"/></Grid.RowDefinitions>
         <Border Grid.Row="0" Background="#080D12" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
             <Grid Margin="10,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="320"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -84,18 +101,100 @@
                             <StackPanel Orientation="Horizontal" Margin="0,16,0,0"><Button Content="START PREVIEW" Click="StartPreview_Click" BorderBrush="{StaticResource AccentBrush}"/><Button Content="STOP PREVIEW" Click="StopPreview_Click"/></StackPanel>
                         </StackPanel>
                     </TabItem>
+
+                    <TabItem Header="KASHTRIX STUDIO">
+                        <StackPanel Margin="16">
+                            <TextBlock Text="KASHTRIX STUDIO LIVE PROGRAM FEED" FontWeight="Bold" FontSize="14" Foreground="{StaticResource AccentBrush}"/>
+                            <TextBlock Text="Direct zero-copy inter-process shared memory connection to Kashtrix Studio (K-Mix). No streaming protocols, no network latency, uncompressed broadcast quality." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,14"/>
+
+                            <Border Background="#141124" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="10" Height="10" Fill="{StaticResource GoodBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="SHARED MEMORY BUS CONNECTORS" FontWeight="Bold" FontSize="11" Foreground="{StaticResource GoodBrush}"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="1" Text="Video Map: KashtrixStudio.Program.Video.v1" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextBrush}" Margin="0,6,0,2"/>
+                                    <TextBlock Grid.Row="2" Text="Audio Map: KashtrixStudio.Program.Audio.v1" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextBrush}"/>
+                                </Grid>
+                            </Border>
+
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="14"/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="EVENT DURATION" Style="{StaticResource SectionCaption}"/>
+                                    <TextBox x:Name="StudioDurationBox" Text="04:00:00" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="STREAM FORMAT / RASTER" Style="{StaticResource SectionCaption}"/>
+                                    <TextBlock Text="Auto-negotiated 1080p / 50fps uncompressed BGRA + 48kHz Stereo PCM" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="CONNECT KASHTRIX STUDIO LIVE" Click="ConnectKashtrixStudio_Click" Background="#4A156B" BorderBrush="{StaticResource AccentBrush}" Foreground="#FFFFFF" FontWeight="Bold" Padding="14,6" Height="30" Margin="0,0,8,0"/>
+                                <Button Content="START PREVIEW" Click="StartPreview_Click" BorderBrush="{StaticResource AccentBrush}"/>
+                                <Button Content="STOP PREVIEW" Click="StopPreview_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </TabItem>
                 </TabControl>
             </Border>
 
             <Border Grid.Column="2" Style="{StaticResource PanelBorder}">
-                <Grid><Grid.RowDefinitions><RowDefinition Height="42"/><RowDefinition Height="*"/><RowDefinition Height="60"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <Grid><Grid.RowDefinitions><RowDefinition Height="42"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="60"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Border Style="{StaticResource PanelHeader}"><Grid><TextBlock Text="LIVE SOURCE PREVIEW" FontWeight="Bold"/><StackPanel HorizontalAlignment="Right" Orientation="Horizontal"><Ellipse x:Name="PreviewLed" Width="8" Height="8" Fill="#5A6570" Margin="0,0,6,0"/><TextBlock x:Name="PreviewStateText" Text="IDLE" Foreground="{StaticResource MutedBrush}"/></StackPanel></Grid></Border>
-                    <Grid Grid.Row="1" Background="#020304" Margin="8"><Image x:Name="InputPreviewImage" Stretch="Uniform"/><TextBlock x:Name="PreviewPlaceholder" Text="SELECT A SOURCE\nPreview keeps running while this window is open" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/></Grid>
-                    <Grid Grid.Row="2" Margin="12,4"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="90"/></Grid.ColumnDefinitions>
+                    <Grid Grid.Row="1" Background="#020304" Margin="8"><Image x:Name="InputPreviewImage" Stretch="Uniform"/><TextBlock x:Name="PreviewPlaceholder" Text="SELECT A SOURCE&#x0a;Preview keeps running while this window is open" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/></Grid>
+                    <Border Grid.Row="2" Background="#0B1118" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,1" Padding="10,6">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Position Scrubber & Timecode -->
+                            <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="PreviewPositionText" Text="00:00:00" Foreground="{StaticResource AccentBrush}" FontFamily="Consolas" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Slider Grid.Column="1" x:Name="PreviewSeekSlider" Minimum="0" Maximum="100" Value="0" VerticalAlignment="Center" IsMoveToPointEnabled="True" ValueChanged="PreviewSeekSlider_ValueChanged" PreviewMouseDown="PreviewSeekSlider_MouseDown" PreviewMouseUp="PreviewSeekSlider_MouseUp"/>
+                                <TextBlock Grid.Column="2" x:Name="PreviewDurationText" Text="00:00:00" Foreground="{StaticResource MutedBrush}" FontFamily="Consolas" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            </Grid>
+
+                            <!-- Transport Buttons & Mark In Status -->
+                            <Grid Grid.Row="1">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                    <Button x:Name="BtnPreviewPlay" Content="▶ PLAY" Width="68" Height="26" Margin="0,0,3,0" Click="PreviewPlay_Click" Style="{StaticResource StandardActionBtn}" ToolTip="Play or resume feed preview"/>
+                                    <Button x:Name="BtnPreviewPause" Content="⏸ PAUSE" Width="68" Height="26" Margin="2,0" Click="PreviewPause_Click" Style="{StaticResource StandardActionBtn}" ToolTip="Pause feed preview"/>
+                                    <Button x:Name="BtnPreviewStop" Content="⏹ STOP" Width="68" Height="26" Margin="2,0" Click="PreviewStop_Click" Style="{StaticResource StandardActionBtn}" ToolTip="Stop feed preview"/>
+                                    <Button x:Name="BtnMarkIn" Content="MARK IN" Width="72" Height="26" Margin="6,0,2,0" Click="MarkIn_Click" Style="{StaticResource StandardActionBtn}" ToolTip="Set current preview position as starting In-Point"/>
+                                    <Button x:Name="BtnResetIn" Content="RESET IN" Width="68" Height="26" Margin="2,0" Click="ResetIn_Click" Style="{StaticResource StandardActionBtn}" ToolTip="Reset In-Point to 00:00:00"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Border Background="#1A1829" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="3" Padding="8,3">
+                                        <TextBlock x:Name="PreviewInPointBadge" Text="IN: 00:00:00" Foreground="{StaticResource AccentBrush}" FontFamily="Consolas" FontSize="10.5" FontWeight="Bold"/>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    <Grid Grid.Row="3" Margin="12,4"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="90"/></Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center"><TextBlock Text="PREVIEW AUDIO" Style="{StaticResource SectionCaption}"/><Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition/><ColumnDefinition Width="18"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBlock Text="L" Foreground="{StaticResource MutedBrush}"/><ProgressBar Grid.Column="1" x:Name="PreviewAudioL" Maximum="1" Height="7" Foreground="{StaticResource MeterGradientBrush}"/><TextBlock Grid.Column="2" Text="R" Foreground="{StaticResource MutedBrush}" Margin="6,0,0,0"/><ProgressBar Grid.Column="3" x:Name="PreviewAudioR" Maximum="1" Height="7" Foreground="{StaticResource MeterGradientBrush}"/></Grid></StackPanel>
                         <TextBlock Grid.Column="1" x:Name="PreviewFormatText" Text="--" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" TextAlignment="Right"/>
                     </Grid>
-                    <Border Grid.Row="3" Background="#0A1017" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="10"><TextBlock x:Name="PreviewStatusText" Text="Select an input source. Device/URL changes automatically restart this preview." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/></Border>
+                    <Border Grid.Row="4" Background="#0A1017" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="10"><TextBlock x:Name="PreviewStatusText" Text="Select an input source. Device/URL changes automatically restart this preview." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/></Border>
                 </Grid>
             </Border>
         </Grid>
@@ -106,4 +205,5 @@
             <Button Grid.Column="2" Content="ADD SOURCE" Click="Add_Click" Margin="4" Background="#2A163B" BorderBrush="{StaticResource PinkBrush}"/>
         </Grid>
     </Grid>
+    </Border>
 </Window>

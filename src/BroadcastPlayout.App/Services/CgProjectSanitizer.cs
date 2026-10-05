@@ -79,8 +79,19 @@ public static class CgProjectSanitizer
             foreach (var key in layer.Keyframes)
             {
                 key.TimeSeconds = Math.Max(0, Finite(key.TimeSeconds));
-                key.X = Finite(key.X, layer.X); key.Y = Finite(key.Y, layer.Y); key.Z = Finite(key.Z, layer.Z);
-                key.Width = Positive(key.Width, layer.Width); key.Height = Positive(key.Height, layer.Height);
+                if (Math.Abs(key.X) <= 0.000001 && Math.Abs(key.Y) <= 0.000001 && (Math.Abs(layer.X) > 0.001 || Math.Abs(layer.Y) > 0.001))
+                {
+                    key.X = layer.X;
+                    key.Y = layer.Y;
+                }
+                else
+                {
+                    key.X = Finite(key.X, layer.X);
+                    key.Y = Finite(key.Y, layer.Y);
+                }
+                key.Z = Finite(key.Z, layer.Z);
+                key.Width = key.Width <= 0.001 ? Positive(layer.Width, 100) : Positive(key.Width, layer.Width);
+                key.Height = key.Height <= 0.001 ? Positive(layer.Height, 100) : Positive(key.Height, layer.Height);
                 key.ScaleX = Positive(key.ScaleX, 1); key.ScaleY = Positive(key.ScaleY, 1); key.ScaleZ = Positive(key.ScaleZ, 1);
                 key.RotationX = Finite(key.RotationX); key.RotationY = Finite(key.RotationY); key.Rotation = Finite(key.Rotation);
                 key.AnchorX = Unit(key.AnchorX, .5); key.AnchorY = Unit(key.AnchorY, .5); key.AnchorZ = Finite(key.AnchorZ);

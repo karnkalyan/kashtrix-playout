@@ -81,6 +81,7 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
         AddUtilityTile("System Info", "SYSTEM", "SYSTEM");
         AddUtilityTile("Program Confidence", "PGM", "PROGRAM");
         AddUtilityTile("Preview Confidence", "PVW", "PREVIEW");
+        AddStudioTileCore(token);
 
         // Multiview is a source/output confidence wall, not a mirror of the rundown.
         // Never auto-create tiles from playlist items or CG template catalog entries.
@@ -99,6 +100,36 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
     private void AddUtilityTile(string name, string format, string kind) =>
         Tiles.Add(new MultiviewTile(_nextIndex++, name, format, kind) { Status = "LIVE" });
 
+    private void AddStudioTileCore(CancellationToken token = default)
+    {
+        var item = new PlaylistItem
+        {
+            Title = "Kashtrix Studio Live",
+            EventType = "LIVE",
+            Category = "Input",
+            SourceKind = "SharedMemory",
+            FilePath = VirtualOutputBridge.StudioProgramVideoMapName,
+            AlternateAudioUrl = VirtualOutputBridge.StudioProgramAudioMapName,
+            IsLiveSource = true,
+            SourceFrameRate = 50.0,
+            VideoFormat = "Studio Shared Memory"
+        };
+        var tile = new MultiviewTile(_nextIndex++, "KASHTRIX STUDIO", "PGM 1080p50", "STUDIO")
+        {
+            Item = item,
+            Status = "STUDIO"
+        };
+        Tiles.Add(tile);
+        var ct = token == default ? _tilesCts.Token : token;
+        _ = Task.Run(() => RunMediaTile(tile, ct), ct);
+    }
+
+    private void AddStudioTile_Click(object sender, RoutedEventArgs e)
+    {
+        AddStudioTileCore();
+        SelectedTile = Tiles.LastOrDefault();
+    }
+
     private void RunMediaTile(MultiviewTile tile, CancellationToken ct)
     {
         if (tile.Item is null) return;
@@ -106,6 +137,16 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
         {
             while (!ct.IsCancellationRequested)
             {
+                if (tile.IsStopped)
+                {
+                    Dispatcher.BeginInvoke(() => { tile.Status = "STOPPED"; tile.Image = null; });
+                    while (!ct.IsCancellationRequested && tile.IsStopped)
+                    {
+                        Thread.Sleep(50);
+                    }
+                    if (ct.IsCancellationRequested) break;
+                }
+
                 using var d = new VideoDecoder(tile.Item);
                 var seek = tile.Item.InPoint > TimeSpan.Zero ? tile.Item.InPoint : TimeSpan.Zero;
                 if (seek > TimeSpan.Zero) d.Seek(seek);
@@ -113,6 +154,14 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
                 var consecutiveFailures = 0;
                 while (!ct.IsCancellationRequested)
                 {
+                    if (tile.IsStopped) break;
+                    while (!ct.IsCancellationRequested && tile.IsPaused && !tile.IsStopped)
+                    {
+                        Dispatcher.BeginInvoke(() => { tile.Status = "PAUSED"; });
+                        Thread.Sleep(50);
+                    }
+                    if (tile.IsStopped) break;
+
                     if (d.TryRead(out var f))
                     {
                         consecutiveFailures = 0;
@@ -602,6 +651,57 @@ public partial class MultiviewWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private void SelectedPlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedTile is null) return;
+        SelectedTile.IsStopped = false;
+        SelectedTile.IsPaused = false;
+        SelectedTile.Status = SelectedTile.Item?.IsLiveSource == true ? "LIVE" : "PLAY";
+    }
+
+    private void SelectedPause_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedTile is null) return;
+        SelectedTile.IsPaused = !SelectedTile.IsPaused;
+        if (SelectedTile.IsPaused) SelectedTile.Status = "PAUSED";
+    }
+
+    private void SelectedStop_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedTile is null) return;
+        SelectedTile.IsStopped = true;
+        SelectedTile.IsPaused = false;
+        SelectedTile.Status = "STOPPED";
+        SelectedTile.Image = null;
+    }
+
+    private void TilePlay_Click(object sender, RoutedEventArgs e)
+    {
+        var tile = (sender as FrameworkElement)?.DataContext as MultiviewTile ?? SelectedTile;
+        if (tile is null) return;
+        tile.IsStopped = false;
+        tile.IsPaused = false;
+        tile.Status = tile.Item?.IsLiveSource == true ? "LIVE" : "PLAY";
+    }
+
+    private void TilePause_Click(object sender, RoutedEventArgs e)
+    {
+        var tile = (sender as FrameworkElement)?.DataContext as MultiviewTile ?? SelectedTile;
+        if (tile is null) return;
+        tile.IsPaused = !tile.IsPaused;
+        if (tile.IsPaused) tile.Status = "PAUSED";
+    }
+
+    private void TileStop_Click(object sender, RoutedEventArgs e)
+    {
+        var tile = (sender as FrameworkElement)?.DataContext as MultiviewTile ?? SelectedTile;
+        if (tile is null) return;
+        tile.IsStopped = true;
+        tile.IsPaused = false;
+        tile.Status = "STOPPED";
+        tile.Image = null;
+    }
+
     private void TakePreview_Click(object sender, RoutedEventArgs e) { if (SelectedTile?.Item is not null) _vm.SelectedItem = SelectedTile.Item; }
     private void TakeProgram_Click(object sender, RoutedEventArgs e) { if (SelectedTile?.Item is null) return; _vm.SelectedItem = SelectedTile.Item; _vm.PlayCommand.Execute(null); }
     private void OpenInput_Click(object sender, RoutedEventArgs e) { var w = new InputSourceWindow { Owner = this }; if (w.ShowDialog() == true && w.ResultItem is not null) { _vm.AddInputSource(w.ResultItem); _ = RefreshTilesAsync(); } }
@@ -620,6 +720,8 @@ public sealed class MultiviewTile : INotifyPropertyChanged
     private ImageSource? _image;
     private string _status = "READY";
     private string _overlayText = "";
+    private bool _isPaused;
+    private bool _isStopped;
     private double _l = 0.0, _r = 0.0;
     private bool _blackFrameDetected;
     private bool _freezeDetected;
@@ -648,6 +750,8 @@ public sealed class MultiviewTile : INotifyPropertyChanged
     public string Kind { get; }
     public PlaylistItem? Item { get; set; }
     public CgProject? CgProject { get; set; }
+    public bool IsPaused { get => _isPaused; set { _isPaused = value; PropertyChanged?.Invoke(this, new(nameof(IsPaused))); } }
+    public bool IsStopped { get => _isStopped; set { _isStopped = value; PropertyChanged?.Invoke(this, new(nameof(IsStopped))); } }
     public string Status { get => _status; set { if (_status == value) return; _status = value; PropertyChanged?.Invoke(this, new(nameof(Status))); } }
     public string OverlayText { get => _overlayText; set { if (_overlayText == value) return; _overlayText = value; PropertyChanged?.Invoke(this, new(nameof(OverlayText))); } }
     public ImageSource? Image { get => _image; set { if (ReferenceEquals(_image, value)) return; _image = value; PropertyChanged?.Invoke(this, new(nameof(Image))); } }

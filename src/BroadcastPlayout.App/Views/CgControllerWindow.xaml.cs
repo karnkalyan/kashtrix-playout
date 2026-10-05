@@ -23,6 +23,8 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     private readonly CgCompositor _previewMonitorCompositor = new();
     private readonly CgCompositor _programMonitorCompositor = new();
     private readonly CgGraphicsOutputEngine _cgOutput = new();
+    private readonly VirtualOutputBridge _cgPreviewBridge = new(VirtualOutputBridge.CustomPreviewVideoMapName, VirtualOutputBridge.CustomPreviewAudioMapName);
+    private readonly VirtualOutputBridge _cgProgramBridge = new(VirtualOutputBridge.CgProgramVideoMapName, VirtualOutputBridge.CgProgramAudioMapName);
     private readonly VideoFrameData _monitorBaseFrame = CreateMonitorBaseFrame();
     private WriteableBitmap? _previewMonitorBitmap;
     private WriteableBitmap? _programMonitorBitmap;
@@ -77,6 +79,12 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     public ObservableCollection<CgCatalogGroup> CatalogGroups { get; } = [];
     public ObservableCollection<CgLayer> Layers { get; } = [];
     public ObservableCollection<CgTargetRow> Channels { get; } = [];
+    /// <summary>Every CG item currently live on PROGRAM for the targeted channel(s).</summary>
+    public ObservableCollection<CgOnAirRow> OnAirItems { get; } = [];
+    private string _onAirSummary = "NO CG ON AIR";
+    public string OnAirSummary { get => _onAirSummary; private set { if (_onAirSummary == value) return; _onAirSummary = value; Raise(); } }
+    private string _onAirTabHeader = "ON AIR";
+    public string OnAirTabHeader { get => _onAirTabHeader; private set { if (_onAirTabHeader == value) return; _onAirTabHeader = value; Raise(); } }
     public ObservableCollection<CgScheduleItem> Schedules { get; } = [];
     private string _newScheduleProjectName = "";
     private string _newScheduleStartTime = "21:00:00";
@@ -260,6 +268,20 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         LastOperation = "ALL OVERLAYS CLEARED";
     }
 
+    private void ShowLogo_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.SetLogoVisible(true);
+        LastOperation = "LOGO ON";
+        LastDetail = "Station logo bug displayed on program output (persists across overlay clears).";
+    }
+
+    private void HideLogo_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.SetLogoVisible(false);
+        LastOperation = "LOGO OFF";
+        LastDetail = "Station logo bug removed from program output.";
+    }
+
     public IReadOnlyList<string> DeckLinkKeyerModes { get; } = ["Off", "Internal", "External"];
     public IReadOnlyList<double> CgFrameRates => OutputProfile.FrameRates;
     public IReadOnlyList<string> CgOutputPresets => OutputProfile.Presets.Where(x => !x.Equals("Source", StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -303,6 +325,8 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         DataContext = this;
         _cgOutput.StatusChanged += status => Dispatcher.BeginInvoke(() => CgOutputStatus = status);
         _cgOutput.Configure(_vm.Settings);
+        _cgPreviewBridge.Open(1920, 1080, 25);
+        _cgProgramBridge.Open(1920, 1080, 25);
         // Preserve saved/imported CG projects and user database
         ReloadProjects();
         _vm.CgProjectsChanged += OnCgProjectsChanged;
@@ -326,23 +350,37 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     {
         ClockText.Text = DateTime.Now.ToString("HH:mm:ss");
         CheckSchedulesTick();
+        RefreshOnAirItems();
     }
 
     private void RenderClock_Tick(object? sender, EventArgs e)
     {
         var playoutPreview = Volatile.Read(ref _latestPlayoutPreviewFrame);
+        VideoFrameData? previewToPublish = null;
         if (_previewSnapshot is not null)
         {
             var baseFrame = Volatile.Read(ref _latestPlayoutPreviewBaseFrame) ?? _monitorBaseFrame;
             var frame = _previewMonitorCompositor.Composite(baseFrame, _previewSnapshot, MonitorElapsed(_previewStartedUtc, _previewSnapshot));
             _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, frame);
+            previewToPublish = frame;
         }
         else if (playoutPreview is not null)
         {
             _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, playoutPreview);
+            previewToPublish = playoutPreview;
+        }
+        else
+        {
+            previewToPublish = _monitorBaseFrame;
+        }
+
+        if (previewToPublish is not null)
+        {
+            _cgPreviewBridge.SubmitVideo(previewToPublish);
         }
 
         var playoutProgram = Volatile.Read(ref _latestPlayoutProgramFrame);
+        VideoFrameData? programToPublish = null;
         if (_programLayerSnapshots.Count > 1)
         {
             var frame = Volatile.Read(ref _latestPlayoutProgramBaseFrame) ?? _monitorBaseFrame;
@@ -353,6 +391,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
                 frame = _programMonitorCompositor.Composite(frame, snap, elapsed);
             }
             _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
+            programToPublish = frame;
         }
         else if (_programSnapshot is not null)
         {
@@ -378,10 +417,21 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
                 frame = _programMonitorCompositor.Composite(baseFrame, _programSnapshot, MonitorElapsed(_programStartedUtc, _programSnapshot));
             }
             _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
+            programToPublish = frame;
         }
         else if (playoutProgram is not null)
         {
             _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, playoutProgram);
+            programToPublish = playoutProgram;
+        }
+        else
+        {
+            programToPublish = _monitorBaseFrame;
+        }
+
+        if (programToPublish is not null)
+        {
+            _cgProgramBridge.SubmitVideo(programToPublish, onAir: true);
         }
     }
 
@@ -442,28 +492,11 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         if (project.IsImported || string.Equals(project.Category, "IMPORTED", StringComparison.OrdinalIgnoreCase))
             return "IMPORTED";
 
-        var cat = (project.Category ?? string.Empty).Trim().ToUpperInvariant();
+        var cat = (project.Category ?? string.Empty).Trim();
         if (!string.IsNullOrWhiteSpace(cat) && !cat.Equals("CUSTOM", StringComparison.OrdinalIgnoreCase) && !cat.Equals("GENERAL", StringComparison.OrdinalIgnoreCase))
-            return cat;
+            return cat.ToUpperInvariant();
 
-        var n = (project.Name ?? string.Empty).ToUpperInvariant();
-        if (n.Contains("AP1") || n.Contains("AP 1")) return "AP1 HD";
-        if (n.Contains("PRIME")) return "PRIME HD";
-        if (n.Contains("SPACE")) return "SPACE 4K";
-        if (n.Contains("AAJ") || n.Contains("TAK")) return "AAJ TAK";
-        if (n.Contains("ABP")) return "ABP NEWS";
-        if (n.Contains("INDIA") || n.Contains("TV")) return "INDIA TV";
-        if (n.Contains("BREAKING")) return "BREAKING NEWS";
-        if (n.Contains("WEATHER")) return "WEATHER";
-        if (n.Contains("SPORT") || n.Contains("CRICKET") || n.Contains("FOOTBALL") || n.Contains("MATCH")) return "SPORTS";
-        if (n.Contains("FINANCE") || n.Contains("STOCK") || n.Contains("MARKET") || n.Contains("SENSEX") || n.Contains("CRYPTO")) return "FINANCE";
-        if (n.Contains("ELECTION") || n.Contains("VOTE") || n.Contains("POLL")) return "ELECTION";
-        if (n.Contains("MUSIC") || n.Contains("SONG") || n.Contains("TRACK")) return "MUSIC";
-        if (n.Contains("TICKER")) return "TICKERS";
-        if (n.Contains("LOWER THIRD") || n.Contains("STRAP") || n.Contains("NAME CARD") || n.Contains("SUPER")) return "LOWER THIRDS";
-        if (n.Contains("GRAPHICS PACK") || n.Contains("GFX PACK") || n.Contains("PACK ")) return "GRAPHICS PACK";
-
-        return !string.IsNullOrWhiteSpace(project.Category) ? project.Category.ToUpperInvariant() : "BROADCAST PACK";
+        return !string.IsNullOrWhiteSpace(project.Category) ? project.Category.Trim().ToUpperInvariant() : "GENERAL";
     }
 
     private void QuickColorSwatch_Click(object sender, RoutedEventArgs e)
@@ -632,7 +665,7 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
     {
         try
         {
-            var dlg = new Microsoft.Win32.OpenFileDialog
+            var dlg = new KashtrixFileDialog
             {
                 Title = "Import Kashtrix CG Composition",
                 Filter = "Kashtrix CG Files (*.kcg;*.kashtrixcg;*.cgx)|*.kcg;*.kashtrixcg;*.cgx|All Supported CG Files (*.kcg;*.kashtrixcg;*.cgx;*.json)|*.kcg;*.kashtrixcg;*.cgx;*.json",
@@ -768,9 +801,9 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         }
     }
 
-    private async Task<bool> RouteAsync(string action, string bus, CgProject? projectOverride = null, string transition = "None", double transitionSeconds = 0.45, int? layerOverride = null, bool targetAll = false)
+    private async Task<bool> RouteAsync(string action, string bus, CgProject? projectOverride = null, string transition = "None", double transitionSeconds = 0.45, int? layerOverride = null, bool targetAll = false, string[]? targetsOverride = null)
     {
-        var targets = Channels.Where(x => x.IsSelected).Select(x => x.ChannelId)
+        var targets = (targetsOverride is { Length: > 0 } ? targetsOverride : Channels.Where(x => x.IsSelected).Select(x => x.ChannelId))
             .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (targets.Length == 0) targets = [_vm.ChannelId];
 
@@ -1150,6 +1183,177 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
             LastDetail = "All CG items and overlay layers were cleared instantly.";
         }
     }
+
+    // ── ON AIR · PROGRAM ────────────────────────────────────────────────────────────────
+    private string[] OnAirChannelIds()
+    {
+        var ids = Channels.Where(x => x.IsSelected).Select(x => x.ChannelId)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return ids.Length > 0 ? ids : [_vm.ChannelId];
+    }
+
+    private void PublishControllerOnAirSnapshot()
+    {
+        try
+        {
+            var channels = OnAirChannelIds();
+            var localChannel = channels.Length > 0 ? channels[0] : _vm.ChannelId;
+            var items = new List<CgOnAirItem>();
+            foreach (var kv in _programLayerSnapshots)
+            {
+                var p = kv.Value.Project;
+                var item = CgOnAirRegistry.FromProject(localChannel, p, "CONTROLLER");
+                item.Layer = kv.Key;
+                item.StartedUtc = kv.Value.StartedUtc;
+                item.ElapsedSeconds = Math.Max(0, (DateTime.UtcNow - kv.Value.StartedUtc).TotalSeconds);
+                items.Add(item);
+            }
+            CgOnAirRegistry.Publish(new CgOnAirSnapshot
+            {
+                ChannelId = localChannel,
+                ChannelName = localChannel,
+                Items = items
+            });
+        }
+        catch { }
+    }
+
+    private void RefreshOnAirItems()
+    {
+        PublishControllerOnAirSnapshot();
+        var fresh = new List<CgOnAirItem>();
+        var liveChannels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var channelId in OnAirChannelIds())
+        {
+            var snap = CgOnAirRegistry.Read(channelId);
+            if (snap is null) continue;
+            liveChannels.Add(channelId);
+            fresh.AddRange(snap.Items.Select(i => { if (string.IsNullOrWhiteSpace(i.ChannelId)) i.ChannelId = channelId; return i; }));
+        }
+
+        // Local controller stack: covers network-only targets or a playout that is not publishing yet.
+        var localChannel = OnAirChannelIds()[0];
+        foreach (var kv in _programLayerSnapshots)
+        {
+            var p = kv.Value.Project;
+            var id = p.Id.ToString("D");
+            if (fresh.Any(x => x.Layer == kv.Key && (x.ProjectId == id || string.Equals(x.Name, p.Name, StringComparison.OrdinalIgnoreCase)))) continue;
+            if (liveChannels.Count > 0 && fresh.Any(x => x.ProjectId == id)) continue;
+            var item = CgOnAirRegistry.FromProject(localChannel, p, "CONTROLLER");
+            item.Layer = kv.Key;
+            item.StartedUtc = kv.Value.StartedUtc;
+            item.ElapsedSeconds = Math.Max(0, (DateTime.UtcNow - kv.Value.StartedUtc).TotalSeconds);
+            fresh.Add(item);
+        }
+
+        var ordered = fresh.OrderBy(x => x.ChannelId, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Source == "LOGO" ? 1 : 0).ThenBy(x => x.Layer).ToList();
+        var keys = ordered.Select(CgOnAirRow.KeyOf).ToHashSet();
+        for (var i = OnAirItems.Count - 1; i >= 0; i--)
+            if (!keys.Contains(OnAirItems[i].Key)) OnAirItems.RemoveAt(i);
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var key = CgOnAirRow.KeyOf(ordered[i]);
+            var existing = OnAirItems.FirstOrDefault(x => x.Key == key);
+            if (existing is null) OnAirItems.Insert(Math.Min(i, OnAirItems.Count), new CgOnAirRow(ordered[i]));
+            else existing.Update(ordered[i]);
+        }
+
+        OnAirTabHeader = OnAirItems.Count > 0 ? $"ON AIR ({OnAirItems.Count})" : "ON AIR";
+        OnAirSummary = OnAirItems.Count == 0
+            ? (liveChannels.Count == 0 ? "NO CG ON AIR · waiting for playout telemetry" : "PROGRAM CLEAR · no CG on air")
+            : $"{OnAirItems.Count} CG ITEM(S) ON AIR · {OnAirItems.Count(x => x.IsStopping)} stopping";
+    }
+
+    private IReadOnlyList<CgOnAirRow> SelectedOnAirRows()
+        => OnAirList?.SelectedItems.OfType<CgOnAirRow>().ToList() ?? [];
+
+    private async Task StopOnAirRowsAsync(IReadOnlyList<CgOnAirRow> rows, bool instant)
+    {
+        if (rows.Count == 0)
+        {
+            LastOperation = "ON AIR · NOTHING SELECTED";
+            LastDetail = "Select one or more on-air CG items first.";
+            return;
+        }
+        var action = instant ? "CLEAR" : "STOP";
+        var sent = 0;
+        foreach (var row in rows)
+        {
+            var target = _programLayerSnapshots.TryGetValue(row.Layer, out var local)
+                         && (local.Project.Id.ToString("D") == row.ProjectId || string.Equals(local.Project.Name, row.Name, StringComparison.OrdinalIgnoreCase))
+                ? local.Project
+                : new CgProject { Id = Guid.TryParse(row.ProjectId, out var g) ? g : Guid.Empty, Name = row.Name };
+            // Scoped command: only this item's channel + project (+ layer for controller stack items).
+            // PLAYOUT/LOGO items are matched by project only (layer -1) so the playout's layer
+            // fallback can never hit an unrelated controller graphic. Never a bus-wide clear.
+            var layer = row.Source == "CONTROLLER" && row.Layer >= 0 ? row.Layer : -1;
+            if (!await RouteAsync(action, "PROGRAM", target, layerOverride: layer, targetsOverride: [row.ChannelId]))
+                continue;
+            sent++;
+            row.IsStopping = true;
+            ReleaseLocalProgramLayer(row, instant);
+        }
+        LastOperation = $"ON AIR · {action} {sent}/{rows.Count}";
+        LastDetail = sent > 0
+            ? $"{(instant ? "Cleared" : "Animated out")}: {string.Join(", ", rows.Select(r => r.Name))}. Other on-air items keep running."
+            : "No target accepted the command.";
+    }
+
+    private void ReleaseLocalProgramLayer(CgOnAirRow row, bool instant)
+    {
+        if (!_programLayerSnapshots.TryGetValue(row.Layer, out var stopping)) return;
+        if (stopping.Project.Id.ToString("D") != row.ProjectId && !string.Equals(stopping.Project.Name, row.Name, StringComparison.OrdinalIgnoreCase)) return;
+        var layer = row.Layer;
+        var delay = 0.0;
+        if (!instant)
+        {
+            stopping.Project.IsStopping = true;
+            stopping.Project.StopRequestedTimelineSeconds = Math.Max(0, (DateTime.UtcNow - stopping.StartedUtc).TotalSeconds);
+            delay = stopping.Project.Layers.Where(l => l.Visible).Select(l => l.AnimationOutSeconds).DefaultIfEmpty(0.5).Max() + 0.15;
+        }
+        _ = Task.Run(async () =>
+        {
+            if (delay > 0) await Task.Delay(TimeSpan.FromSeconds(delay)).ConfigureAwait(false);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (!_programLayerSnapshots.TryGetValue(layer, out var current) || !ReferenceEquals(current.Project, stopping.Project)) return;
+                _programLayerSnapshots.Remove(layer);
+                _cgOutput.RemoveProgramLayer(layer);
+                if (_programLayerSnapshots.Count > 0)
+                {
+                    _programSnapshot = _programLayerSnapshots.Values.Last().Project;
+                    ProgramProjectName = _programSnapshot.Name;
+                    ProgramLayerName = $"OVERLAY {_programSnapshot.ExternalLayer} ACTIVE";
+                    ProgramLayerText = $"{_programLayerSnapshots.Count} layer(s) active on program.";
+                }
+                else
+                {
+                    _programSnapshot = null;
+                    ProgramCgImage.Source = null;
+                    _programMonitorBitmap = null;
+                    ProgramProjectName = "No CG on program";
+                    ProgramLayerName = "PROGRAM CLEAR";
+                    ProgramLayerText = "Program CG bus is clear.";
+                    _cgOutput.ClearProgram();
+                }
+                RefreshOnAirItems();
+            });
+        });
+    }
+
+    private async void OnAirStopSelected_Click(object s, RoutedEventArgs e) => await StopOnAirRowsAsync(SelectedOnAirRows(), instant: false);
+    private async void OnAirClearSelected_Click(object s, RoutedEventArgs e) => await StopOnAirRowsAsync(SelectedOnAirRows(), instant: true);
+    private async void OnAirStopAll_Click(object s, RoutedEventArgs e) => await StopOnAirRowsAsync(OnAirItems.Where(x => !x.IsStopping).ToList(), instant: false);
+    private void OnAirRefresh_Click(object s, RoutedEventArgs e) => RefreshOnAirItems();
+    private async void OnAirRowStop_Click(object s, RoutedEventArgs e)
+    {
+        if ((s as FrameworkElement)?.Tag is CgOnAirRow row) await StopOnAirRowsAsync([row], instant: false);
+    }
+    private async void OnAirRowClear_Click(object s, RoutedEventArgs e)
+    {
+        if ((s as FrameworkElement)?.Tag is CgOnAirRow row) await StopOnAirRowsAsync([row], instant: true);
+    }
+    private void OnAirSelectAll_Click(object s, RoutedEventArgs e) => OnAirList?.SelectAll();
     private async void TakeToProgram_Click(object s, RoutedEventArgs e) => await TakePreviewToProgramAsync(TakeTransition);
     private async void CutToProgram_Click(object s, RoutedEventArgs e) => await TakePreviewToProgramAsync("None");
     private async void AutoToProgram_Click(object s, RoutedEventArgs e)
@@ -1602,6 +1806,8 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
         _operator?.Dispose(); _operator = null;
         _previewMonitorCompositor.Dispose();
         _programMonitorCompositor.Dispose();
+        _cgPreviewBridge.Dispose();
+        _cgProgramBridge.Dispose();
         _cgOutput.Dispose();
     }
 }
@@ -1619,6 +1825,61 @@ public sealed class CgCatalogGroup
     public string Name { get; set; } = "OTHER";
     public ObservableCollection<CgProject> Projects { get; set; } = [];
     public override string ToString() => Name;
+}
+
+public sealed class CgOnAirRow : INotifyPropertyChanged
+{
+    public CgOnAirRow(CgOnAirItem item)
+    {
+        Key = KeyOf(item);
+        ChannelId = item.ChannelId;
+        ProjectId = item.ProjectId;
+        Source = item.Source;
+        Layer = item.Layer;
+        Update(item);
+    }
+    public static string KeyOf(CgOnAirItem i) => $"{i.ChannelId}|{i.Source}|{i.Layer}|{i.ProjectId}".ToUpperInvariant();
+    public string Key { get; }
+    public string ChannelId { get; }
+    public string ProjectId { get; }
+    public string Source { get; }
+    public int Layer { get; }
+    public string LayerText => Source == "LOGO" ? "LOGO" : Layer < 0 ? "MAIN" : $"L{Layer}";
+    private string _name = "";
+    private string _category = "";
+    private bool _isStopping;
+    private double _elapsed;
+    private double _duration;
+    private bool _loop;
+    public string Name { get => _name; private set => Set(ref _name, value); }
+    public string Category { get => _category; private set => Set(ref _category, value); }
+    public bool IsStopping { get => _isStopping; set { if (Set(ref _isStopping, value)) On(nameof(StateText)); } }
+    public string StateText => IsStopping ? "STOPPING" : "ON AIR";
+    public string ElapsedText
+    {
+        get
+        {
+            var t = TimeSpan.FromSeconds(Math.Max(0, _elapsed));
+            var run = t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"mm\:ss");
+            return _loop ? $"{run} · LOOP" : _duration > 0 ? $"{run} / {TimeSpan.FromSeconds(_duration).ToString(@"mm\:ss")}" : run;
+        }
+    }
+    public string Detail => $"{ChannelId} · {Source}{(string.IsNullOrWhiteSpace(Category) ? "" : " · " + Category)}";
+    public void Update(CgOnAirItem item)
+    {
+        Name = string.IsNullOrWhiteSpace(item.Name) ? "(untitled CG)" : item.Name;
+        Category = item.Category;
+        IsStopping = item.IsStopping || IsStopping && item.IsStopping;
+        _elapsed = item.ElapsedSeconds; _duration = item.DurationSeconds; _loop = item.Loop;
+        On(nameof(ElapsedText)); On(nameof(Detail));
+    }
+    private bool Set<T>(ref T field, T value, [CallerMemberName] string? n = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value; On(n); return true;
+    }
+    private void On(string? n) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
+    public event PropertyChangedEventHandler? PropertyChanged;
 }
 
 public sealed class CgTargetRow : INotifyPropertyChanged

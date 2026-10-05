@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Drawing.Imaging;
@@ -453,90 +453,148 @@ public sealed class CgCompositor : IDisposable
 
         var anchorX = rect.Left + rect.Width * (float)Math.Clamp(motion.AnchorX, 0, 1);
         var anchorY = rect.Top + rect.Height * (float)Math.Clamp(motion.AnchorY, 0, 1);
-        if (Math.Abs(motion.Rotation) > .001)
-        {
-            g.TranslateTransform(anchorX, anchorY);
-            g.RotateTransform((float)motion.Rotation);
-            g.TranslateTransform(-anchorX, -anchorY);
-        }
-        var effectiveSkewX = Math.Clamp(motion.SkewX + Math.Tan(motion.RotationY * Math.PI / 180.0) * 35.0, -75, 75);
-        var effectiveSkewY = Math.Clamp(motion.SkewY - Math.Tan(motion.RotationX * Math.PI / 180.0) * 35.0, -75, 75);
-        if (Math.Abs(effectiveSkewX) > .001 || Math.Abs(effectiveSkewY) > .001)
-        {
-            var shx = (float)Math.Tan(effectiveSkewX * Math.PI / 180.0);
-            var shy = (float)Math.Tan(effectiveSkewY * Math.PI / 180.0);
-            using var matrix = new Matrix();
-            matrix.Translate(anchorX, anchorY);
-            matrix.Shear(shx, shy);
-            matrix.Translate(-anchorX, -anchorY);
-            g.MultiplyTransform(matrix, MatrixOrder.Prepend);
-        }
 
-        var type = layerType;
-        switch (type)
+        var gState = g.Save();
+        try
         {
-            case "SHAPE": DrawShape(g, rect, visualLayer, opacity); break;
-            case "ELLIPSE": DrawEllipse(g, rect, visualLayer, opacity); break;
-            case "LINE": DrawLine(g, rect, visualLayer, opacity); break;
-            case "IMAGE":
-                if (!forceNormalBlend && UsesCustomBlend(visualLayer)) DrawBlendedMedia(g, targetBytes, targetWidth, targetHeight, targetStride, visualLayer.BlendMode, og => DrawImage(og, rect, visualLayer.Source, opacity));
-                else DrawImage(g, rect, visualLayer.Source, opacity);
-                break;
-            case "IMAGESEQUENCE":
-                var sequenceFrame = CgDataSourceService.ResolveSequenceFrame(project!, visualLayer, continuousSeconds);
-                if (!forceNormalBlend && UsesCustomBlend(visualLayer)) DrawBlendedMedia(g, targetBytes, targetWidth, targetHeight, targetStride, visualLayer.BlendMode, og => DrawImage(og, rect, sequenceFrame, opacity));
-                else DrawImage(g, rect, sequenceFrame, opacity);
-                break;
-            case "TICKER": DrawTicker(g, rect, visualLayer, continuousSeconds, opacity, resolvedText, project); break;
-            case "ROLL": DrawRoll(g, rect, visualLayer, continuousSeconds, opacity, resolvedText); break;
-            case "DIGITALCLOCK":
-                if (!string.IsNullOrWhiteSpace(resolvedText) && (resolvedText.Contains("BS") || resolvedText.Contains("२०") || resolvedText.Contains("Nepali") || resolvedText.Contains("YYYY")))
-                    DrawText(g, rect, NepaliCalendarService.ResolveBroadcastFormat(resolvedText, DateTime.Now), visualLayer, opacity, activeTextVisual, sy);
-                else
-                    DrawText(g, rect, DateTime.Now.ToString("HH:mm:ss"), visualLayer, opacity, activeTextVisual, sy);
-                break;
-            case "DATETIME":
-                if (string.Equals(visualLayer.CalendarSystem, "BS", StringComparison.OrdinalIgnoreCase))
-                {
-                    var bsFormat = string.IsNullOrWhiteSpace(visualLayer.DataFormat) || visualLayer.DataFormat == "{0}" ? "dddd, DD MMMM YYYY  HH:mm:ss" : visualLayer.DataFormat;
-                    DrawText(g, rect, NepaliCalendarService.ResolveBroadcastFormat(bsFormat, DateTime.Now), visualLayer, opacity, activeTextVisual, sy);
+            if (Math.Abs(motion.Rotation) > .001)
+            {
+                g.TranslateTransform(anchorX, anchorY);
+                g.RotateTransform((float)motion.Rotation);
+                g.TranslateTransform(-anchorX, -anchorY);
+            }
+
+            // 3D Perspective foreshortening & Scale (baked into geometry, effScale is 1.0)
+            var effectiveSkewX = Math.Clamp(motion.SkewX, -75, 75);
+            var effectiveSkewY = Math.Clamp(motion.SkewY, -75, 75);
+            if (Math.Abs(effectiveSkewX) > .001 || Math.Abs(effectiveSkewY) > .001)
+            {
+                var shx = (float)Math.Tan(effectiveSkewX * Math.PI / 180.0);
+                var shy = (float)Math.Tan(effectiveSkewY * Math.PI / 180.0);
+                using var matrix = new Matrix();
+                matrix.Translate(anchorX, anchorY);
+                matrix.Shear(shx, shy);
+                matrix.Translate(-anchorX, -anchorY);
+                g.MultiplyTransform(matrix, MatrixOrder.Prepend);
+            }
+
+            var type = layerType;
+            switch (type)
+            {
+                case "SHAPE": DrawShape(g, rect, visualLayer, opacity); break;
+                case "ELLIPSE": DrawEllipse(g, rect, visualLayer, opacity); break;
+                case "LINE": DrawLine(g, rect, visualLayer, opacity); break;
+                case "IMAGE":
+                    if (!forceNormalBlend && UsesCustomBlend(visualLayer)) DrawBlendedMedia(g, targetBytes, targetWidth, targetHeight, targetStride, visualLayer.BlendMode, og => DrawImage(og, rect, visualLayer.Source, opacity));
+                    else DrawImage(g, rect, visualLayer.Source, opacity);
                     break;
-                }
-                if (string.Equals(visualLayer.CalendarSystem, "AD", StringComparison.OrdinalIgnoreCase))
-                {
-                    var adFormat = string.IsNullOrWhiteSpace(visualLayer.DataFormat) || visualLayer.DataFormat == "{0}" ? "dd MMM yyyy  HH:mm:ss" : visualLayer.DataFormat;
-                    DrawText(g, rect, FormatDateTime(adFormat), visualLayer, opacity, activeTextVisual, sy);
+                case "IMAGESEQUENCE":
+                    var sequenceFrame = CgDataSourceService.ResolveSequenceFrame(project!, visualLayer, continuousSeconds);
+                    if (!forceNormalBlend && UsesCustomBlend(visualLayer)) DrawBlendedMedia(g, targetBytes, targetWidth, targetHeight, targetStride, visualLayer.BlendMode, og => DrawImage(og, rect, sequenceFrame, opacity));
+                    else DrawImage(g, rect, sequenceFrame, opacity);
                     break;
-                }
-                if (!string.IsNullOrWhiteSpace(resolvedText) && (resolvedText.Contains("BS") || resolvedText.Contains("२०") || resolvedText.Contains("Nepali") || resolvedText.Contains("YYYY")))
+                case "TICKER": DrawTicker(g, rect, visualLayer, continuousSeconds, opacity, resolvedText, project); break;
+                case "ROLL": DrawRoll(g, rect, visualLayer, continuousSeconds, opacity, resolvedText); break;
+                case "DIGITALCLOCK":
+                    var activeDigiFormat = !string.IsNullOrWhiteSpace(visualLayer.DataFormat) && visualLayer.DataFormat != "{0}"
+                        ? visualLayer.DataFormat
+                        : (!string.IsNullOrWhiteSpace(visualLayer.Text) && visualLayer.Text != "KASHTRIX" ? visualLayer.Text : "HH:mm:ss");
+                    if (activeDigiFormat.Contains("BS") || activeDigiFormat.Contains("२०") || activeDigiFormat.Contains("Nepali") || activeDigiFormat.Contains("YYYY"))
+                        DrawText(g, rect, NepaliCalendarService.ResolveBroadcastFormat(activeDigiFormat, DateTime.Now), visualLayer, opacity, activeTextVisual, sy);
+                    else
+                        DrawText(g, rect, FormatDateTime(activeDigiFormat), visualLayer, opacity, activeTextVisual, sy);
+                    break;
+                case "DATETIME":
+                    var activeDtFormat = !string.IsNullOrWhiteSpace(visualLayer.DataFormat) && visualLayer.DataFormat != "{0}"
+                        ? visualLayer.DataFormat
+                        : (!string.IsNullOrWhiteSpace(visualLayer.Text) && visualLayer.Text != "KASHTRIX" ? visualLayer.Text : "dd MMM yyyy  HH:mm:ss");
+                    if (string.Equals(visualLayer.CalendarSystem, "BS", StringComparison.OrdinalIgnoreCase) || activeDtFormat.Contains("BS") || activeDtFormat.Contains("२०") || activeDtFormat.Contains("Nepali") || activeDtFormat.Contains("YYYY"))
+                    {
+                        DrawText(g, rect, NepaliCalendarService.ResolveBroadcastFormat(activeDtFormat, DateTime.Now), visualLayer, opacity, activeTextVisual, sy);
+                    }
+                    else
+                    {
+                        DrawText(g, rect, FormatDateTime(activeDtFormat), visualLayer, opacity, activeTextVisual, sy);
+                    }
+                    break;
+                case "NEPALIDATE":
+                case "NEPALICLOCK":
                     DrawText(g, rect, NepaliCalendarService.ResolveBroadcastFormat(resolvedText, DateTime.Now), visualLayer, opacity, activeTextVisual, sy);
-                else
-                    DrawText(g, rect, FormatDateTime(resolvedText), visualLayer, opacity, activeTextVisual, sy);
-                break;
-            case "NEPALIDATE":
-            case "NEPALICLOCK":
-                DrawText(g, rect, NepaliCalendarService.ResolveBroadcastFormat(resolvedText, DateTime.Now), visualLayer, opacity, activeTextVisual, sy);
-                break;
-            case "TIMECODE": DrawText(g, rect, FormatTimelineTimecode(continuousSeconds), visualLayer, opacity, activeTextVisual, sy); break;
-            case "TIMER":
-            case "COUNTDOWN":
-            case "BACKIN":
-                DrawTimer(g, rect, visualLayer, continuousSeconds, opacity, activeTextVisual);
-                break;
-            case "ANALOGCLOCK": DrawAnalogClock(g, rect, visualLayer, opacity); break;
-            case "WEATHERICON": DrawWeatherIcon(g, rect, resolvedText, visualLayer, t, opacity); break;
-            case "HTML": DrawText(g, rect, RenderHtmlFallback(visualLayer), visualLayer, opacity * .90, activeTextVisual, sy); break;
-            case "PRECOMP": DrawPrecomposition(g, rect, visualLayer, Math.Max(0, t - layer.StartSeconds), opacity); break;
-            case "VIDEO":
-                if (!forceNormalBlend && UsesCustomBlend(visualLayer)) DrawBlendedMedia(g, targetBytes, targetWidth, targetHeight, targetStride, visualLayer.BlendMode, og => DrawVideo(og, rect, visualLayer, t - visualLayer.StartSeconds, opacity));
-                else DrawVideo(g, rect, visualLayer, t - visualLayer.StartSeconds, opacity);
-                break;
-            default:
-                if (visualLayer.IsTimerLayer && string.IsNullOrWhiteSpace(visualLayer.Text))
+                    break;
+                case "TIMECODE": DrawText(g, rect, FormatTimelineTimecode(continuousSeconds), visualLayer, opacity, activeTextVisual, sy); break;
+                case "TIMER":
+                case "COUNTDOWN":
+                case "BACKIN":
                     DrawTimer(g, rect, visualLayer, continuousSeconds, opacity, activeTextVisual);
-                else
-                    DrawText(g, rect, resolvedText, visualLayer, opacity, activeTextVisual, sy);
-                break;
+                    break;
+                case "ANALOGCLOCK": DrawAnalogClock(g, rect, visualLayer, opacity); break;
+                case "WEATHERICON": DrawWeatherIcon(g, rect, resolvedText, visualLayer, t, opacity); break;
+                case "HTML": DrawText(g, rect, RenderHtmlFallback(visualLayer), visualLayer, opacity * .90, activeTextVisual, sy); break;
+                case "PRECOMP": DrawPrecomposition(g, rect, visualLayer, Math.Max(0, t - layer.StartSeconds), opacity); break;
+                case "VIDEO":
+                    if (!forceNormalBlend && UsesCustomBlend(visualLayer)) DrawBlendedMedia(g, targetBytes, targetWidth, targetHeight, targetStride, visualLayer.BlendMode, og => DrawVideo(og, rect, visualLayer, t - visualLayer.StartSeconds, opacity));
+                    else DrawVideo(g, rect, visualLayer, t - visualLayer.StartSeconds, opacity);
+                    break;
+                default:
+                    if (visualLayer.IsTimerLayer && string.IsNullOrWhiteSpace(visualLayer.Text))
+                        DrawTimer(g, rect, visualLayer, continuousSeconds, opacity, activeTextVisual);
+                    else
+                        DrawText(g, rect, resolvedText, visualLayer, opacity, activeTextVisual, sy);
+                    break;
+            }
+
+            if (visualLayer.LightSweepEnabled && visualLayer.LightSweepIntensity > 0.01)
+            {
+                DrawLightSweep(g, rect, visualLayer, opacity);
+            }
+        }
+        finally
+        {
+            g.Restore(gState);
+        }
+    }
+
+    private static void DrawLightSweep(Graphics g, RectangleF rect, CgLayer layer, double opacity)
+    {
+        if (rect.Width <= 2 || rect.Height <= 2) return;
+        var p = Math.Clamp(layer.LightSweepProgress, 0.0, 1.0);
+        var widthRatio = Math.Clamp(layer.LightSweepWidth > 0 ? layer.LightSweepWidth : 0.25, 0.05, 1.0);
+        var sweepWidth = (float)(rect.Width * widthRatio);
+        var angle = (float)layer.LightSweepAngle;
+        var diag = (float)Math.Sqrt(rect.Width * rect.Width + rect.Height * rect.Height) * 2.5f;
+        var travelDist = rect.Width + sweepWidth * 2f + (float)Math.Abs(Math.Sin(angle * Math.PI / 180.0)) * rect.Height;
+        var currentCenterX = rect.Left - sweepWidth + (float)(p * travelDist);
+        var centerY = rect.Top + rect.Height / 2f;
+        var sweepRect = new RectangleF(currentCenterX - sweepWidth / 2f, centerY - diag / 2f, sweepWidth, diag);
+
+        var sweepCol = ParseColor(layer.LightSweepColor, opacity * Math.Clamp(layer.LightSweepIntensity, 0.0, 1.0));
+        var clearCol = Color.FromArgb(0, sweepCol.R, sweepCol.G, sweepCol.B);
+
+        var sweepState = g.Save();
+        try
+        {
+            g.SetClip(rect, CombineMode.Intersect);
+            g.TranslateTransform(currentCenterX, centerY);
+            g.RotateTransform(angle);
+            g.TranslateTransform(-currentCenterX, -centerY);
+
+            using var brush = new LinearGradientBrush(
+                new PointF(currentCenterX - sweepWidth / 2f, centerY),
+                new PointF(currentCenterX + sweepWidth / 2f, centerY),
+                clearCol, clearCol);
+
+            var blend = new ColorBlend(3)
+            {
+                Colors = [clearCol, sweepCol, clearCol],
+                Positions = [0.0f, 0.5f, 1.0f]
+            };
+            brush.InterpolationColors = blend;
+            g.FillRectangle(brush, sweepRect);
+        }
+        catch { }
+        finally
+        {
+            g.Restore(sweepState);
         }
     }
 
@@ -1097,9 +1155,12 @@ public sealed class CgCompositor : IDisposable
     private static void DrawShape(Graphics g, RectangleF rect, CgLayer layer, double opacity)
     {
         if (rect.Width <= 0 || rect.Height <= 0) return;
+        var primaryColor = !string.IsNullOrWhiteSpace(layer.Background) && !string.Equals(layer.Background, "Transparent", StringComparison.OrdinalIgnoreCase)
+            ? layer.Background
+            : (!string.IsNullOrWhiteSpace(layer.Fill) ? layer.Fill : (string.IsNullOrWhiteSpace(layer.Background) ? "#FFFFFF" : layer.Background));
         using Brush brush = layer.UseGradient
-            ? CreateGradientBrush(rect, layer, layer.Background, layer.GradientColor2, opacity)
-            : new SolidBrush(ParseColor(layer.Background, opacity));
+            ? CreateGradientBrush(rect, layer, primaryColor, layer.GradientColor2, opacity)
+            : new SolidBrush(ParseColor(primaryColor, opacity));
         using var pen = new Pen(ParseColor(layer.BorderColor, opacity), Math.Max(0.5f, (float)layer.BorderWidth));
         var kind = (layer.ShapeKind ?? "Rectangle").Trim().ToUpperInvariant();
         using var path = new GraphicsPath();
@@ -1341,7 +1402,7 @@ public sealed class CgCompositor : IDisposable
             g.FillRectangle(gloss, rect.Left, rect.Top, rect.Width, rect.Height * .55f);
             g.SetClip(previousClip, CombineMode.Replace);
         }
-        if (layer.BorderWidth > 0 && pen.Color.A > 0) g.DrawPath(pen, path);
+        if (layer.UseBorder && layer.BorderWidth > 0 && pen.Color.A > 0) g.DrawPath(pen, path);
     }
 
     private static void AddRoundedRectangle(GraphicsPath path, RectangleF rect, CgLayer layer)
@@ -1401,18 +1462,31 @@ public sealed class CgCompositor : IDisposable
 
     private static void DrawText(Graphics g, RectangleF rect, string? text, CgLayer layer, double opacity, CgAnimationEngine.TextVisualState? textVisual = null, double sy = 1.0)
     {
-        if (layer.AutoConvertToPreeti || (IsPreetiFont(layer.FontFamily) && ContainsDevanagari(text)))
+        var parsedMarkup = KashtrixMarkupParser.Parse(text, layer);
+        text = parsedMarkup.CleanText;
+        var effectiveFontFamily = !string.IsNullOrWhiteSpace(parsedMarkup.OverrideFontFamily) ? parsedMarkup.OverrideFontFamily : layer.FontFamily;
+        var effectiveFill = !string.IsNullOrWhiteSpace(parsedMarkup.OverrideTextColor) ? parsedMarkup.OverrideTextColor : layer.Fill;
+        var effectiveBg = !string.IsNullOrWhiteSpace(parsedMarkup.OverrideBackgroundColor) ? parsedMarkup.OverrideBackgroundColor : layer.Background;
+        var useBg = layer.UseBackground || !string.IsNullOrWhiteSpace(parsedMarkup.OverrideBackgroundColor);
+
+        if (layer.AutoConvertToPreeti || (IsPreetiFont(effectiveFontFamily) && ContainsDevanagari(text)))
             text = NepaliCalendarService.ConvertToPreeti(text ?? string.Empty);
 
-        if (layer.UseBackground)
+        if (useBg)
         {
-            using var bg = new SolidBrush(ParseColor(layer.Background, opacity));
+            using var bg = new SolidBrush(ParseColor(effectiveBg, opacity));
             if (bg.Color.A > 0) g.FillRectangle(bg, rect);
         }
+        var isScaleDownPreset = (layer.TextAnimationPreset?.Contains("Scale Down", StringComparison.OrdinalIgnoreCase) ?? false) ||
+                                (layer.TextAnimationPreset?.Contains("Scale Cascade", StringComparison.OrdinalIgnoreCase) ?? false);
+        var isLetterScaleDown = isScaleDownPreset && (string.Equals(layer.TextAnimationUnit, "Letter", StringComparison.OrdinalIgnoreCase) ||
+                                                      string.IsNullOrWhiteSpace(layer.TextAnimationUnit) ||
+                                                      string.Equals(layer.TextAnimationUnit, "Character", StringComparison.OrdinalIgnoreCase));
+
         var textTransformState = g.Save();
         try
         {
-            if (textVisual.HasValue && Math.Abs(textVisual.Value.Scale - 1.0) > 0.001)
+            if (!isLetterScaleDown && textVisual.HasValue && Math.Abs(textVisual.Value.Scale - 1.0) > 0.001)
             {
                 var scale = (float)textVisual.Value.Scale;
                 var align = (layer.HorizontalTextAlignment ?? "Left").Trim().ToUpperInvariant();
@@ -1433,7 +1507,19 @@ public sealed class CgCompositor : IDisposable
         if (layer.Underline) style |= FontStyle.Underline;
         var effectiveSy = sy > 0.05 ? sy : 1.0;
         var fontScale = rect.Height / Math.Max(1.0, layer.Height * effectiveSy);
-        using var font = CreateFont(layer.FontFamily, (float)Math.Max(6, layer.FontSize * effectiveSy * fontScale), style);
+        var rawFontSize = parsedMarkup.OverrideFontSize.HasValue ? parsedMarkup.OverrideFontSize.Value : layer.FontSize;
+        var baseFontSize = (float)Math.Max(6, rawFontSize * effectiveSy * fontScale);
+        if (layer.FitToAr && !string.IsNullOrEmpty(text))
+        {
+            using var measureFont = CreateFont(effectiveFontFamily, baseFontSize, style);
+            var measuredSize = g.MeasureString(text, measureFont);
+            if (measuredSize.Width > rect.Width && measuredSize.Width > 1)
+            {
+                var shrinkFactor = (rect.Width - 4f) / measuredSize.Width;
+                baseFontSize = Math.Max(5f, baseFontSize * shrinkFactor);
+            }
+        }
+        using var font = CreateFont(effectiveFontFamily, baseFontSize, style);
         using var format = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoClip };
         format.Alignment = (layer.HorizontalTextAlignment ?? "Left").ToUpperInvariant() switch
         {
@@ -1512,7 +1598,11 @@ public sealed class CgCompositor : IDisposable
             }
         }
 
-        if (layer.OutlineWidth > 0)
+        if (isLetterScaleDown && textVisual.HasValue && Math.Abs(textVisual.Value.Scale - 1.0) > 0.001 && value.Length > 0)
+        {
+            DrawTextLetterScaleDown(g, rect, value, font, style, layer, opacity, (float)textVisual.Value.Scale);
+        }
+        else if (layer.UseOutline && layer.OutlineWidth > 0)
         {
             using var path = new GraphicsPath();
             var emSize = g.DpiY * font.Size / 72f;
@@ -1520,16 +1610,16 @@ public sealed class CgCompositor : IDisposable
             path.AddString(value, font.FontFamily, (int)style, emSize, origin, format);
             using var outline = new Pen(ParseColor(layer.OutlineColor, opacity), Math.Max(1f, (float)layer.OutlineWidth)) { LineJoin = LineJoin.Round };
             using Brush fill = layer.UseGradient
-                ? CreateGradientBrush(rect, layer, layer.Fill, layer.GradientColor2, opacity)
-                : new SolidBrush(ParseColor(layer.Fill, opacity));
+                ? CreateGradientBrush(rect, layer, effectiveFill, layer.GradientColor2, opacity)
+                : new SolidBrush(ParseColor(effectiveFill, opacity));
             g.DrawPath(outline, path);
             g.FillPath(fill, path);
         }
         else
         {
             using Brush brush = layer.UseGradient
-                ? CreateGradientBrush(rect, layer, layer.Fill, layer.GradientColor2, opacity)
-                : new SolidBrush(ParseColor(layer.Fill, opacity));
+                ? CreateGradientBrush(rect, layer, effectiveFill, layer.GradientColor2, opacity)
+                : new SolidBrush(ParseColor(effectiveFill, opacity));
             g.DrawString(value, font, brush, rect, format);
         }
         }
@@ -1539,20 +1629,157 @@ public sealed class CgCompositor : IDisposable
         }
     }
 
+    private static void DrawTextLetterScaleDown(Graphics g, RectangleF rect, string value, Font font, FontStyle style, CgLayer layer, double opacity, float letterScale)
+    {
+        var charSizes = new List<SizeF>();
+        float totalTextWidth = 0;
+        using var stringFormat = new StringFormat(StringFormat.GenericTypographic);
+        for (int i = 0; i < value.Length; i++)
+        {
+            var charStr = value[i].ToString();
+            var sz = g.MeasureString(charStr, font, PointF.Empty, stringFormat);
+            charSizes.Add(sz);
+            totalTextWidth += sz.Width;
+        }
+
+        var align = (layer.HorizontalTextAlignment ?? "Left").Trim().ToUpperInvariant();
+        float currentX = align switch
+        {
+            "CENTER" => rect.Left + Math.Max(0, (rect.Width - totalTextWidth) / 2f),
+            "RIGHT" => rect.Right - totalTextWidth,
+            _ => rect.Left
+        };
+        float currentY = rect.Top + Math.Max(0, (rect.Height - font.GetHeight(g)) / 2f);
+
+        for (int i = 0; i < value.Length; i++)
+        {
+            var charStr = value[i].ToString();
+            var sz = charSizes[i];
+            var charCenter = new PointF(currentX + sz.Width / 2f, currentY + sz.Height / 2f);
+
+            var charState = g.Save();
+            try
+            {
+                g.TranslateTransform(charCenter.X, charCenter.Y);
+                g.ScaleTransform(letterScale, letterScale);
+                g.TranslateTransform(-charCenter.X, -charCenter.Y);
+
+                if (layer.UseOutline && layer.OutlineWidth > 0)
+                {
+                    using var path = new GraphicsPath();
+                    var emSize = g.DpiY * font.Size / 72f;
+                    path.AddString(charStr, font.FontFamily, (int)style, emSize, new PointF(currentX, currentY), stringFormat);
+                    using var outline = new Pen(ParseColor(layer.OutlineColor, opacity), Math.Max(1f, (float)layer.OutlineWidth)) { LineJoin = LineJoin.Round };
+                    using Brush fill = layer.UseGradient
+                        ? CreateGradientBrush(rect, layer, layer.Fill, layer.GradientColor2, opacity)
+                        : new SolidBrush(ParseColor(layer.Fill, opacity));
+                    g.DrawPath(outline, path);
+                    g.FillPath(fill, path);
+                }
+                else
+                {
+                    using Brush brush = layer.UseGradient
+                        ? CreateGradientBrush(rect, layer, layer.Fill, layer.GradientColor2, opacity)
+                        : new SolidBrush(ParseColor(layer.Fill, opacity));
+                    g.DrawString(charStr, font, brush, new PointF(currentX, currentY), stringFormat);
+                }
+            }
+            finally
+            {
+                g.Restore(charState);
+            }
+            currentX += sz.Width;
+        }
+    }
+
+    public static string? ResolveImagePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        if (File.Exists(path)) return path;
+
+        var fileName = Path.GetFileName(path);
+        string[] searchDirs = [
+            AppContext.BaseDirectory,
+            AppDomain.CurrentDomain.BaseDirectory,
+            Directory.GetCurrentDirectory(),
+            Path.Combine(AppContext.BaseDirectory, "demos"),
+            Path.Combine(AppContext.BaseDirectory, "cgdemo-templates"),
+            Path.Combine(AppContext.BaseDirectory, "cgdemo-templates", "market"),
+            Path.Combine(AppContext.BaseDirectory, "cg-demo"),
+            Path.Combine(Directory.GetCurrentDirectory(), "demos"),
+            Path.Combine(Directory.GetCurrentDirectory(), "cgdemo-templates"),
+            Path.Combine(Directory.GetCurrentDirectory(), "cgdemo-templates", "market"),
+            Path.Combine(Directory.GetCurrentDirectory(), "cg-demo")
+        ];
+
+        foreach (var dir in searchDirs)
+        {
+            if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) continue;
+            var candidate = Path.Combine(dir, path);
+            if (File.Exists(candidate)) return candidate;
+            var fileCandidate = Path.Combine(dir, fileName);
+            if (File.Exists(fileCandidate)) return fileCandidate;
+        }
+
+        try
+        {
+            var cur = new DirectoryInfo(Directory.GetCurrentDirectory());
+            for (var i = 0; i < 4 && cur != null; i++, cur = cur.Parent)
+            {
+                var candidate = Path.Combine(cur.FullName, "demos", fileName);
+                if (File.Exists(candidate)) return candidate;
+                candidate = Path.Combine(cur.FullName, "cg-demo", fileName);
+                if (File.Exists(candidate)) return candidate;
+                candidate = Path.Combine(cur.FullName, "cgdemo-templates", "market", fileName);
+                if (File.Exists(candidate)) return candidate;
+            }
+        }
+        catch { }
+
+        return path;
+    }
+
+    private static readonly object _staticImageSync = new();
+    private static readonly Dictionary<string, Image> _staticImages = new(StringComparer.OrdinalIgnoreCase);
+
+    public static Image? GetCachedImage(string? path)
+    {
+        var resolved = ResolveImagePath(path);
+        if (string.IsNullOrWhiteSpace(resolved) || !File.Exists(resolved)) return null;
+        lock (_staticImageSync)
+        {
+            if (!_staticImages.TryGetValue(resolved, out var img))
+            {
+                try
+                {
+                    using var temp = Image.FromFile(resolved);
+                    img = new Bitmap(temp);
+                    _staticImages[resolved] = img;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+            return img;
+        }
+    }
+
     private void DrawImage(Graphics g, RectangleF rect, string? path, double opacity)
     {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+        var resolved = ResolveImagePath(path);
+        if (string.IsNullOrWhiteSpace(resolved) || !File.Exists(resolved)) return;
         Image? image;
         lock (_imageSync)
         {
-            if (!_images.TryGetValue(path, out image))
+            if (!_images.TryGetValue(resolved, out image))
             {
-                using var temp = Image.FromFile(path);
+                using var temp = Image.FromFile(resolved);
                 image = new Bitmap(temp);
-                _images[path] = image;
+                _images[resolved] = image;
             }
         }
-        var matrix = new ColorMatrix { Matrix33 = (float)opacity };
+        var matrix = new ColorMatrix { Matrix33 = (float)Math.Clamp(opacity, 0.0, 1.0) };
         using var attrs = new ImageAttributes();
         attrs.SetColorMatrix(matrix);
         g.DrawImage(image, Rectangle.Round(rect), 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, attrs);
@@ -1609,7 +1836,43 @@ public sealed class CgCompositor : IDisposable
             catch { }
         }
 
-        // 2. Check for bracketed category tags e.g. [WORLD NEWS] Headline 1 • Headline 2 [CRICKET] Match updates
+        // 2. Check for dynamic <kcg-category> tags e.g. <kcg-category>WORLD NEWS</kcg> <kcg-items>News 1 • News 2</kcg>
+        if (text.Contains("<kcg", StringComparison.OrdinalIgnoreCase))
+        {
+            var kcgCatMatches = System.Text.RegularExpressions.Regex.Matches(text, @"<kcg-category>(.*?)</kcg(?:-category)?>(.*?)(?=(?:<kcg-category>|$))", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+            if (kcgCatMatches.Count > 0)
+            {
+                foreach (System.Text.RegularExpressions.Match km in kcgCatMatches)
+                {
+                    var cat = km.Groups[1].Value.Trim();
+                    var content = km.Groups[2].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(cat)) list.Add(new TickerSegment(cat, cat.ToUpperInvariant(), true));
+
+                    var itemsMatches = System.Text.RegularExpressions.Regex.Matches(content, @"<kcg-items>(.*?)</kcg(?:-items)?>", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+                    if (itemsMatches.Count > 0)
+                    {
+                        foreach (System.Text.RegularExpressions.Match im in itemsMatches)
+                        {
+                            var parsed = KashtrixMarkupParser.Parse(im.Groups[1].Value.Trim(), layer);
+                            if (!string.IsNullOrWhiteSpace(parsed.CleanText)) list.Add(new TickerSegment(cat, parsed.CleanText, false));
+                        }
+                    }
+                    else
+                    {
+                        var parsed = KashtrixMarkupParser.Parse(content, layer);
+                        var subItems = parsed.CleanText.Split(new[] { '•', '|', '\n', '★' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        foreach (var sub in subItems)
+                        {
+                            var clean = sub.Trim().Trim('•', '|', '★', '-', '—', ' ').Trim();
+                            if (!string.IsNullOrWhiteSpace(clean)) list.Add(new TickerSegment(cat, clean, false));
+                        }
+                    }
+                }
+                if (list.Count > 0) return list;
+            }
+        }
+
+        // 3. Check for bracketed category tags e.g. [WORLD NEWS] Headline 1 • Headline 2 [CRICKET] Match updates
         if (text.Contains('[') && text.Contains(']'))
         {
             var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\[(.*?)\]([^\[]*)");
@@ -1759,7 +2022,7 @@ public sealed class CgCompositor : IDisposable
             var crawlWindowWidth = Math.Max(100f, rect.Width - badgeWidthEstimate);
             var schedule = CgDataSourceService.BuildCategoryFeedSchedule(project ?? new CgProject(), layer, rows, crawlWindowWidth, speed);
             var (activeCategory, categoryElapsed, _) = schedule.Evaluate(elapsed);
-            var newsElapsed = Math.Max(0, categoryElapsed - activeCategory.IntroDuration);
+            var newsElapsed = categoryElapsed;
             var segments = activeCategory.Items
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => new TickerSegment(activeCategory.Category, x, false))
@@ -1807,8 +2070,30 @@ public sealed class CgCompositor : IDisposable
                     }
                     else
                     {
-                        var txtSize = g.MeasureString(seg.Text, font);
-                        itemWidth = txtSize.Width;
+                        var parsed = KashtrixMarkupParser.Parse(seg.Text);
+                        float totalRunW = 0;
+                        var fontH = font.GetHeight(g);
+                        foreach (var run in parsed.Runs)
+                        {
+                            if (!string.IsNullOrEmpty(run.ImagePath))
+                            {
+                                var img = GetCachedImage(run.ImagePath);
+                                if (img is not null)
+                                {
+                                    var iconH = fontH * 0.82f;
+                                    var iconW = iconH * (img.Width / (float)Math.Max(1, img.Height));
+                                    totalRunW += iconW + 6f;
+                                    continue;
+                                }
+                            }
+                            var rText = !string.IsNullOrEmpty(run.FallbackText) ? run.FallbackText : run.Text;
+                            if (!string.IsNullOrEmpty(rText))
+                            {
+                                var rSz = g.MeasureString(rText, font, PointF.Empty, StringFormat.GenericTypographic);
+                                totalRunW += rSz.Width;
+                            }
+                        }
+                        itemWidth = Math.Max(1f, totalRunW);
                         totalContentWidth += itemWidth + sepWidth;
                     }
                     measured.Add((seg, itemWidth));
@@ -1852,8 +2137,30 @@ public sealed class CgCompositor : IDisposable
                 }
                 else
                 {
-                    var txtSize = g.MeasureString(seg.Text, font);
-                    itemWidth = txtSize.Width;
+                    var parsed = KashtrixMarkupParser.Parse(seg.Text);
+                    float totalRunW = 0;
+                    var fontH = font.GetHeight(g);
+                    foreach (var run in parsed.Runs)
+                    {
+                        if (!string.IsNullOrEmpty(run.ImagePath))
+                        {
+                            var img = GetCachedImage(run.ImagePath);
+                            if (img is not null)
+                            {
+                                var iconH = fontH * 0.82f;
+                                var iconW = iconH * (img.Width / (float)Math.Max(1, img.Height));
+                                totalRunW += iconW + 6f;
+                                continue;
+                            }
+                        }
+                        var rText = !string.IsNullOrEmpty(run.FallbackText) ? run.FallbackText : run.Text;
+                        if (!string.IsNullOrEmpty(rText))
+                        {
+                            var rSz = g.MeasureString(rText, font, PointF.Empty, StringFormat.GenericTypographic);
+                            totalRunW += rSz.Width;
+                        }
+                    }
+                    itemWidth = Math.Max(1f, totalRunW);
                     totalContentWidth += itemWidth + sepWidth;
                 }
                 measured.Add((seg, itemWidth));
@@ -1972,7 +2279,62 @@ public sealed class CgCompositor : IDisposable
             }
             else
             {
-                g.DrawString(seg.Text, font, brush, drawX, drawY);
+                var parsed = KashtrixMarkupParser.Parse(seg.Text);
+                if (parsed.Runs.Count > 0)
+                {
+                    var runX = drawX;
+                    foreach (var run in parsed.Runs)
+                    {
+                        if (!string.IsNullOrEmpty(run.ImagePath))
+                        {
+                            var img = GetCachedImage(run.ImagePath);
+                            if (img is not null)
+                            {
+                                var iconH = fontH * 0.82f;
+                                var iconW = iconH * (img.Width / (float)Math.Max(1, img.Height));
+                                g.DrawImage(img, runX + 2f, centerY - iconH / 2f, iconW, iconH);
+                                runX += iconW + 6f;
+                                continue;
+                            }
+                        }
+
+                        var runText = !string.IsNullOrEmpty(run.FallbackText) ? run.FallbackText : run.Text;
+                        if (string.IsNullOrEmpty(runText)) continue;
+
+                        var rSize = g.MeasureString(runText, font, PointF.Empty, StringFormat.GenericTypographic);
+                        Brush rBrush = brush;
+                        SolidBrush? rCustom = null;
+                        if (!string.IsNullOrWhiteSpace(run.TextColor))
+                        {
+                            try
+                            {
+                                rCustom = new SolidBrush(ParseColor(run.TextColor, 1.0));
+                                rBrush = rCustom;
+                            }
+                            catch { }
+                        }
+                        g.DrawString(runText, font, rBrush, runX, drawY, StringFormat.GenericTypographic);
+                        rCustom?.Dispose();
+                        runX += rSize.Width;
+                    }
+                }
+                else
+                {
+                    Brush effectiveBrush = brush;
+                    SolidBrush? customBrush = null;
+                    var overrideCol = parsed.OverrideTextColor;
+                    if (!string.IsNullOrWhiteSpace(overrideCol))
+                    {
+                        try
+                        {
+                            customBrush = new SolidBrush(ParseColor(overrideCol, 1.0));
+                            effectiveBrush = customBrush;
+                        }
+                        catch { }
+                    }
+                    g.DrawString(parsed.CleanText, font, effectiveBrush, drawX, drawY);
+                    customBrush?.Dispose();
+                }
             }
         }
 
@@ -2029,8 +2391,8 @@ public sealed class CgCompositor : IDisposable
 
     private static void DrawTickerStream(Graphics g, RectangleF rect, Font font, Font badgeFont, Brush textBrush, Brush badgeTextBrush, Brush badgeBgBrush, Image? sepLogo, List<(TickerSegment Seg, float Width)> measured, bool hasSepLogo, float logoSize, float logoPad, string separatorText, SizeF sepTextSize, float gap, float startX, bool isRight)
     {
-        g.TextRenderingHint = TextRenderingHint.AntiAlias;
-        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        g.PixelOffsetMode = PixelOffsetMode.Half;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
@@ -2067,7 +2429,62 @@ public sealed class CgCompositor : IDisposable
                 }
                 else
                 {
-                    g.DrawString(seg.Text, font, textBrush, curX, textY, StringFormat.GenericTypographic);
+                    var parsed = KashtrixMarkupParser.Parse(seg.Text);
+                    if (parsed.Runs.Count > 0)
+                    {
+                        var runX = curX;
+                        foreach (var run in parsed.Runs)
+                        {
+                            if (!string.IsNullOrEmpty(run.ImagePath))
+                            {
+                                var img = GetCachedImage(run.ImagePath);
+                                if (img is not null)
+                                {
+                                    var iconH = fontH * 0.82f;
+                                    var iconW = iconH * (img.Width / (float)Math.Max(1, img.Height));
+                                    g.DrawImage(img, runX + 2f, centerY - iconH / 2f, iconW, iconH);
+                                    runX += iconW + 6f;
+                                    continue;
+                                }
+                            }
+
+                            var runText = !string.IsNullOrEmpty(run.FallbackText) ? run.FallbackText : run.Text;
+                            if (string.IsNullOrEmpty(runText)) continue;
+
+                            var rSize = g.MeasureString(runText, font, PointF.Empty, StringFormat.GenericTypographic);
+                            Brush rBrush = textBrush;
+                            SolidBrush? rCustom = null;
+                            if (!string.IsNullOrWhiteSpace(run.TextColor))
+                            {
+                                try
+                                {
+                                    rCustom = new SolidBrush(ParseColor(run.TextColor, 1.0));
+                                    rBrush = rCustom;
+                                }
+                                catch { }
+                            }
+                            g.DrawString(runText, font, rBrush, runX, textY, StringFormat.GenericTypographic);
+                            rCustom?.Dispose();
+                            runX += rSize.Width;
+                        }
+                    }
+                    else
+                    {
+                        Brush effectiveBrush = textBrush;
+                        SolidBrush? customBrush = null;
+                        var overrideCol = parsed.OverrideTextColor;
+                        if (!string.IsNullOrWhiteSpace(overrideCol))
+                        {
+                            try
+                            {
+                                customBrush = new SolidBrush(ParseColor(overrideCol, 1.0));
+                                effectiveBrush = customBrush;
+                            }
+                            catch { }
+                        }
+                        g.DrawString(parsed.CleanText, font, effectiveBrush, curX, textY, StringFormat.GenericTypographic);
+                        customBrush?.Dispose();
+                    }
                 }
             }
 

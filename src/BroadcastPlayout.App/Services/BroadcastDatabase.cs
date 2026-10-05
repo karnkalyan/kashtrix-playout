@@ -52,6 +52,7 @@ public sealed class BroadcastDatabase
                 block_name TEXT NOT NULL DEFAULT '',
                 audio_gain_percent INTEGER NOT NULL DEFAULT 100,
                 audio_muted INTEGER NOT NULL DEFAULT 0,
+                alternate_audio_url TEXT NOT NULL DEFAULT '',
                 item_json TEXT NOT NULL DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS state (
@@ -76,6 +77,7 @@ public sealed class BroadcastDatabase
         EnsureColumn(connection, "playlist", "block_name", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn(connection, "playlist", "audio_gain_percent", "INTEGER NOT NULL DEFAULT 100");
         EnsureColumn(connection, "playlist", "audio_muted", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "playlist", "alternate_audio_url", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn(connection, "playlist", "item_json", "TEXT NOT NULL DEFAULT ''");
     }
 
@@ -107,7 +109,7 @@ public sealed class BroadcastDatabase
         command.CommandText = """
             SELECT id, seq, event_type, title, file_path, in_ticks, out_ticks, codec, video_format, status,
                    source_kind, input_format, input_options, video_device, audio_device,
-                   source_duration_ticks, source_fps, is_live, capture_width, capture_height, block_name, audio_gain_percent, audio_muted, item_json
+                   source_duration_ticks, source_fps, is_live, capture_width, capture_height, block_name, audio_gain_percent, audio_muted, alternate_audio_url, item_json
             FROM playlist ORDER BY seq
             """;
         using var reader = command.ExecuteReader();
@@ -141,21 +143,24 @@ public sealed class BroadcastDatabase
                 CaptureHeight = reader.GetInt32(19),
                 BlockName = reader.FieldCount > 20 ? reader.GetString(20) : string.Empty,
                 AudioGainPercent = reader.FieldCount > 21 ? reader.GetInt32(21) : 100,
-                AudioMuted = reader.FieldCount > 22 && reader.GetInt64(22) != 0
+                AudioMuted = reader.FieldCount > 22 && reader.GetInt64(22) != 0,
+                AlternateAudioUrl = reader.FieldCount > 23 ? reader.GetString(23) : string.Empty
             };
 
             // FIX27 stores the complete PlaylistItem JSON alongside the stable legacy columns.
             // This preserves per-item audio routing/delay/track, video/aspect/interlace/decoder,
             // EPG metadata, row colors, thumbnails and multipart trims across application restarts.
             PlaylistItem restored = legacy;
-            if (reader.FieldCount > 23 && !reader.IsDBNull(23))
+            if (reader.FieldCount > 24 && !reader.IsDBNull(24))
             {
-                var json = reader.GetString(23);
+                var json = reader.GetString(24);
                 if (!string.IsNullOrWhiteSpace(json))
                 {
                     try { restored = JsonSerializer.Deserialize<PlaylistItem>(json, Json) ?? legacy; } catch { restored = legacy; }
                 }
             }
+            if (string.IsNullOrWhiteSpace(restored.AlternateAudioUrl) && !string.IsNullOrWhiteSpace(legacy.AlternateAudioUrl))
+                restored.AlternateAudioUrl = legacy.AlternateAudioUrl;
             if (restored.Status is "On Air" or "Cued") restored.Status = "Ready";
             result.Add(restored);
         }
@@ -180,9 +185,9 @@ public sealed class BroadcastDatabase
             command.CommandText = """
                 INSERT INTO playlist(id, seq, event_type, title, file_path, in_ticks, out_ticks, codec, video_format, status,
                                      source_kind, input_format, input_options, video_device, audio_device,
-                                     source_duration_ticks, source_fps, is_live, capture_width, capture_height, block_name, audio_gain_percent, audio_muted, item_json)
+                                     source_duration_ticks, source_fps, is_live, capture_width, capture_height, block_name, audio_gain_percent, audio_muted, alternate_audio_url, item_json)
                 VALUES($id,$seq,$event,$title,$file,$in,$out,$codec,$format,$status,
-                       $sourcekind,$inputformat,$inputoptions,$videodevice,$audiodevice,$sourceduration,$sourcefps,$islive,$capturewidth,$captureheight,$blockname,$audiogain,$audiomuted,$itemjson)
+                       $sourcekind,$inputformat,$inputoptions,$videodevice,$audiodevice,$sourceduration,$sourcefps,$islive,$capturewidth,$captureheight,$blockname,$audiogain,$audiomuted,$alternateaudiourl,$itemjson)
                 """;
             command.Parameters.AddWithValue("$id", item.Id.ToString("D"));
             command.Parameters.AddWithValue("$seq", item.Sequence);
@@ -207,6 +212,7 @@ public sealed class BroadcastDatabase
             command.Parameters.AddWithValue("$blockname", item.BlockName ?? "");
             command.Parameters.AddWithValue("$audiogain", item.AudioGainPercent);
             command.Parameters.AddWithValue("$audiomuted", item.AudioMuted ? 1 : 0);
+            command.Parameters.AddWithValue("$alternateaudiourl", item.AlternateAudioUrl ?? "");
             command.Parameters.AddWithValue("$itemjson", JsonSerializer.Serialize(item, Json));
             command.ExecuteNonQuery();
         }

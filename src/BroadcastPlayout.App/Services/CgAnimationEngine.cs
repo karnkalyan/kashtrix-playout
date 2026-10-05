@@ -20,7 +20,7 @@ public static class CgAnimationEngine
         "AnimationIn","AnimationOut","AnimationInSeconds","AnimationOutSeconds","Role","ShapeKind","CornerRadius",
         "CornerRadiusTopLeft","CornerRadiusTopRight","CornerRadiusBottomRight","CornerRadiusBottomLeft",
         "CornerRadiusAsPercent","CornerRadiusTopLeftPercent","CornerRadiusTopRightPercent","CornerRadiusBottomRightPercent","CornerRadiusBottomLeftPercent","Perspective",
-        "BorderColor","BorderWidth","HorizontalTextAlignment","VerticalTextAlignment","Bold","Italic","Underline",
+        "BorderColor","BorderWidth","UseBorder","UseOutline","FitToAr","LightSweepEnabled","LightSweepProgress","LightSweepWidth","LightSweepAngle","LightSweepIntensity","LightSweepColor","HorizontalTextAlignment","VerticalTextAlignment","Bold","Italic","Underline",
         "OutlineColor","OutlineWidth","ShadowEnabled","ShadowColor","ShadowOffsetX","ShadowOffsetY","ShadowBlur","GlowColor","GlowRadius",
         "MotionBlurX","MotionBlurY","MotionBlurSamples","LetterSpacing","LineSpacing","UseGradient","GradientColor2","GradientAngle","GradientStops","GlossEnabled","GlossOpacity",
         "TextAnimationPreset","TextAnimationUnit","TextAnimationDurationSeconds","TextAnimationStaggerSeconds",
@@ -49,6 +49,8 @@ public static class CgAnimationEngine
     {
         var frames = layer.Keyframes?.Where(x => !string.IsNullOrWhiteSpace(x.StyleJson)).OrderBy(x => x.TimeSeconds).ToArray();
         if (frames is null || frames.Length <= 1) return layer;
+
+        timeSeconds = ResolveCycleTime(layer.Keyframes, Math.Max(0, timeSeconds - layer.KeyframeDelaySeconds), layer.KeyframeRepeat, layer.KeyframeYoyo);
 
         // Check if there is actual style variance across keyframes
         var firstJson = frames[0].StyleJson;
@@ -90,7 +92,10 @@ public static class CgAnimationEngine
 
         var span = Math.Max(.000001, right.TimeSeconds - left.TimeSeconds);
         var raw = Math.Clamp((timeSeconds - left.TimeSeconds) / span, 0, 1);
-        var eased = Ease(string.IsNullOrWhiteSpace(right.Ease) ? layer.DefaultEase : right.Ease, raw);
+        var easeName = !string.IsNullOrWhiteSpace(left.Ease) && !string.Equals(left.Ease, "linear", StringComparison.OrdinalIgnoreCase)
+            ? left.Ease
+            : (!string.IsNullOrWhiteSpace(right.Ease) ? right.Ease : layer.DefaultEase);
+        var eased = Ease(easeName, raw);
 
         var rightClone = new CgLayer();
         foreach (var property in CloneProperties)
@@ -129,6 +134,12 @@ public static class CgAnimationEngine
         clone.MaskY = Lerp(clone.MaskY, rightClone.MaskY, eased);
         clone.MaskWidth = Lerp(clone.MaskWidth, rightClone.MaskWidth, eased);
         clone.MaskHeight = Lerp(clone.MaskHeight, rightClone.MaskHeight, eased);
+
+        clone.LightSweepProgress = Lerp(clone.LightSweepProgress, rightClone.LightSweepProgress, eased);
+        clone.LightSweepWidth = Lerp(clone.LightSweepWidth, rightClone.LightSweepWidth, eased);
+        clone.LightSweepAngle = Lerp(clone.LightSweepAngle, rightClone.LightSweepAngle, eased);
+        clone.LightSweepIntensity = Lerp(clone.LightSweepIntensity, rightClone.LightSweepIntensity, eased);
+        clone.LightSweepColor = InterpolateColor(clone.LightSweepColor, rightClone.LightSweepColor, eased);
 
         // Shape kind keyframing: switch cleanly at midpoint with smooth interpolation of geometry
         if (!string.Equals(clone.ShapeKind, rightClone.ShapeKind, StringComparison.OrdinalIgnoreCase))
@@ -278,7 +289,7 @@ public static class CgAnimationEngine
     public static MotionState EvaluateLayer(CgProject project, CgLayer layer, double timeSeconds)
     {
         var state = EvaluateLayerLocal(layer, timeSeconds);
-        state = ApplyLayerTransform(state, layer.Perspective);
+        state = ApplyLayerTransform(layer, state, layer.Perspective);
         if (layer.GroupId == Guid.Empty) return state;
 
         var visited = new HashSet<Guid>();
@@ -303,8 +314,8 @@ public static class CgAnimationEngine
             var gy = Math.Max(.001, gs.ScaleY) * depth * Math.Max(.04, Math.Abs(Math.Cos(gs.RotationX * Math.PI / 180.0)));
             var cx = state.X + state.Width / 2.0;
             var cy = state.Y + state.Height / 2.0;
-            cx = ox + (cx - ox) * gx + Math.Sin(gs.RotationY * Math.PI / 180.0) * state.Width * .16 + gs.X;
-            cy = oy + (cy - oy) * gy - Math.Sin(gs.RotationX * Math.PI / 180.0) * state.Height * .16 + gs.Y;
+            cx = ox + (cx - ox) * gx + gs.X;
+            cy = oy + (cy - oy) * gy + gs.Y;
             state = state with
             {
                 X = cx - state.Width * gx / 2.0,
@@ -327,28 +338,61 @@ public static class CgAnimationEngine
         return state;
     }
 
-    private static MotionState ApplyLayerTransform(MotionState state, double perspective)
+    private static MotionState ApplyLayerTransform(CgLayer layer, MotionState state, double perspective)
     {
         perspective = Math.Clamp(double.IsFinite(perspective) ? perspective : 1200, 200, 10000);
-        var depth = PerspectiveScale(state.Z + state.AnchorZ, perspective) * Math.Max(.001, state.ScaleZ);
         var rx = state.RotationX * Math.PI / 180.0;
         var ry = state.RotationY * Math.PI / 180.0;
-        var sx = Math.Max(.001, state.ScaleX) * depth * Math.Max(.04, Math.Abs(Math.Cos(ry)));
-        var sy = Math.Max(.001, state.ScaleY) * depth * Math.Max(.04, Math.Abs(Math.Cos(rx)));
         var ax = Math.Clamp(state.AnchorX, 0, 1);
         var ay = Math.Clamp(state.AnchorY, 0, 1);
         var anchorX = state.X + state.Width * ax;
         var anchorY = state.Y + state.Height * ay;
-        var width = state.Width * sx;
-        var height = state.Height * sy;
-        var shiftX = Math.Sin(ry) * state.Width * .22 * depth;
-        var shiftY = -Math.Sin(rx) * state.Height * .22 * depth;
+
+        var isBoxFace = layer.Name != null && (layer.Name.Contains("3D Box", StringComparison.OrdinalIgnoreCase) || layer.Name.Contains("Box Face", StringComparison.OrdinalIgnoreCase));
+        if (isBoxFace)
+        {
+            var boxRadius = state.Width / 2.0;
+            var deltaX = boxRadius * Math.Sin(ry);
+            var deltaZ = -boxRadius * Math.Cos(ry);
+            var faceZ = state.Z + deltaZ;
+            var faceDepth = PerspectiveScale(faceZ + state.AnchorZ, perspective) * Math.Max(.001, state.ScaleZ);
+            var sx = Math.Max(.001, state.ScaleX) * faceDepth * Math.Max(.01, Math.Abs(Math.Cos(ry)));
+            var sy = Math.Max(.001, state.ScaleY) * faceDepth * Math.Max(.01, Math.Abs(Math.Cos(rx)));
+            var width = state.Width * sx;
+            var height = state.Height * sy;
+            var centerX = anchorX + deltaX * faceDepth * Math.Max(.001, state.ScaleX);
+            var centerY = anchorY;
+
+            // Back-face culling for solid 3D box faces:
+            var cosNorm = Math.Cos(ry);
+            var faceOpacity = cosNorm > 0.08 ? 1.0 : (cosNorm <= -0.01 ? 0.0 : Math.Clamp(cosNorm / 0.08, 0.0, 1.0));
+
+            return state with
+            {
+                X = centerX - width * ax,
+                Y = centerY - height * ay,
+                Z = faceZ,
+                Width = width,
+                Height = height,
+                ScaleX = 1.0,
+                ScaleY = 1.0,
+                Opacity = state.Opacity * faceOpacity
+            };
+        }
+
+        var depth = PerspectiveScale(state.Z + state.AnchorZ, perspective) * Math.Max(.001, state.ScaleZ);
+        var sX = Math.Max(.001, state.ScaleX) * depth * Math.Max(.01, Math.Abs(Math.Cos(ry)));
+        var sY = Math.Max(.001, state.ScaleY) * depth * Math.Max(.01, Math.Abs(Math.Cos(rx)));
+        var w = state.Width * sX;
+        var h = state.Height * sY;
         return state with
         {
-            X = anchorX - width * ax + shiftX,
-            Y = anchorY - height * ay + shiftY,
-            Width = width, Height = height,
-            ScaleX = sx, ScaleY = sy
+            X = anchorX - w * ax,
+            Y = anchorY - h * ay,
+            Width = w,
+            Height = h,
+            ScaleX = 1.0,
+            ScaleY = 1.0
         };
     }
 
@@ -362,11 +406,13 @@ public static class CgAnimationEngine
     {
         if (frames is null || frames.Count < 2) return time;
         var start = frames.Min(x => x.TimeSeconds); var end = frames.Max(x => x.TimeSeconds); var span = Math.Max(.000001, end - start);
-        if (time <= end || repeat == 0) return time;
+        if (repeat == 0) return time;
+        if (time <= end && repeat >= 0) return time;
         var cycle = (int)Math.Floor((time - start) / span);
         if (repeat > 0 && cycle > repeat) return yoyo && repeat % 2 == 1 ? start : end;
         var local = (time - start) % span;
-        if (yoyo && cycle % 2 == 1) local = span - local;
+        if (local < 0) local += span;
+        if (yoyo && Math.Abs(cycle) % 2 == 1) local = span - local;
         return start + local;
     }
 
@@ -386,7 +432,10 @@ public static class CgAnimationEngine
 
         var span = Math.Max(.000001, right.TimeSeconds - left.TimeSeconds);
         var raw = Math.Clamp((timeSeconds - left.TimeSeconds) / span, 0, 1);
-        var eased = Ease(string.IsNullOrWhiteSpace(right.Ease) ? defaultEase : right.Ease, raw);
+        var easeName = !string.IsNullOrWhiteSpace(left.Ease) && !string.Equals(left.Ease, "linear", StringComparison.OrdinalIgnoreCase)
+            ? left.Ease
+            : (!string.IsNullOrWhiteSpace(right.Ease) ? right.Ease : defaultEase);
+        var eased = Ease(easeName, raw);
         return Interpolate(FromFrame(left, fallback), FromFrame(right, fallback), eased);
     }
 
@@ -395,6 +444,11 @@ public static class CgAnimationEngine
         p = Math.Clamp(p, 0, 1);
         var n = (name ?? "linear").Trim().ToLowerInvariant().Replace(" ", "");
         if (n is "none" or "linear") return p;
+
+        if (n.StartsWith("cubic-bezier(") || n.StartsWith("bezier(") || n.StartsWith("curve("))
+        {
+            return EvaluateCubicBezier(n, p);
+        }
 
         var mode = n.EndsWith(".inout") ? "inout" : n.EndsWith(".in") ? "in" : "out";
         var stem = n.Replace(".inout", "").Replace(".out", "").Replace(".in", "");
@@ -420,6 +474,43 @@ public static class CgAnimationEngine
             "inout" => p < .5 ? Base(p * 2) / 2 : 1 - Base((1 - p) * 2) / 2,
             _ => 1 - Base(1 - p)
         };
+    }
+
+    public static double EvaluateCubicBezier(string spec, double p)
+    {
+        p = Math.Clamp(p, 0, 1);
+        if (p <= 0.0) return 0.0;
+        if (p >= 1.0) return 1.0;
+
+        var start = spec.IndexOf('(');
+        var end = spec.IndexOf(')');
+        if (start < 0 || end <= start) return p;
+        var parts = spec[(start + 1)..end].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 4) return p;
+
+        if (!double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x1)) x1 = 0.25;
+        if (!double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y1)) y1 = 0.1;
+        if (!double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x2)) x2 = 0.25;
+        if (!double.TryParse(parts[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y2)) y2 = 1.0;
+
+        x1 = Math.Clamp(x1, 0, 1);
+        x2 = Math.Clamp(x2, 0, 1);
+
+        double t = p;
+        for (int i = 0; i < 8; i++)
+        {
+            double oneMinusT = 1.0 - t;
+            double bx = 3 * oneMinusT * oneMinusT * t * x1 + 3 * oneMinusT * t * t * x2 + t * t * t;
+            double diff = bx - p;
+            if (Math.Abs(diff) < 1e-5) break;
+
+            double dbx = 3 * oneMinusT * oneMinusT * x1 + 6 * oneMinusT * t * (x2 - x1) + 3 * t * t * (1.0 - x2);
+            if (Math.Abs(dbx) < 1e-6) break;
+            t = Math.Clamp(t - diff / dbx, 0.0, 1.0);
+        }
+
+        double om = 1.0 - t;
+        return 3 * om * om * t * y1 + 3 * om * t * t * y2 + t * t * t;
     }
 
     private static double BackIn(double x)
@@ -456,13 +547,15 @@ public static class CgAnimationEngine
     }
 
     private static MotionState FromFrame(CgKeyframe f, MotionState fallback) => new(
-        f.X, f.Y, f.Z,
-        f.Width <= 0 ? fallback.Width : f.Width,
-        f.Height <= 0 ? fallback.Height : f.Height,
+        (f.X == 0 && fallback.X != 0) ? fallback.X : f.X,
+        (f.Y == 0 && fallback.Y != 0) ? fallback.Y : f.Y,
+        (f.Z == 0 && fallback.Z != 0) ? fallback.Z : f.Z,
+        f.Width <= 0.001 ? fallback.Width : f.Width,
+        f.Height <= 0.001 ? fallback.Height : f.Height,
         f.RotationX, f.RotationY, f.Rotation, Math.Clamp(f.Opacity, 0, 1),
-        f.ScaleX == 0 ? 1 : f.ScaleX,
-        f.ScaleY == 0 ? 1 : f.ScaleY,
-        f.ScaleZ == 0 ? 1 : f.ScaleZ,
+        f.ScaleX == 0 ? (fallback.ScaleX == 0 ? 1 : fallback.ScaleX) : f.ScaleX,
+        f.ScaleY == 0 ? (fallback.ScaleY == 0 ? 1 : fallback.ScaleY) : f.ScaleY,
+        f.ScaleZ == 0 ? (fallback.ScaleZ == 0 ? 1 : fallback.ScaleZ) : f.ScaleZ,
         Math.Clamp(f.AnchorX, 0, 1), Math.Clamp(f.AnchorY, 0, 1), f.AnchorZ,
         f.SkewX, f.SkewY, Math.Max(0, f.BlurRadius));
 
@@ -576,6 +669,12 @@ public static class CgAnimationEngine
             "PUSH RIGHT" => isEntering
                 ? new TextVisualState(Math.Clamp(.20 + .80 * pIn, 0, 1), -(1 - pIn) * Math.Max(160, layer.Width), 0, 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(Math.Clamp(.20 + .80 * pOut, 0, 1), (1 - pOut) * Math.Max(160, layer.Width), 0, 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
+            "PUSH UP" => isEntering
+                ? new TextVisualState(Math.Clamp(.20 + .80 * pIn, 0, 1), 0, (1 - pIn) * Math.Max(50, layer.Height), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(.20 + .80 * pOut, 0, 1), 0, -(1 - pOut) * Math.Max(50, layer.Height), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
+            "PUSH DOWN" => isEntering
+                ? new TextVisualState(Math.Clamp(.20 + .80 * pIn, 0, 1), 0, -(1 - pIn) * Math.Max(50, layer.Height), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
+                : new TextVisualState(Math.Clamp(.20 + .80 * pOut, 0, 1), 0, (1 - pOut) * Math.Max(50, layer.Height), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
             "SLIDE UP" => isEntering
                 ? new TextVisualState(Math.Clamp(.15 + .85 * pIn, 0, 1), 0, (1 - pIn) * Math.Max(35, layer.Height * 0.5), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(Math.Clamp(.15 + .85 * pOut, 0, 1), 0, -(1 - pOut) * Math.Max(35, layer.Height * 0.5), 1, dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
@@ -600,7 +699,7 @@ public static class CgAnimationEngine
             "SOFT REVEAL" => isEntering
                 ? new TextVisualState(Math.Clamp(rawIn, 0, 1), 0, 8 * (1 - pIn), .90 + .10 * pIn, Math.Max(dynamicBlur, (1 - pIn) * 12.0), dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(Math.Clamp(rawOut, 0, 1), 0, -8 * (1 - pOut), .90 + .10 * pOut, Math.Max(dynamicBlur, (1 - pOut) * 12.0), dynamicGlow, layer.AnimationGlowColor),
-            "FLIP IN" or "DATE / TIME FLIP" => isEntering
+            "3D ROTATION" or "ROTATION" or "FLIP IN" or "DATE / TIME FLIP" => isEntering
                 ? new TextVisualState(.15 + .85 * rawIn, 0, 18 * (1 - pIn), Math.Clamp(.68 + .32 * pIn, .60, 1.04), dynamicBlur, dynamicGlow, layer.AnimationGlowColor)
                 : new TextVisualState(.15 + .85 * rawOut, 0, -18 * (1 - pOut), Math.Clamp(.68 + .32 * pOut, .60, 1.04), dynamicBlur, dynamicGlow, layer.AnimationGlowColor),
             "WIPE WORDS" => isEntering

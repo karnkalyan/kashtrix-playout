@@ -211,45 +211,102 @@ public sealed class PlayoutEngine : IDisposable
 
     private async Task<bool> PlaySegmentAsync(PlaylistItem item, MediaPlaybackPart part, TimeSpan startAt, long session, CancellationToken ct)
     {
-        using var video = new VideoDecoder(item);
-        AuditLogService.Write("DECODER_OPEN", item.Title, $"{item.DecoderPreference} -> {video.DecoderBackend}");
-        if (!item.IsLiveSource) video.Seek(startAt);
-
-        AudioDecoder? audio = null;
-        var sourceHasConfiguredAudio = !item.SourceKind.Equals("Screen", StringComparison.OrdinalIgnoreCase)
-            && (!item.SourceKind.Equals("DirectShow", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(item.AudioDevice));
-        if (sourceHasConfiguredAudio)
+        var effectiveItem = item;
+        if (YtDlpResolver.LooksLikeWebVideoPage(item.FilePath))
         {
-            try { audio = new AudioDecoder(item); if (!item.IsLiveSource) audio.Seek(startAt); }
+            try
+            {
+                SetStatus(session, "RESOLVING WEB STREAM: " + item.Title);
+                var resolved = await YtDlpResolver.ResolveAsync(item.FilePath, ct).ConfigureAwait(false);
+                effectiveItem = item.Clone();
+                effectiveItem.FilePath = resolved.MediaUrl;
+                if (!string.IsNullOrWhiteSpace(resolved.AudioUrl))
+                {
+                    effectiveItem.AlternateAudioUrl = resolved.AudioUrl;
+                }
+                AuditLogService.Write("WEB_STREAM_RESOLVED", item.Title, $"Video: {resolved.MediaUrl[..Math.Min(60, resolved.MediaUrl.Length)]}... Audio: {!string.IsNullOrWhiteSpace(resolved.AudioUrl)}");
+            }
             catch (Exception ex)
             {
-                audio?.Dispose(); audio = null;
-                AuditLogService.Write("AUDIO_DECODER_ERROR", item.Title, ex.Message);
+                AuditLogService.Write("WEB_STREAM_RESOLVE_WARN", item.Title, ex.Message);
+            }
+        }
+
+        using var video = new VideoDecoder(effectiveItem);
+        AuditLogService.Write("DECODER_OPEN", effectiveItem.Title, $"{effectiveItem.DecoderPreference} -> {video.DecoderBackend}");
+        if (!effectiveItem.IsLiveSource && startAt > TimeSpan.Zero)
+        {
+            try { video.Seek(startAt); }
+            catch (Exception ex) { AuditLogService.Write("VIDEO_SEEK_WARNING", effectiveItem.Title, ex.Message); }
+        }
+
+        AudioDecoder? audio = null;
+        var sourceHasConfiguredAudio = !effectiveItem.SourceKind.Equals("Screen", StringComparison.OrdinalIgnoreCase)
+            && (!effectiveItem.SourceKind.Equals("DirectShow", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(effectiveItem.AudioDevice));
+        if (sourceHasConfiguredAudio)
+        {
+            try
+            {
+                audio = new AudioDecoder(effectiveItem);
+            }
+            catch (Exception ex)
+            {
+                audio?.Dispose();
+                audio = null;
+                AuditLogService.Write("AUDIO_DECODER_ERROR", effectiveItem.Title, ex.Message);
                 SetStatus(session, "AUDIO DECODER: " + ex.Message);
+            }
+
+            if (audio != null && !effectiveItem.IsLiveSource && startAt > TimeSpan.Zero)
+            {
+                try
+                {
+                    audio.Seek(startAt);
+                }
+                catch (Exception ex)
+                {
+                    AuditLogService.Write("AUDIO_SEEK_WARNING", effectiveItem.Title, ex.Message);
+                }
             }
         }
 
         var audioStop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var audioTask = audio is null ? Task.CompletedTask : Task.Run(() => PumpAudio(audio, item, part, startAt, session, audioStop.Token));
+        var audioTask = audio is null ? Task.CompletedTask : Task.Run(() => PumpAudio(audio, effectiveItem, part, startAt, session, audioStop.Token));
 
         try
         {
             var clock = Stopwatch.StartNew();
             var firstPts = double.NaN;
             var pausedSeconds = 0.0;
+            var frameIntervalSec = effectiveItem.SourceFrameRate > 0 ? (1.0 / effectiveItem.SourceFrameRate) : 0.040;
+            var frameCount = 0;
             while (!ct.IsCancellationRequested && IsCurrentSession(session))
             {
                 pausedSeconds += WaitWhilePaused(session, ct);
                 if (ct.IsCancellationRequested || !IsCurrentSession(session)) return false;
-                if (!video.TryRead(out var frame)) break;
-                if (!item.IsLiveSource && frame.PtsSeconds < startAt.TotalSeconds - 0.050) continue;
+
+                VideoFrameData frame;
+                var retries = 0;
+                while (!video.TryRead(out frame))
+                {
+                    if (ct.IsCancellationRequested || !IsCurrentSession(session)) return false;
+                    if ((effectiveItem.IsLiveSource || effectiveItem.SourceKind.Equals("URL", StringComparison.OrdinalIgnoreCase)) && retries++ < 25)
+                    {
+                        await Task.Delay(20, ct).ConfigureAwait(false);
+                        continue;
+                    }
+                    frame = null!;
+                    break;
+                }
+                if (frame == null) break;
+                if (!effectiveItem.IsLiveSource && frame.PtsSeconds < startAt.TotalSeconds - 0.050) continue;
                 if (double.IsNaN(firstPts)) firstPts = frame.PtsSeconds;
 
                 double segmentElapsed;
-                if (item.IsLiveSource)
+                if (effectiveItem.IsLiveSource)
                 {
                     segmentElapsed = Math.Max(0, frame.PtsSeconds - firstPts);
-                    if (item.Duration > TimeSpan.Zero && segmentElapsed >= item.Duration.TotalSeconds) break;
+                    if (effectiveItem.Duration > TimeSpan.Zero && segmentElapsed >= effectiveItem.Duration.TotalSeconds) break;
                 }
                 else
                 {
@@ -257,20 +314,30 @@ public sealed class PlayoutEngine : IDisposable
                     segmentElapsed = Math.Max(0, frame.PtsSeconds - part.InPoint.TotalSeconds);
                 }
 
-                var target = Math.Max(0, frame.PtsSeconds - firstPts);
+                double target;
+                if (effectiveItem.IsLiveSource)
+                {
+                    var ptsDiff = frame.PtsSeconds - firstPts;
+                    target = (ptsDiff > 0 && ptsDiff < frameCount * frameIntervalSec + 2.0)
+                        ? ptsDiff
+                        : (frameCount * frameIntervalSec);
+                }
+                else
+                {
+                    target = Math.Max(0, frame.PtsSeconds - firstPts);
+                }
+                frameCount++;
+
                 while (!ct.IsCancellationRequested && IsCurrentSession(session))
                 {
                     pausedSeconds += WaitWhilePaused(session, ct);
                     var activeElapsed = clock.Elapsed.TotalSeconds - pausedSeconds;
                     var delay = target - activeElapsed;
-                    // Program used to sleep for the whole remaining frame interval. At 50/60 fps
-                    // a normal Windows scheduler overshoot was enough to create visible cadence
-                    // jitter. Sleep coarsely first, then finish against the Stopwatch deadline.
                     if (delay <= 0.0015) break;
                     if (delay > 0.006)
                     {
                         var coarseMs = Math.Max(1.0, Math.Min(5.0, (delay - 0.003) * 1000.0));
-                        await Task.Delay(TimeSpan.FromMilliseconds(coarseMs)).ConfigureAwait(false);
+                        await Task.Delay(TimeSpan.FromMilliseconds(coarseMs), ct).ConfigureAwait(false);
                     }
                     else
                     {
@@ -279,7 +346,7 @@ public sealed class PlayoutEngine : IDisposable
                 }
                 if (ct.IsCancellationRequested || !IsCurrentSession(session)) return false;
 
-                SetProgress(session, item.IsLiveSource ? TimeSpan.FromSeconds(segmentElapsed) : part.EventOffset + TimeSpan.FromSeconds(segmentElapsed));
+                SetProgress(session, effectiveItem.IsLiveSource ? TimeSpan.FromSeconds(segmentElapsed) : part.EventOffset + TimeSpan.FromSeconds(segmentElapsed));
                 _lastVideoFrame = frame;
                 EmitVideo(frame);
             }
@@ -325,11 +392,26 @@ public sealed class PlayoutEngine : IDisposable
             var clock = Stopwatch.StartNew();
             var firstPts = double.NaN;
             var pausedSeconds = 0.0;
+            var audioPumpedSec = 0.0;
+            var retries = 0;
             while (!ct.IsCancellationRequested && IsCurrentSession(session))
             {
                 pausedSeconds += WaitWhilePaused(session, ct);
                 if (ct.IsCancellationRequested || !IsCurrentSession(session)) return;
-                if (!audio.TryRead(out var chunk)) return;
+
+                AudioChunk chunk;
+                while (!audio.TryRead(out chunk))
+                {
+                    if (ct.IsCancellationRequested || !IsCurrentSession(session)) return;
+                    if ((item.IsLiveSource || item.SourceKind.Equals("URL", StringComparison.OrdinalIgnoreCase)) && retries++ < 35)
+                    {
+                        if (ct.WaitHandle.WaitOne(20)) return;
+                        continue;
+                    }
+                    return;
+                }
+                retries = 0;
+
                 if (!item.IsLiveSource && chunk.PtsSeconds < startAt.TotalSeconds - 0.100) continue;
                 if (double.IsNaN(firstPts)) firstPts = chunk.PtsSeconds;
                 if (item.IsLiveSource)
@@ -338,7 +420,22 @@ public sealed class PlayoutEngine : IDisposable
                 }
                 else if (chunk.PtsSeconds >= part.OutPoint.TotalSeconds) return;
 
-                var target = Math.Max(0, chunk.PtsSeconds - firstPts + item.AudioDelayMs / 1000.0);
+                // Audio chunk duration for 48kHz 16-bit stereo (192,000 bytes per second)
+                var chunkDuration = chunk.Pcm16Stereo48k.Length / 192000.0;
+                var ptsDiff = chunk.PtsSeconds - firstPts;
+                double target;
+                if (item.IsLiveSource)
+                {
+                    target = (ptsDiff > 0 && Math.Abs(ptsDiff - audioPumpedSec) < 2.0)
+                        ? (ptsDiff + item.AudioDelayMs / 1000.0)
+                        : (audioPumpedSec + item.AudioDelayMs / 1000.0);
+                }
+                else
+                {
+                    target = Math.Max(0, chunk.PtsSeconds - firstPts + item.AudioDelayMs / 1000.0);
+                }
+                audioPumpedSec += chunkDuration;
+
                 while (!ct.IsCancellationRequested && IsCurrentSession(session))
                 {
                     pausedSeconds += WaitWhilePaused(session, ct);

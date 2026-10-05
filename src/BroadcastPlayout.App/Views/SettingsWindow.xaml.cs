@@ -1,11 +1,12 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
+using BroadcastPlayout.Models;
 using BroadcastPlayout.Services;
 using BroadcastPlayout.ViewModels;
 using Forms = System.Windows.Forms;
-using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
-using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
+using OpenFileDialog = BroadcastPlayout.Views.KashtrixFileDialog;
+using SaveFileDialog = BroadcastPlayout.Views.KashtrixSaveFileDialog;
 
 namespace BroadcastPlayout.Views;
 
@@ -18,6 +19,110 @@ public partial class SettingsWindow : Window
         WindowChromeActions.ApplyCleanBorder(this);
         _vm = vm;
         DataContext = vm;
+        InitConditionalCgTab();
+    }
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<ConditionalCgRule> _channelRules = [];
+    private string _activeChannelId = string.Empty;
+
+    private void InitConditionalCgTab()
+    {
+        ConditionalRulesGrid.ItemsSource = _channelRules;
+        var channels = ChannelRegistryStore.Load();
+        if (!channels.Any(x => x.ChannelId.Equals(_vm.ChannelId, StringComparison.OrdinalIgnoreCase)))
+        {
+            channels.Insert(0, new ChannelDefinition
+            {
+                ChannelId = _vm.ChannelId,
+                ChannelName = _vm.ChannelName,
+                Format = _vm.PlayoutPreset,
+                Enabled = true,
+                ConditionalCgRules = _vm.ConditionalCgRules.ToList().ToList()
+            });
+        }
+        ConditionalChannelCombo.ItemsSource = channels;
+        ConditionalChannelCombo.DisplayMemberPath = "ChannelName";
+        ConditionalChannelCombo.SelectedValuePath = "ChannelId";
+
+        var selected = channels.FirstOrDefault(x => x.ChannelId.Equals(_vm.ChannelId, StringComparison.OrdinalIgnoreCase)) ?? channels.FirstOrDefault();
+        if (selected is not null)
+        {
+            ConditionalChannelCombo.SelectedItem = selected;
+        }
+    }
+
+    private void ConditionalChannelCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ConditionalChannelCombo.SelectedItem is not ChannelDefinition ch) return;
+        _activeChannelId = ch.ChannelId;
+        ConditionalChannelSummary.Text = $"Rules apply exclusively to playout channel: {ch.ChannelName} ({ch.ChannelId})";
+
+        _channelRules.Clear();
+        if (ch.ChannelId.Equals(_vm.ChannelId, StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var r in _vm.ConditionalCgRules) _channelRules.Add(r);
+        }
+        else
+        {
+            var stored = ch.ConditionalCgRules ?? [];
+            foreach (var r in stored) _channelRules.Add(r);
+        }
+    }
+
+    private void AddConditionalRule_Click(object sender, RoutedEventArgs e)
+    {
+        var targetProj = _vm.CgProjects.FirstOrDefault()?.Name ?? "Market · Live Stock & Indices Ticker";
+        var rule = new ConditionalCgRule
+        {
+            Name = $"New Rule {_channelRules.Count + 1}",
+            ChannelId = _activeChannelId,
+            ConditionExpression = "category = music and title = arijit",
+            TargetCgProjectName = targetProj,
+            DelaySeconds = 1.0,
+            DurationSeconds = 12.0,
+            Enabled = true
+        };
+        _channelRules.Add(rule);
+        ConditionalRulesGrid.SelectedItem = rule;
+    }
+
+    private void DeleteConditionalRule_Click(object sender, RoutedEventArgs e)
+    {
+        if (ConditionalRulesGrid.SelectedItem is ConditionalCgRule sel)
+        {
+            _channelRules.Remove(sel);
+        }
+    }
+
+    private void SaveConditionalRules_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_activeChannelId)) return;
+
+            var channels = ChannelRegistryStore.Load();
+            var ch = channels.FirstOrDefault(x => x.ChannelId.Equals(_activeChannelId, StringComparison.OrdinalIgnoreCase));
+            if (ch is null)
+            {
+                ch = new ChannelDefinition { ChannelId = _activeChannelId, ChannelName = _activeChannelId, Format = _vm.PlayoutPreset, Enabled = true };
+                channels.Add(ch);
+            }
+            ch.ConditionalCgRules = _channelRules.ToList();
+            ChannelRegistryStore.Save(channels);
+
+            if (_activeChannelId.Equals(_vm.ChannelId, StringComparison.OrdinalIgnoreCase))
+            {
+                _vm.ConditionalCgRules.Clear();
+                foreach (var r in _channelRules) _vm.ConditionalCgRules.Add(r);
+                _vm.SaveConditionalCgRules();
+            }
+
+            MessageBox.Show($"Conditional CG rules saved successfully for channel {_activeChannelId} ({_channelRules.Count} rules active).", "Kashtrix Conditional CG", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Conditional CG Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {

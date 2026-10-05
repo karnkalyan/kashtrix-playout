@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Input;
 using BroadcastPlayout.Services;
 
@@ -14,6 +14,22 @@ public partial class ProgramLauncherWindow : Window
     private void Launch_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement element || element.Tag is not string appKey) return;
+
+        if (string.Equals(appKey, "EngineDashboard", StringComparison.OrdinalIgnoreCase))
+        {
+            var win = new EngineDashboardWindow { Owner = this };
+            win.Show();
+            StatusText.Text = "Opened Background Engines Dashboard.";
+            return;
+        }
+
+        if (string.Equals(appKey, "LicenseManager", StringComparison.OrdinalIgnoreCase))
+        {
+            var win = new LicenseManagerWindow { Owner = this };
+            win.Show();
+            StatusText.Text = "Opened Enterprise License Manager.";
+            return;
+        }
 
         if (StandaloneAppLauncher.Launch(appKey, out var error))
         {
@@ -38,6 +54,10 @@ public partial class ProgramLauncherWindow : Window
         "Prompter" => "Prompter",
         "HAController" => "HA / Redundancy Controller",
         "ApiGateway" => "API Gateway / Web MCR",
+        "InputEngine" => "Input Engine",
+        "KMix" => "Kashtrix-Mix Live Switcher",
+        "EngineDashboard" => "Background Engines Dashboard",
+        "LicenseManager" => "License Manager",
         _ => appKey
     };
 

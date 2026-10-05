@@ -84,5 +84,5 @@ public partial class FileManagerWindow : Window, INotifyPropertyChanged
     private void Minimize_Click(object s, RoutedEventArgs e) => WindowChromeActions.Minimize(this);
     private void Maximize_Click(object s, RoutedEventArgs e) { WindowChromeActions.ToggleMaximize(this); if (MaxGlyph is not null) MaxGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922"; }
     private void Close_Click(object s, RoutedEventArgs e) => Close();
-    private void Window_PreviewKeyDown(object s, KeyEventArgs e) { if (e.Key == Key.Escape) { Close(); e.Handled = true; } }
+    private void Window_PreviewKeyDown(object s, KeyEventArgs e) { if (e.Key == Key.Escape) { e.Handled = true; return; } }
 }

@@ -1,0 +1,232 @@
+<Window x:Class="BroadcastPlayout.Views.KashtrixFileDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Select File" Width="980" Height="620" MinWidth="760" MinHeight="480"
+        WindowStartupLocation="CenterOwner" WindowStyle="None" ResizeMode="CanResizeWithGrip"
+        Background="{StaticResource Bg0Brush}" Foreground="{StaticResource TextBrush}"
+        Icon="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-filemanager.ico">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <!-- GRIDVIEW COLUMN HEADER DARK BROADCAST STYLE -->
+        <Style TargetType="{x:Type GridViewColumnHeader}">
+            <Setter Property="Background" Value="#0F1722"/>
+            <Setter Property="Foreground" Value="#C5D1DE"/>
+            <Setter Property="BorderBrush" Value="#223042"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type GridViewColumnHeader}">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" RecognizesAccessKey="True" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                            </Border>
+                            <Thumb x:Name="PART_HeaderGripper" HorizontalAlignment="Right" Margin="0,0,-2,0" Width="4">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="{x:Type Thumb}">
+                                        <Border Background="Transparent" Width="4"/>
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#172230"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#231733"/>
+                                <Setter Property="Foreground" Value="#E2C9FB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border BorderBrush="{StaticResource LineStrongBrush}" BorderThickness="1" Background="{StaticResource Bg0Brush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="42"/>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- CUSTOM BROADCAST TITLEBAR -->
+            <Border Grid.Row="0" Background="#0C1116" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Margin="12,0,8,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Image Source="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-filemanager.png" Width="20" Height="20" Stretch="Uniform" Margin="0,0,8,0"/>
+                        <TextBlock x:Name="TitleText" Text="KASHTRIX FILE EXPLORER" FontWeight="Bold" FontSize="13" Foreground="White" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource WindowControlButton}" Click="Minimize_Click"><TextBlock Style="{StaticResource WindowMinimizeGlyph}"/></Button>
+                        <Button Style="{StaticResource WindowControlButton}" Click="Maximize_Click"><TextBlock x:Name="MaxGlyph" Style="{StaticResource WindowMaximizeGlyph}"/></Button>
+                        <Button Style="{StaticResource WindowCloseButton}" Click="Close_Click"><TextBlock Style="{StaticResource WindowCloseGlyph}"/></Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ADDRESS / NAVIGATION BAR -->
+            <Border Grid.Row="1" Background="#0F141B" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="8,4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="38"/>
+                        <ColumnDefinition Width="38"/>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="220"/>
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="◀" Style="{StaticResource WindowControlButton}" Height="28" Width="32" Click="Back_Click" ToolTip="Back" Margin="0,0,4,0"/>
+                    <Button Grid.Column="1" Content="▲" Style="{StaticResource WindowControlButton}" Height="28" Width="32" Click="Up_Click" ToolTip="Up one folder" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="DriveFolderComboBox" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,6,0" Height="28" SelectionChanged="DriveFolderComboBox_SelectionChanged" ToolTip="Quick switch drive or system folder"/>
+                    <TextBox x:Name="CurrentPathBox" Grid.Column="3" VerticalAlignment="Center" Margin="0,0,8,0" KeyDown="CurrentPathBox_KeyDown"/>
+                    <TextBox x:Name="SearchBox" Grid.Column="4" TextChanged="SearchBox_TextChanged" ToolTip="Filter files in current folder" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- BODY: SIDEBAR SHORTCUTS + FILE LIST -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="210"/>
+                    <ColumnDefinition Width="1"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- SHORTCUTS / PLACES -->
+                <Border Grid.Column="0" Background="#0A0E13">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="6,8">
+                            <TextBlock Text="QUICK ACCESS" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="8,4,0,6"/>
+                            <ListBox x:Name="ShortcutsList" Background="Transparent" BorderThickness="0" SelectionChanged="ShortcutsList_SelectionChanged">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="8,5"/>
+                                        <Setter Property="Margin" Value="0,1"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="#CFD6DC"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#172230"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#251733"/>
+                                                <Setter Property="Foreground" Value="#E2C9FB"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+
+                            <TextBlock Text="DRIVES" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="8,12,0,6"/>
+                            <ListBox x:Name="DrivesList" Background="Transparent" BorderThickness="0" SelectionChanged="DrivesList_SelectionChanged">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="8,5"/>
+                                        <Setter Property="Margin" Value="0,1"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="#CFD6DC"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#172230"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#251733"/>
+                                                <Setter Property="Foreground" Value="#E2C9FB"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- SPLITTER LINE -->
+                <Border Grid.Column="1" Background="{StaticResource LineBrush}"/>
+
+                <!-- FILES & FOLDERS LISTVIEW -->
+                <ListView x:Name="FilesListView" Grid.Column="2" Background="#070A0E" BorderThickness="0"
+                          MouseDoubleClick="FilesListView_MouseDoubleClick" SelectionChanged="FilesListView_SelectionChanged">
+                    <ListView.Resources>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="MinHeight" Value="26"/>
+                            <Setter Property="Padding" Value="4,2"/>
+                            <Setter Property="Margin" Value="0"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#E2E7EC"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#2E1B45"/>
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#121A24"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListView.Resources>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="NAME" Width="360">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Glyph}" Foreground="{Binding GlyphColor}" FontFamily="Segoe UI Symbol" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="DATE MODIFIED" Width="140" DisplayMemberBinding="{Binding DateModified}"/>
+                            <GridViewColumn Header="TYPE" Width="110" DisplayMemberBinding="{Binding TypeName}"/>
+                            <GridViewColumn Header="SIZE" Width="90" DisplayMemberBinding="{Binding SizeText, Mode=OneWay}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Grid>
+
+            <!-- FOOTER: FILENAME, FILTER & ACTION BUTTONS -->
+            <Border Grid.Row="3" Background="#0C1116" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="14,10,26,12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="File name:" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    <TextBox x:Name="FileNameBox" Grid.Row="0" Grid.Column="1" Margin="0,0,12,6" KeyDown="FileNameBox_KeyDown"/>
+
+                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,6">
+                        <Button x:Name="ActionButton" Content="OPEN" MinWidth="92" Height="28" Click="Action_Click" Background="#261738" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2C9FB" FontWeight="Bold" Margin="0,0,8,0" Padding="12,2"/>
+                        <Button Content="CANCEL" MinWidth="92" Height="28" Click="Cancel_Click" Background="#161F28" BorderBrush="#354555" Foreground="#C8D4DE" FontWeight="SemiBold" Padding="12,2"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Files of type:" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+                    <ComboBox x:Name="FilterComboBox" Grid.Row="1" Grid.Column="1" Margin="0,0,12,0" SelectionChanged="FilterComboBox_SelectionChanged"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

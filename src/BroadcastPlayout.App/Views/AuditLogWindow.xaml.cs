@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using BroadcastPlayout.Services;
-using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
+using SaveFileDialog = BroadcastPlayout.Views.KashtrixSaveFileDialog;
 
 namespace BroadcastPlayout.Views;
 

@@ -36,6 +36,7 @@ public sealed class AppSettings
     public string CgDeckLinkKeyerMode { get; set; } = "External";
     public int CgDeckLinkKeyerLevel { get; set; } = 255;
     public OutputProfile CgOutputProfile { get; set; } = new() { Preset = "1920x1080", FramesPerSecond = 50 };
+    public List<ConditionalCgRule> ConditionalCgRules { get; set; } = [];
 
     // CG Editor design guides. These values affect only the editor overlay; they are never
     // composited into Preview/Program/NDI/DeckLink output.

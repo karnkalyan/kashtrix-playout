@@ -27,7 +27,9 @@ public static class StandaloneAppLauncher
         ["Prompter"] = new("Kashtrix.Prompter", "Kashtrix.Prompter.exe"),
         ["HAController"] = new("Kashtrix.HAController", "Kashtrix.HAController.exe"),
         ["ApiGateway"] = new("Kashtrix.ApiGateway", "Kashtrix.ApiGateway.exe"),
-        ["OutputEngine"] = new("Kashtrix.OutputEngine", "Kashtrix.OutputEngine.exe", "Kashtrix Output Engine")
+        ["OutputEngine"] = new("Kashtrix.OutputEngine", "Kashtrix.OutputEngine.exe", "Kashtrix Output Engine"),
+        ["InputEngine"] = new("Kashtrix.InputEngine", "Kashtrix.InputEngine.exe", "Kashtrix Input Engine"),
+        ["KMix"] = new("KMix.App", "K-Mix.exe", "Kashtrix-Mix Live Switcher")
     };
 
     public static bool Launch(string appKey, string? arguments = null)

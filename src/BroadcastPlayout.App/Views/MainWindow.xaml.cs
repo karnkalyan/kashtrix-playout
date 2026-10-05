@@ -115,7 +115,10 @@ public partial class MainWindow : Window
             FitConfidenceSurface(PreviewAspectHost, PreviewAspectSurface, PreviewMonitorPanel);
             FitConfidenceSurface(ProgramAspectHost, ProgramAspectSurface, ProgramMonitorPanel);
             SetMediaDockFocus(MediaDockExpander.IsExpanded);
+            AutoMaintainLayoutForDisplay();
         };
+
+        SizeChanged += (_, _) => AutoMaintainLayoutForDisplay();
 
         _vm.VideoFrameReady += PresentProgram;
         _vm.PreviewFrameReady += PresentPreview;
@@ -275,12 +278,16 @@ public partial class MainWindow : Window
         menu.Items.Add("Open Kashtrix Playout", null, (_, _) => SafeBeginInvoke(ShowFromTray));
         menu.Items.Add("Open Preview Monitor", null, (_, _) => SafeBeginInvoke(OpenPreviewOutputWindow));
         menu.Items.Add("Open Program Monitor", null, (_, _) => SafeBeginInvoke(OpenProgramOutputWindow));
+        menu.Items.Add("Open CG Controller", null, (_, _) => SafeBeginInvoke(() => StandaloneAppLauncher.Launch("CGController")));
+        menu.Items.Add("Open CG Designer", null, (_, _) => SafeBeginInvoke(() => StandaloneAppLauncher.Launch("CGEditor")));
+        menu.Items.Add("Open Input Engine", null, (_, _) => SafeBeginInvoke(() => StandaloneAppLauncher.Launch("InputEngine")));
+        menu.Items.Add("Open License Manager", null, (_, _) => SafeBeginInvoke(() => { var win = new LicenseManagerWindow(); win.Show(); }));
         if (AppSession.IsAdmin)
             menu.Items.Add("Users & Roles (Admin)", null, (_, _) => SafeBeginInvoke(OpenUserManagementFromTray));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Stop Playout", null, (_, _) => SafeBeginInvoke(() => _vm.StopCommand.Execute(null)));
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Exit Engine", null, (_, _) => SafeBeginInvoke(ExitEngine));
+        menu.Items.Add("Exit Broadcast Service", null, (_, _) => SafeBeginInvoke(ExitEngine));
         try
         {
             var resource = Application.GetResourceStream(new Uri("pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-playout.ico", UriKind.Absolute));
@@ -302,6 +309,49 @@ public partial class MainWindow : Window
         icon.DoubleClick += (_, _) => SafeBeginInvoke(ShowFromTray);
         return icon;
     }
+
+    private void AutoMaintainLayoutForDisplay()
+    {
+        try
+        {
+            var workArea = SystemParameters.WorkArea;
+            var w = ActualWidth > 0 ? ActualWidth : workArea.Width;
+            var h = ActualHeight > 0 ? ActualHeight : workArea.Height;
+
+            // Auto-maintain component sizes dynamically based on screen resolution and scale
+            if (h <= 768)
+            {
+                TopOperatorRow.MinHeight = 220;
+                if (!_userAdjustedTopOperatorRow || TopOperatorRow.Height.Value < 220) TopOperatorRow.Height = new GridLength(224);
+                if (!_userAdjustedQuickControlsRow || QuickControlsRow.Height.Value < 120) QuickControlsRow.Height = new GridLength(140);
+            }
+            else if (h <= 900)
+            {
+                TopOperatorRow.MinHeight = 220;
+                if (!_userAdjustedTopOperatorRow || TopOperatorRow.Height.Value < 220) TopOperatorRow.Height = new GridLength(232);
+                if (!_userAdjustedQuickControlsRow || QuickControlsRow.Height.Value < 130) QuickControlsRow.Height = new GridLength(165);
+            }
+            else
+            {
+                TopOperatorRow.MinHeight = 220;
+                if (!_userAdjustedTopOperatorRow || TopOperatorRow.Height.Value < 220) TopOperatorRow.Height = new GridLength(236);
+                if (!_userAdjustedQuickControlsRow || QuickControlsRow.Height.Value < 140) QuickControlsRow.Height = new GridLength(185);
+            }
+
+            var sideCol = ShellGrid.ColumnDefinitions.Count > 1 ? ShellGrid.ColumnDefinitions[1] : null;
+            if (sideCol != null && sideCol.Width.Value > 0)
+            {
+                if (w <= 1280) sideCol.Width = new GridLength(260);
+                else if (w <= 1600) sideCol.Width = new GridLength(285);
+                else sideCol.Width = new GridLength(310);
+            }
+
+            FitConfidenceSurface(PreviewAspectHost, PreviewAspectSurface, PreviewMonitorPanel);
+            FitConfidenceSurface(ProgramAspectHost, ProgramAspectSurface, ProgramMonitorPanel);
+        }
+        catch { }
+    }
+
 
     private void OpenPreviewOutputWindow()
     {
@@ -465,13 +515,14 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
-        if (_allowExit || !_vm.KeepEngineRunningInTray) return;
+        if (_allowExit) return;
         e.Cancel = true;
+        WindowState = WindowState.Minimized;
         Hide();
         if (!_trayHintShown)
         {
             _trayHintShown = true;
-            _trayIcon.ShowBalloonTip(2500, "Kashtrix Playout", "Operator window hidden. Playout engine continues in the notification area.", Forms.ToolTipIcon.Info);
+            _trayIcon.ShowBalloonTip(3000, "Kashtrix Broadcast Engine", "Kashtrix Playout is running in background as a service. Playout, Input Engine, Output Engine, License Manager, and CG Controller remain active.", Forms.ToolTipIcon.Info);
         }
     }
 
@@ -514,6 +565,48 @@ public partial class MainWindow : Window
     {
         UpdateClock();
         UpdateSystemTelemetry();
+        CheckRoutedInputBridge();
+    }
+
+    private DateTime _lastRoutedInputCheckUtc = DateTime.MinValue;
+    private void CheckRoutedInputBridge()
+    {
+        try
+        {
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kashtrix");
+            var filePath = Path.Combine(dir, "routed_input.json");
+            if (!File.Exists(filePath)) return;
+            var fi = new FileInfo(filePath);
+            if (fi.LastWriteTimeUtc <= _lastRoutedInputCheckUtc) return;
+            _lastRoutedInputCheckUtc = fi.LastWriteTimeUtc;
+
+            var json = File.ReadAllText(filePath);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var title = root.TryGetProperty("Title", out var tp) ? tp.GetString() ?? "Live Input" : "Live Input";
+            var kind = root.TryGetProperty("SourceKind", out var kp) ? kp.GetString() ?? "Url" : "Url";
+            var path = root.TryGetProperty("FilePath", out var pp) ? pp.GetString() ?? "" : "";
+            var opt = root.TryGetProperty("InputOptions", out var op) ? op.GetString() ?? "" : "";
+            var vdev = root.TryGetProperty("VideoDevice", out var vp) ? vp.GetString() ?? "" : "";
+            var adev = root.TryGetProperty("AudioDevice", out var ap) ? ap.GetString() ?? "" : "";
+
+            var item = new PlaylistItem
+            {
+                Title = title,
+                EventType = "Live",
+                SourceKind = kind,
+                FilePath = path,
+                InputOptions = opt,
+                VideoDevice = vdev,
+                AudioDevice = adev,
+                InPoint = TimeSpan.Zero,
+                OutPoint = TimeSpan.FromHours(1)
+            };
+            _vm.RegisterInputSource(item);
+            var tile = InputMonitorTiles.FirstOrDefault(x => string.Equals(x.Source.FilePath, path, StringComparison.OrdinalIgnoreCase) || string.Equals(x.Source.Title, title, StringComparison.OrdinalIgnoreCase));
+            if (tile is not null) InputSourceList.SelectedItem = tile;
+        }
+        catch { }
     }
 
     private void SafeBeginInvoke(Action action)
@@ -865,6 +958,27 @@ public partial class MainWindow : Window
     private void AddInput_Click(object sender, RoutedEventArgs e) => ShowInputSource(insertAfterSelected: false);
     private void InsertInputAfterSelected_Click(object sender, RoutedEventArgs e) => ShowInputSource(insertAfterSelected: true);
 
+    private void AddStudioInput_Click(object sender, RoutedEventArgs e)
+    {
+        var item = new PlaylistItem
+        {
+            Title = "Kashtrix Studio Live Program",
+            EventType = "LIVE",
+            Category = "Input",
+            SourceKind = "SharedMemory",
+            FilePath = BroadcastPlayout.Outputs.VirtualOutputBridge.StudioProgramVideoMapName,
+            AlternateAudioUrl = BroadcastPlayout.Outputs.VirtualOutputBridge.StudioProgramAudioMapName,
+            IsLiveSource = true,
+            SourceDuration = TimeSpan.FromHours(4),
+            InPoint = TimeSpan.Zero,
+            OutPoint = TimeSpan.FromHours(4),
+            SourceFrameRate = 50.0,
+            Codec = "Studio Shared Memory",
+            VideoFormat = "1920x1080 50p Studio PGM"
+        };
+        _vm.AddInputSource(item);
+    }
+
     private void ShowInputSource(bool insertAfterSelected)
     {
         var window = new InputSourceWindow { Owner = this };
@@ -926,7 +1040,7 @@ public partial class MainWindow : Window
 
     private async Task AddMediaAndOpenTrimAsync(bool insertAfterSelected)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog
+        var dialog = new KashtrixFileDialog
         {
             Multiselect = false,
             Filter = "Media files|*.mp4;*.mov;*.mxf;*.mkv;*.avi;*.ts;*.m2ts;*.mpg;*.mpeg;*.webm;*.wmv|All files|*.*"
@@ -1067,7 +1181,7 @@ public partial class MainWindow : Window
         const double aspect = 16.0 / 9.0;
         // The monitor column is Auto-sized from the video height.  This prevents the old
         // wide star column from creating black pillar space to the left/right of a true 16:9 raster.
-        var targetWidth = Math.Clamp(availableHeight * aspect, 240.0, 620.0);
+        var targetWidth = Math.Clamp(availableHeight * aspect, 240.0, 1600.0);
         if (Math.Abs(monitorPanel.Width - targetWidth) > .5) monitorPanel.Width = targetWidth;
 
         var availableWidth = Math.Max(1.0, host.ActualWidth);
@@ -1341,7 +1455,30 @@ public partial class MainWindow : Window
         InputSourceList.SelectedItem = InputMonitorTiles.FirstOrDefault(x => ReferenceEquals(x.Source, dialog.ResultItem) || x.Source.Id == dialog.ResultItem.Id);
     }
 
+    private void LaunchInputEngine_Click(object sender, RoutedEventArgs e)
+    {
+        StandaloneAppLauncher.Launch("InputEngine");
+    }
+
     private PlaylistItem? SelectedInputSource => (InputSourceList.SelectedItem as InputSourceMonitorTile)?.Source;
+
+    private void RemoveInputSource_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedInputSource is not PlaylistItem item) return;
+        _vm.RemoveInputSource(item);
+    }
+
+    private void EnginesDashboard_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new EngineDashboardWindow { Owner = this };
+        win.Show();
+    }
+
+    private void LicenseManager_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new LicenseManagerWindow { Owner = this };
+        win.Show();
+    }
 
     private void AddSelectedInputToPlaylist_Click(object sender, RoutedEventArgs e)
     {
@@ -1435,12 +1572,10 @@ public partial class MainWindow : Window
                         lastPublish = now;
                         var image = BitmapSource.Create(frame.Width, frame.Height, 96, 96, PixelFormats.Bgra32, null, frame.Bgra, frame.Stride);
                         image.Freeze();
-                        var audio = Math.Clamp(62.0 + Math.Sin(DateTime.UtcNow.Ticks / 10000000.0 * 5.0) * 16.0 + (Random.Shared.NextDouble() * 5.0), 0, 100);
                         SafeBeginInvoke(() =>
                         {
                             if (cts.IsCancellationRequested) return;
                             tile.PreviewImage = image;
-                            tile.AudioPeakLevel = audio;
                             tile.Status = $"LIVE · {frame.Width}×{frame.Height} · {frame.FramesPerSecond:0.##}p";
                         });
                     }
@@ -1455,6 +1590,50 @@ public partial class MainWindow : Window
                 });
             }
         });
+
+        // Start true audio decoding and peak metering loop
+        _ = Task.Run(() =>
+        {
+            if (item.SourceKind.Equals("Screen", StringComparison.OrdinalIgnoreCase)) return;
+            if (item.SourceKind.Equals("DirectShow", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(item.AudioDevice)) return;
+            try
+            {
+                do
+                {
+                    using var audioDecoder = new AudioDecoder(item);
+                    while (!cts.IsCancellationRequested && audioDecoder.TryRead(out var chunk))
+                    {
+                        var (l, r) = MeasurePcmPeak(chunk.Pcm16Stereo48k);
+                        var peak = Math.Max(l, r) * 100.0;
+                        SafeBeginInvoke(() =>
+                        {
+                            if (cts.IsCancellationRequested) return;
+                            tile.AudioPeakLevel = peak;
+                        });
+                    }
+                } while (!cts.IsCancellationRequested && !item.IsLiveSource);
+            }
+            catch
+            {
+                SafeBeginInvoke(() =>
+                {
+                    if (cts.IsCancellationRequested) return;
+                    tile.AudioPeakLevel = 0;
+                });
+            }
+        });
+    }
+
+    private static (double Left, double Right) MeasurePcmPeak(byte[]? pcm)
+    {
+        if (pcm == null || pcm.Length < 4) return (0, 0);
+        var l = 0; var r = 0;
+        for (var i = 0; i + 3 < pcm.Length; i += 4)
+        {
+            l = Math.Max(l, Math.Abs((int)BitConverter.ToInt16(pcm, i)));
+            r = Math.Max(r, Math.Abs((int)BitConverter.ToInt16(pcm, i + 2)));
+        }
+        return (Math.Clamp(l / 32768.0, 0, 1), Math.Clamp(r / 32768.0, 0, 1));
     }
 
     private static string ShortMessage(string? value)
@@ -1465,7 +1644,7 @@ public partial class MainWindow : Window
 
     private static PlaylistItem CloneInputSource(PlaylistItem item)
     {
-        var clone = JsonSerializer.Deserialize<PlaylistItem>(JsonSerializer.Serialize(item)) ?? new PlaylistItem();
+        var clone = item.Clone();
         clone.Id = Guid.NewGuid();
         clone.Status = "Ready";
         return clone;
@@ -1746,7 +1925,7 @@ public partial class MainWindow : Window
             case "TopOperator":
                 TopOperatorPanel.Visibility = show;
                 TopOperatorSplitter.Visibility = show;
-                TopOperatorRow.MinHeight = visible ? 180 : 0;
+                TopOperatorRow.MinHeight = visible ? 210 : 0;
                 TopOperatorRow.MaxHeight = visible ? 450 : 0;
                 TopOperatorRow.Height = visible ? new GridLength(275) : new GridLength(0);
                 break;
@@ -1800,10 +1979,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool _userAdjustedTopOperatorRow;
+    private bool _userAdjustedQuickControlsRow;
+
     private void TopOperatorSplitter_DragDelta(object sender, DragDeltaEventArgs e)
     {
         if (TopOperatorRow.Height.Value <= 0) return;
-        var newH = Math.Clamp(TopOperatorRow.ActualHeight + e.VerticalChange, 180, 450);
+        _userAdjustedTopOperatorRow = true;
+        var newH = Math.Clamp(TopOperatorRow.ActualHeight + e.VerticalChange, 220, 520);
         TopOperatorRow.Height = new GridLength(newH);
     }
 
@@ -1817,11 +2000,120 @@ public partial class MainWindow : Window
     private void QuickControlsSplitter_DragDelta(object sender, DragDeltaEventArgs e)
     {
         if (QuickControlsRow.Height.Value <= 0) return;
+        _userAdjustedQuickControlsRow = true;
         var newH = Math.Clamp(QuickControlsRow.ActualHeight - e.VerticalChange, 100, 400);
         QuickControlsRow.Height = new GridLength(newH);
     }
 
-    private Window? _playlistDockWindow;
+    private void PlaylistGrid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            e.Handled = true;
+            if (e.Delta > 0)
+            {
+                PlaylistZoomIn();
+            }
+            else if (e.Delta < 0)
+            {
+                PlaylistZoomOut();
+            }
+        }
+    }
+
+    private void PlaylistZoomIn_Click(object sender, RoutedEventArgs e) => PlaylistZoomIn();
+    private void PlaylistZoomOut_Click(object sender, RoutedEventArgs e) => PlaylistZoomOut();
+    private void PlaylistZoomReset_Click(object sender, RoutedEventArgs e) => SetPlaylistRowSize(30, 11.5);
+
+    private void PlaylistRowSizePreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && int.TryParse(fe.Tag?.ToString(), out var rh))
+        {
+            var fs = rh switch
+            {
+                <= 24 => 9.5,
+                <= 30 => 11.5,
+                <= 38 => 13.0,
+                <= 48 => 15.0,
+                _ => 18.0
+            };
+            SetPlaylistRowSize(rh, fs);
+        }
+    }
+
+    private void PlaylistZoomIn()
+    {
+        var newH = Math.Min(96, _vm.PlaylistRowHeight + 3);
+        var newFs = Math.Min(24.0, Math.Round(_vm.PlaylistFontSize + 0.8, 1));
+        SetPlaylistRowSize(newH, newFs);
+    }
+
+    private void PlaylistZoomOut()
+    {
+        var newH = Math.Max(22, _vm.PlaylistRowHeight - 3);
+        var newFs = Math.Max(8.5, Math.Round(_vm.PlaylistFontSize - 0.8, 1));
+        SetPlaylistRowSize(newH, newFs);
+    }
+
+    private void PlaylistRowSizeMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement btn)
+        {
+            var menu = new ContextMenu
+            {
+                Background = new SolidColorBrush(Color.FromRgb(15, 20, 26)),
+                Foreground = new SolidColorBrush(Color.FromRgb(240, 244, 248)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(39, 48, 58))
+            };
+
+            var itemCompact = new MenuItem { Header = "Compact (24 px)" };
+            itemCompact.Click += (s, ev) => SetPlaylistRowSize(24, 9.5);
+            menu.Items.Add(itemCompact);
+
+            var itemNormal = new MenuItem { Header = "Normal (30 px)" };
+            itemNormal.Click += (s, ev) => SetPlaylistRowSize(30, 11.5);
+            menu.Items.Add(itemNormal);
+
+            var itemMedium = new MenuItem { Header = "Medium (38 px)" };
+            itemMedium.Click += (s, ev) => SetPlaylistRowSize(38, 13.0);
+            menu.Items.Add(itemMedium);
+
+            var itemLarge = new MenuItem { Header = "Large (48 px)" };
+            itemLarge.Click += (s, ev) => SetPlaylistRowSize(48, 15.0);
+            menu.Items.Add(itemLarge);
+
+            var itemTouch = new MenuItem { Header = "Broadcast Touch (60 px)" };
+            itemTouch.Click += (s, ev) => SetPlaylistRowSize(60, 18.0);
+            menu.Items.Add(itemTouch);
+
+            menu.Items.Add(new Separator());
+
+            var itemIn = new MenuItem { Header = "Zoom In (Ctrl + Wheel Up)", InputGestureText = "Ctrl++" };
+            itemIn.Click += (s, ev) => PlaylistZoomIn();
+            menu.Items.Add(itemIn);
+
+            var itemOut = new MenuItem { Header = "Zoom Out (Ctrl + Wheel Down)", InputGestureText = "Ctrl+-" };
+            itemOut.Click += (s, ev) => PlaylistZoomOut();
+            menu.Items.Add(itemOut);
+
+            var itemReset = new MenuItem { Header = "Reset Default (30 px)", InputGestureText = "Ctrl+0" };
+            itemReset.Click += (s, ev) => SetPlaylistRowSize(30, 11.5);
+            menu.Items.Add(itemReset);
+
+            menu.PlacementTarget = btn;
+            menu.IsOpen = true;
+        }
+    }
+
+    private void SetPlaylistRowSize(int rowHeight, double fontSize)
+    {
+        _vm.PlaylistRowHeight = Math.Clamp(rowHeight, 22, 96);
+        _vm.PlaylistFontSize = Math.Clamp(fontSize, 8.5, 28.0);
+        _vm.PlaylistThumbnailHeight = Math.Min(90, Math.Max(16, (int)Math.Round(_vm.PlaylistRowHeight * 0.75)));
+        _vm.PlaylistThumbnailWidth = (int)Math.Round(_vm.PlaylistThumbnailHeight * 1.6);
+    }
+
+    private KashtrixDockWindow? _playlistDockWindow;
 
     private void PlaylistDockOut_Click(object sender, RoutedEventArgs e)
     {
@@ -1834,19 +2126,21 @@ public partial class MainWindow : Window
         PlaylistRow.MinHeight = 0;
         PlaylistRow.Height = new GridLength(0);
         PlaylistPanel.Margin = new Thickness(0);
-        var dock = new Window
+        var dock = new KashtrixDockWindow("Kashtrix Playout · Interactive Playlist", "PLAYLIST", Color.FromRgb(40, 160, 220), PlaylistPanel, "BROADCAST RUNDOWN / AUTOMATION PLAYLIST DOCK")
         {
-            Title = "Kashtrix Playout · Playlist", Width = 1480, Height = 720, MinWidth = 960, MinHeight = 420,
-            Background = new SolidColorBrush(Color.FromRgb(9,13,17)), Content = PlaylistPanel,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen, ResizeMode = ResizeMode.CanResizeWithGrip, SizeToContent = SizeToContent.Manual, ShowInTaskbar = true,
+            Width = 1480,
+            Height = 720,
+            MinWidth = 960,
+            MinHeight = 420,
             Icon = Icon
         };
         _playlistDockWindow = dock;
         dock.Closed += (_, _) =>
         {
-            dock.Content = null;
+            dock.SetDockContent(null);
             PlaylistPanel.Margin = oldMargin;
-            Grid.SetRow(PlaylistPanel, 3); Grid.SetColumn(PlaylistPanel, 0);
+            Grid.SetRow(PlaylistPanel, 3);
+            Grid.SetColumn(PlaylistPanel, 0);
             home.Children.Add(PlaylistPanel);
             PlaylistRow.MinHeight = oldRowMinHeight;
             PlaylistRow.Height = oldRowHeight;
@@ -1857,7 +2151,7 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) { ExitEngine(); e.Handled = true; return; }
+        if (e.Key == Key.Escape) { e.Handled = true; return; }
         var modifiers = Keyboard.Modifiers;
         if (modifiers == ModifierKeys.Control && e.Key == Key.Space) { _vm.ToggleSelectedPlayPause(); e.Handled = true; return; }
         if (modifiers == ModifierKeys.Control && e.Key == Key.N) { NewPlaylist_Click(sender, e); e.Handled = true; return; }
@@ -1868,6 +2162,9 @@ public partial class MainWindow : Window
         if (modifiers == ModifierKeys.None && e.Key == Key.Delete) { _vm.RemoveSelected(); e.Handled = true; return; }
         if (modifiers == ModifierKeys.Alt && e.Key == Key.Up) { _vm.MoveSelected(-1); e.Handled = true; return; }
         if (modifiers == ModifierKeys.Alt && e.Key == Key.Down) { _vm.MoveSelected(+1); e.Handled = true; return; }
+        if (modifiers == ModifierKeys.Control && (e.Key == Key.OemPlus || e.Key == Key.Add)) { PlaylistZoomIn(); e.Handled = true; return; }
+        if (modifiers == ModifierKeys.Control && (e.Key == Key.OemMinus || e.Key == Key.Subtract)) { PlaylistZoomOut(); e.Handled = true; return; }
+        if (modifiers == ModifierKeys.Control && (e.Key == Key.D0 || e.Key == Key.NumPad0)) { SetPlaylistRowSize(30, 11.5); e.Handled = true; return; }
         if (MatchesGesture(_vm.MasterMuteShortcut, e)) { _vm.ToggleMasterMute(); e.Handled = true; return; }
         if (MatchesGesture(_vm.MasterVolumeUpShortcut, e)) { _vm.ChangeMasterVolume(+5); e.Handled = true; return; }
         if (MatchesGesture(_vm.MasterVolumeDownShortcut, e)) { _vm.ChangeMasterVolume(-5); e.Handled = true; }

@@ -8,7 +8,7 @@ using BroadcastPlayout.Models;
 using BroadcastPlayout.Services;
 using BroadcastPlayout.ViewModels;
 using Forms = System.Windows.Forms;
-using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+using OpenFileDialog = BroadcastPlayout.Views.KashtrixFileDialog;
 
 namespace BroadcastPlayout.Views;
 
@@ -51,5 +51,5 @@ public partial class QcControllerWindow : Window, INotifyPropertyChanged
     private void Minimize_Click(object s, RoutedEventArgs e) => WindowChromeActions.Minimize(this);
     private void Maximize_Click(object s, RoutedEventArgs e) { WindowChromeActions.ToggleMaximize(this); if (MaxGlyph is not null) MaxGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922"; }
     private void Close_Click(object s, RoutedEventArgs e) => Close();
-    private void Window_PreviewKeyDown(object s, KeyEventArgs e) { if (e.Key == Key.Escape) { Close(); e.Handled = true; } }
+    private void Window_PreviewKeyDown(object s, KeyEventArgs e) { if (e.Key == Key.Escape) { e.Handled = true; return; } }
 }

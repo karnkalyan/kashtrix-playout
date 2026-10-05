@@ -1,4 +1,4 @@
-﻿namespace BroadcastPlayout.Models;
+namespace BroadcastPlayout.Models;
 
 public sealed class ChannelStatusSnapshot
 {
@@ -47,6 +47,7 @@ public sealed class ChannelDefinition : System.ComponentModel.INotifyPropertyCha
     public string Host { get => _host; set => Set(ref _host, string.IsNullOrWhiteSpace(value) ? "127.0.0.1" : value.Trim()); }
     public string Notes { get => _notes; set => Set(ref _notes, value ?? string.Empty); }
     public bool Enabled { get => _enabled; set => Set(ref _enabled, value); }
+    public List<ConditionalCgRule> ConditionalCgRules { get; set; } = [];
 
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     private void Set<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)

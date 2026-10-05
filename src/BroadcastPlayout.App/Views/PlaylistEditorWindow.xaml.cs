@@ -57,6 +57,23 @@ public partial class PlaylistEditorWindow : Window
             _vm.AddCommand.Execute(null); e.Handled=true;
         }
     }
+    private void PlaylistGrid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            e.Handled = true;
+            if (e.Delta > 0)
+            {
+                _vm.PlaylistRowHeight = Math.Min(96, _vm.PlaylistRowHeight + 3);
+                _vm.PlaylistFontSize = Math.Min(24.0, Math.Round(_vm.PlaylistFontSize + 0.8, 1));
+            }
+            else if (e.Delta < 0)
+            {
+                _vm.PlaylistRowHeight = Math.Max(22, _vm.PlaylistRowHeight - 3);
+                _vm.PlaylistFontSize = Math.Max(8.5, Math.Round(_vm.PlaylistFontSize - 0.8, 1));
+            }
+        }
+    }
     private void PlaylistGrid_PreviewMouseLeftButtonDown(object s,MouseButtonEventArgs e)=>_dragStart=e.GetPosition(PlaylistGrid);
     private void PlaylistGrid_PreviewMouseMove(object s,MouseEventArgs e){if(e.LeftButton!=MouseButtonState.Pressed||_vm.SelectedItem is null)return;var p=e.GetPosition(PlaylistGrid);if(Math.Abs(p.X-_dragStart.X)<SystemParameters.MinimumHorizontalDragDistance&&Math.Abs(p.Y-_dragStart.Y)<SystemParameters.MinimumVerticalDragDistance)return;DragDrop.DoDragDrop(PlaylistGrid,new DataObject("Kashtrix.PlaylistItem",_vm.SelectedItem),DragDropEffects.Move);}
     private void PlaylistGrid_Drop(object s,DragEventArgs e){if(!e.Data.GetDataPresent("Kashtrix.PlaylistItem")||e.Data.GetData("Kashtrix.PlaylistItem") is not PlaylistItem item)return;var row=e.OriginalSource is DependencyObject d?ItemsControl.ContainerFromElement(PlaylistGrid,d) as DataGridRow:null;var target=row?.Item as PlaylistItem;var idx=target is null?_vm.Playlist.Count-1:_vm.Playlist.IndexOf(target);_vm.MoveItemTo(item,Math.Max(0,idx));e.Handled=true;}
@@ -86,7 +103,7 @@ public partial class PlaylistEditorWindow : Window
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.Minimize(this);
     private void Maximize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.ToggleMaximize(this);
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => WindowChromeActions.Drag(this, e);
-    private void Window_PreviewKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { Close(); e.Handled = true; } }
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) { e.Handled = true; return; } }
     private static PlaylistItem Clone(PlaylistItem x)
     {
         // JSON clone keeps every per-item operator setting (audio/video/EPG/colors/parts)

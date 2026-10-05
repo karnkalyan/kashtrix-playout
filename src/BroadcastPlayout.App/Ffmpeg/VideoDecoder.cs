@@ -28,6 +28,7 @@ public sealed unsafe class VideoDecoder : IDisposable
     private int _converterHeight;
     private AVPixelFormat _converterFormat = AVPixelFormat.AV_PIX_FMT_NONE;
     private readonly NdiVideoReceiver? _ndi;
+    private readonly SharedVideoBusReader? _sharedReader;
     private readonly PlaylistItem _item;
     private readonly BgraFrameScaler _itemScaler = new();
     private bool _inputEof;
@@ -49,7 +50,30 @@ public sealed unsafe class VideoDecoder : IDisposable
             return;
         }
 
+        if (item.SourceKind.Equals("SharedMemory", StringComparison.OrdinalIgnoreCase) ||
+            item.SourceKind.Equals("KashtrixStudio", StringComparison.OrdinalIgnoreCase) ||
+            item.FilePath.StartsWith("KashtrixStudio.", StringComparison.OrdinalIgnoreCase) ||
+            item.FilePath.StartsWith("KashtrixPlayout.", StringComparison.OrdinalIgnoreCase))
+        {
+            _sharedReader = new SharedVideoBusReader(item.FilePath);
+            DecoderBackend = "Shared Memory Direct";
+            return;
+        }
+
         FfmpegRuntime.EnsureReady();
+
+        if (YtDlpResolver.LooksLikeWebVideoPage(item.FilePath))
+        {
+            try
+            {
+                var resolved = YtDlpResolver.ResolveAsync(item.FilePath).GetAwaiter().GetResult();
+                var resolvedItem = item.Clone();
+                resolvedItem.FilePath = resolved.MediaUrl;
+                if (!string.IsNullOrWhiteSpace(resolved.AudioUrl)) resolvedItem.AlternateAudioUrl = resolved.AudioUrl;
+                item = resolvedItem;
+            }
+            catch { }
+        }
 
         _format = FfmpegInput.Open(item, AVMediaType.AVMEDIA_TYPE_VIDEO);
         ffmpeg.avformat_find_stream_info(_format, null).ThrowIfError();
@@ -169,21 +193,34 @@ public sealed unsafe class VideoDecoder : IDisposable
 
     public void Seek(TimeSpan time)
     {
-        if (_ndi is not null) return;
+        if (_ndi is not null || _sharedReader is not null) return;
         var seconds = Math.Max(0, time.TotalSeconds);
         var tb = ffmpeg.av_q2d(_timeBase);
         var ts = tb > 0 ? (long)(seconds / tb) : 0;
-        ffmpeg.av_seek_frame(_format, _streamIndex, ts, ffmpeg.AVSEEK_FLAG_BACKWARD).ThrowIfError();
-        ffmpeg.avcodec_flush_buffers(_codec);
-        _inputEof = false;
-        _flushSent = false;
-        ffmpeg.av_packet_unref(_packet);
-        ffmpeg.av_frame_unref(_frame);
-        ffmpeg.av_frame_unref(_softwareFrame);
+        var res = ffmpeg.av_seek_frame(_format, _streamIndex, ts, ffmpeg.AVSEEK_FLAG_BACKWARD);
+        if (res < 0)
+        {
+            res = ffmpeg.av_seek_frame(_format, _streamIndex, ts, 0);
+        }
+        if (res >= 0)
+        {
+            ffmpeg.avcodec_flush_buffers(_codec);
+            _inputEof = false;
+            _flushSent = false;
+            ffmpeg.av_packet_unref(_packet);
+            ffmpeg.av_frame_unref(_frame);
+            ffmpeg.av_frame_unref(_softwareFrame);
+        }
     }
 
     public bool TryRead(out VideoFrameData frame)
     {
+        if (_sharedReader is not null)
+        {
+            if (!_sharedReader.TryRead(out var busFrame)) { frame = null!; return false; }
+            frame = ItemVideoProcessor.Apply(busFrame, _item, _itemScaler);
+            return true;
+        }
         if (_ndi is not null)
         {
             if (!_ndi.TryRead(out var ndiFrame)) { frame = null!; return false; }
@@ -258,6 +295,11 @@ public sealed unsafe class VideoDecoder : IDisposable
                     _inputEof = true;
                     break;
                 }
+                if (read == ffmpeg.AVERROR(ffmpeg.EAGAIN))
+                {
+                    Thread.Sleep(2);
+                    continue;
+                }
                 read.ThrowIfError();
 
                 if (_packet->stream_index != _streamIndex)
@@ -286,6 +328,7 @@ public sealed unsafe class VideoDecoder : IDisposable
 
     public void Dispose()
     {
+        if (_sharedReader is not null) { _sharedReader.Dispose(); _itemScaler.Dispose(); return; }
         if (_ndi is not null) { _ndi.Dispose(); _itemScaler.Dispose(); return; }
         _converter?.Dispose();
         _itemScaler.Dispose();
