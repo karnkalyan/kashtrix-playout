@@ -48,7 +48,17 @@ public static class CgAnimationEngine
     public static CgLayer CreateVisualLayer(CgLayer layer, double timeSeconds)
     {
         var frames = layer.Keyframes?.Where(x => !string.IsNullOrWhiteSpace(x.StyleJson)).OrderBy(x => x.TimeSeconds).ToArray();
-        if (frames is null || frames.Length <= 1) return layer;
+        if (frames is null || frames.Length == 0) return layer;
+        if (frames.Length == 1)
+        {
+            var singleClone = new CgLayer();
+            foreach (var property in CloneProperties)
+            {
+                try { property.SetValue(singleClone, property.GetValue(layer)); } catch { }
+            }
+            ApplyStyleJson(singleClone, frames[0].StyleJson);
+            return singleClone;
+        }
 
         timeSeconds = ResolveCycleTime(layer.Keyframes, Math.Max(0, timeSeconds - layer.KeyframeDelaySeconds), layer.KeyframeRepeat, layer.KeyframeYoyo);
 
@@ -349,33 +359,70 @@ public static class CgAnimationEngine
         var anchorY = state.Y + state.Height * ay;
 
         var isBoxFace = layer.Name != null && (layer.Name.Contains("3D Box", StringComparison.OrdinalIgnoreCase) || layer.Name.Contains("Box Face", StringComparison.OrdinalIgnoreCase));
-        if (isBoxFace)
+        var isFlipCard = layer.Name != null && (layer.Name.Contains("Flip", StringComparison.OrdinalIgnoreCase) || layer.Name.Contains("Card", StringComparison.OrdinalIgnoreCase));
+
+        if (isBoxFace || isFlipCard || Math.Abs(state.RotationY) > 0.001 || Math.Abs(state.RotationX) > 0.001)
         {
-            var boxRadius = state.Width / 2.0;
+            var unscaledW = Math.Max(1.0, state.Width * Math.Max(0.001, state.ScaleX));
+            var unscaledH = Math.Max(1.0, state.Height * Math.Max(0.001, state.ScaleY));
+            var boxRadius = isBoxFace ? (unscaledW / 2.0) : (isFlipCard ? 2.0 : 0.0);
+
             var deltaX = boxRadius * Math.Sin(ry);
             var deltaZ = -boxRadius * Math.Cos(ry);
-            var faceZ = state.Z + deltaZ;
-            var faceDepth = PerspectiveScale(faceZ + state.AnchorZ, perspective) * Math.Max(.001, state.ScaleZ);
-            var sx = Math.Max(.001, state.ScaleX) * faceDepth * Math.Max(.01, Math.Abs(Math.Cos(ry)));
-            var sy = Math.Max(.001, state.ScaleY) * faceDepth * Math.Max(.01, Math.Abs(Math.Cos(rx)));
-            var width = state.Width * sx;
-            var height = state.Height * sy;
-            var centerX = anchorX + deltaX * faceDepth * Math.Max(.001, state.ScaleX);
-            var centerY = anchorY;
+            var faceCenterX = anchorX + deltaX;
+            var faceCenterZ = state.Z + deltaZ;
 
-            // Back-face culling for solid 3D box faces:
+            // Half-width vector along the face tangent in 3D
+            var halfX = (unscaledW / 2.0) * Math.Cos(ry);
+            var halfZ = (unscaledW / 2.0) * Math.Sin(ry);
+
+            var xLeft = faceCenterX - halfX;
+            var zLeft = faceCenterZ - halfZ;
+            var xRight = faceCenterX + halfX;
+            var zRight = faceCenterZ + halfZ;
+
+            // Perspective scale factor at near and far vertical edges
+            var scaleLeft = perspective / Math.Max(80.0, perspective + zLeft + state.AnchorZ);
+            var scaleRight = perspective / Math.Max(80.0, perspective + zRight + state.AnchorZ);
+
+            var projXLeft = anchorX + (xLeft - anchorX) * scaleLeft;
+            var projXRight = anchorX + (xRight - anchorX) * scaleRight;
+            var projW = Math.Max(2.0, Math.Abs(projXRight - projXLeft));
+
+            var hLeft = unscaledH * scaleLeft;
+            var hRight = unscaledH * scaleRight;
+            var projH = Math.Max(2.0, (hLeft + hRight) / 2.0);
+
+            // Perspective vertical slope (skew angle in degrees)
+            var dY = (hLeft - hRight) * 0.5;
+            var skewYDeg = Math.Atan2(dY, Math.Max(1.0, projW)) * 180.0 / Math.PI;
+            skewYDeg = Math.Clamp(skewYDeg, -65.0, 65.0);
+
+            // Back-face culling for solid 3D box faces and flip cards
             var cosNorm = Math.Cos(ry);
-            var faceOpacity = cosNorm > 0.08 ? 1.0 : (cosNorm <= -0.01 ? 0.0 : Math.Clamp(cosNorm / 0.08, 0.0, 1.0));
+            double faceOpacity;
+            if (isBoxFace || isFlipCard)
+            {
+                faceOpacity = cosNorm > 0.08 ? 1.0 : (cosNorm <= -0.01 ? 0.0 : Math.Clamp(cosNorm / 0.08, 0.0, 1.0));
+            }
+            else
+            {
+                faceOpacity = 1.0;
+            }
+
+            var projCenterX = (projXLeft + projXRight) / 2.0;
+            var projCenterY = anchorY;
 
             return state with
             {
-                X = centerX - width * ax,
-                Y = centerY - height * ay,
-                Z = faceZ,
-                Width = width,
-                Height = height,
+                X = projCenterX - projW * ax,
+                Y = projCenterY - projH * ay,
+                Z = faceCenterZ,
+                Width = projW,
+                Height = projH,
                 ScaleX = 1.0,
                 ScaleY = 1.0,
+                SkewY = state.SkewY + skewYDeg,
                 Opacity = state.Opacity * faceOpacity
             };
         }

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -930,7 +930,7 @@ public partial class MainWindow : Window
             var summary = await ai.GenerateSummaryAsync(text);
             var tags = await ai.GenerateTagsAsync(text);
 
-            var dialog = System.Windows.MessageBox.Show(
+            var dialog = BroadcastPlayout.Views.MessageBox.Show(
                 $"AI SUGGESTIONS:\n\nHEADLINE:\n{headline}\n\nSUMMARY / BULLET:\n{summary}\n\nTAGS:\n{tags}\n\nApply suggested headline and add summary to private story notes?",
                 "AI Editorial Assistant",
                 System.Windows.MessageBoxButton.YesNo,
@@ -1169,7 +1169,7 @@ public partial class MainWindow : Window
     {
         if (_rundown is null)
         {
-            System.Windows.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1197,7 +1197,7 @@ public partial class MainWindow : Window
     {
         if (_rundown is null)
         {
-            System.Windows.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1214,7 +1214,7 @@ public partial class MainWindow : Window
     {
         if (_rundown is null)
         {
-            System.Windows.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Please select or create a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1232,7 +1232,7 @@ public partial class MainWindow : Window
     {
         if (_rundown is null)
         {
-            System.Windows.MessageBox.Show("Please select an active rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Please select an active rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1279,7 +1279,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show("Failed to save template: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                BroadcastPlayout.Views.MessageBox.Show("Failed to save template: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
@@ -1288,7 +1288,7 @@ public partial class MainWindow : Window
     {
         if (_rundown is null)
         {
-            System.Windows.MessageBox.Show("Please select an active rundown to populate from template.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Please select an active rundown to populate from template.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1341,7 +1341,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show("Failed to load template: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                BroadcastPlayout.Views.MessageBox.Show("Failed to load template: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
@@ -1350,11 +1350,11 @@ public partial class MainWindow : Window
     {
         if (_rundown is null)
         {
-            System.Windows.MessageBox.Show("Select a rundown to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Select a rundown to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var confirm = System.Windows.MessageBox.Show($"Are you sure you want to delete rundown '{_rundown.Name}'?\nStories in the Story Bank will NOT be deleted.", "Confirm Rundown Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        var confirm = BroadcastPlayout.Views.MessageBox.Show($"Are you sure you want to delete rundown '{_rundown.Name}'?\nStories in the Story Bank will NOT be deleted.", "Confirm Rundown Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm == MessageBoxResult.Yes)
         {
             _store.DeleteRundown(_rundown.Id);
@@ -1369,7 +1369,7 @@ public partial class MainWindow : Window
     {
         if (_rundown is null)
         {
-            System.Windows.MessageBox.Show("Select a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Select a rundown first.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1458,7 +1458,7 @@ public partial class MainWindow : Window
         var name = ProgNameBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
-            System.Windows.MessageBox.Show("Please enter a program name.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
+            BroadcastPlayout.Views.MessageBox.Show("Please enter a program name.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1492,11 +1492,11 @@ public partial class MainWindow : Window
     {
         if (_selectedProgram is null)
         {
-            System.Windows.MessageBox.Show("Select a program to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Select a program to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var confirm = System.Windows.MessageBox.Show($"Are you sure you want to delete program '{_selectedProgram.Name}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var confirm = BroadcastPlayout.Views.MessageBox.Show($"Are you sure you want to delete program '{_selectedProgram.Name}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm == MessageBoxResult.Yes)
         {
             _store.DeleteProgram(_selectedProgram.Id);
@@ -1600,7 +1600,7 @@ public partial class MainWindow : Window
         var title = BreakPresetTitleBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(title))
         {
-            System.Windows.MessageBox.Show("Please enter a preset title.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
+            BroadcastPlayout.Views.MessageBox.Show("Please enter a preset title.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1645,11 +1645,11 @@ public partial class MainWindow : Window
     {
         if (_selectedBreakPreset is null)
         {
-            System.Windows.MessageBox.Show("Select a break preset to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Select a break preset to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var confirm = System.Windows.MessageBox.Show($"Are you sure you want to delete preset '{_selectedBreakPreset.Title}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var confirm = BroadcastPlayout.Views.MessageBox.Show($"Are you sure you want to delete preset '{_selectedBreakPreset.Title}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm == MessageBoxResult.Yes)
         {
             _store.DeleteBreakTemplate(_selectedBreakPreset.Id);
@@ -1705,7 +1705,7 @@ public partial class MainWindow : Window
         var name = CatNameBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
         {
-            System.Windows.MessageBox.Show("Please enter both category code and name.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
+            BroadcastPlayout.Views.MessageBox.Show("Please enter both category code and name.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1729,11 +1729,11 @@ public partial class MainWindow : Window
     {
         if (_selectedCategory is null)
         {
-            System.Windows.MessageBox.Show("Select a category to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Select a category to delete.", "Kashtrix NRCS", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var confirm = System.Windows.MessageBox.Show($"Are you sure you want to delete category '{_selectedCategory.Name}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var confirm = BroadcastPlayout.Views.MessageBox.Show($"Are you sure you want to delete category '{_selectedCategory.Name}'?", "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm == MessageBoxResult.Yes)
         {
             _store.DeleteCategory(_selectedCategory.Id);

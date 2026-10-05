@@ -50,6 +50,28 @@ public partial class InputSourceWindow : Window
         };
     }
 
+    /// <summary>Pre-fills the window from an existing source so it can be edited (used by Input Engine double-click).</summary>
+    public void LoadItem(PlaylistItem item)
+    {
+        TitleBox.Text = item.Title;
+        var kind = item.SourceKind ?? string.Empty;
+        if (kind.Equals("URL", StringComparison.OrdinalIgnoreCase))
+        {
+            SourceTabs.SelectedIndex = 0;
+            UrlBox.Text = item.FilePath;
+            UrlFormatBox.Text = item.InputFormat ?? string.Empty;
+            UrlLiveCheck.IsChecked = item.IsLiveSource;
+        }
+        else if (kind.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+        {
+            SourceTabs.SelectedIndex = 4;
+            CustomSourceBox.Text = item.FilePath;
+            CustomFormatBox.Text = item.InputFormat ?? string.Empty;
+            CustomOptionsBox.Text = item.InputOptions ?? string.Empty;
+            CustomLiveCheck.IsChecked = item.IsLiveSource;
+        }
+    }
+
     private async void RefreshDevices_Click(object sender, RoutedEventArgs e) => await RefreshDevicesAsync();
 
     private async Task RefreshDevicesAsync()
@@ -171,7 +193,10 @@ public partial class InputSourceWindow : Window
             _originalWebPageUrl = value;
             _resolvedWebVideoUrl = result.MediaUrl;
             _resolvedWebAudioUrl = result.AudioUrl;
-            if (string.IsNullOrWhiteSpace(TitleBox.Text) || TitleBox.Text.Equals("URL INPUT", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(result.Title) &&
+                (string.IsNullOrWhiteSpace(TitleBox.Text) ||
+                 TitleBox.Text.Equals("URL INPUT", StringComparison.OrdinalIgnoreCase) ||
+                 TitleBox.Text.Equals("Live Input", StringComparison.OrdinalIgnoreCase)))
                 TitleBox.Text = result.Title;
             UrlLiveCheck.IsChecked = false;
             UrlProbeStatus.Text = result.AudioUrl is null

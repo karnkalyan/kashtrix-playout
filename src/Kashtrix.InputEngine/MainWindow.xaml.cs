@@ -14,6 +14,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BroadcastPlayout.Ffmpeg;
 using BroadcastPlayout.Models;
+using BroadcastPlayout.Services;
 
 namespace Kashtrix.InputEngine;
 
@@ -40,6 +41,16 @@ public sealed class InputEngineCardModel : INotifyPropertyChanged
     private bool _isPlaying;
     private bool _isPaused;
     private bool _isStopped = true;
+    private bool _isMuted;
+    private bool _isPushed;
+
+    public bool IsMuted
+    {
+        get => _isMuted;
+        set { if (Set(ref _isMuted, value)) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(MuteLabel))); }
+    }
+    public bool IsPushed { get => _isPushed; set => Set(ref _isPushed, value); }
+    public string MuteLabel => _isMuted ? "🔇 UNMUTE" : "🔊 MUTE";
 
     public Guid Id { get; set; } = Guid.NewGuid();
     public string SourceKind { get; set; } = "Url";
@@ -139,6 +150,62 @@ public partial class MainWindow : Window
     private static readonly Brush _greenMeterBrush = new SolidColorBrush(Color.FromRgb(34, 197, 94));
     private static readonly Brush _amberMeterBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
     private static readonly Brush _redMeterBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+    private static readonly Brush _pushedBorderBrush = new SolidColorBrush(Color.FromRgb(229, 57, 53));
+
+    private void ApplyBorders()
+    {
+        foreach (var c in _cards)
+        {
+            c.BorderBrush = c.IsPushed ? _pushedBorderBrush
+                          : ReferenceEquals(c, _selectedCard) ? _selectedBorderBrush
+                          : _normalBorderBrush;
+        }
+    }
+
+    private void CardMute_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.Tag is InputEngineCardModel card)
+        {
+            card.IsMuted = !card.IsMuted;
+            LastActionText.Text = (card.IsMuted ? "Muted: " : "Unmuted: ") + card.Title;
+        }
+    }
+
+    private void EditCard(InputEngineCardModel card)
+    {
+        var dlg = new BroadcastPlayout.Views.InputSourceWindow { Owner = this };
+        dlg.LoadItem(ToPlaylistItem(card));
+        if (dlg.ShowDialog() != true || dlg.ResultItem is not { } item) return;
+        StopCardPipeline(card, retainStatus: false);
+        card.Title = item.Title;
+        card.SourceKind = item.SourceKind;
+        card.FilePath = item.FilePath ?? "";
+        card.InputOptions = item.InputOptions ?? "";
+        card.VideoDevice = item.VideoDevice ?? "";
+        card.AudioDevice = item.AudioDevice ?? "";
+        card.AlternateAudioUrl = item.AlternateAudioUrl ?? "";
+        card.SourceFrameRate = item.SourceFrameRate > 0 ? item.SourceFrameRate : 25.0;
+        card.SourceDetails = !string.IsNullOrWhiteSpace(item.FilePath) ? item.FilePath : item.Title;
+        SaveSourcesToDisk();
+        StartCardPipeline(card);
+        LastActionText.Text = $"Updated input: {card.Title}";
+    }
+
+    private async void ResolveCardTitleAsync(InputEngineCardModel card)
+    {
+        try
+        {
+            var url = card.FilePath;
+            if (!YtDlpResolver.LooksLikeWebVideoPage(url)) return;
+            var result = await YtDlpResolver.ResolveAsync(url);
+            if (!string.IsNullOrWhiteSpace(result.Title)) { card.Title = result.Title; SaveSourcesToDisk(); }
+        }
+        catch { }
+    }
+
+    private static bool IsGenericTitle(string? t) =>
+        string.IsNullOrWhiteSpace(t) || t.Equals("Live Input", StringComparison.OrdinalIgnoreCase) ||
+        t.Equals("URL INPUT", StringComparison.OrdinalIgnoreCase) || t.Equals("Live Source", StringComparison.OrdinalIgnoreCase);
 
     private static string ConfigFilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kashtrix", "input_sources.json");
@@ -204,6 +271,7 @@ public partial class MainWindow : Window
                             BorderBrush = _normalBorderBrush
                         };
                         _cards.Add(card);
+                        if (IsGenericTitle(card.Title)) ResolveCardTitleAsync(card);
                     }
                 }
             }
@@ -248,10 +316,7 @@ public partial class MainWindow : Window
     private void SelectCard(InputEngineCardModel card)
     {
         _selectedCard = card;
-        foreach (var c in _cards)
-        {
-            c.BorderBrush = ReferenceEquals(c, card) ? _selectedBorderBrush : _normalBorderBrush;
-        }
+        ApplyBorders();
     }
 
     private void AddStudioSource_Click(object sender, RoutedEventArgs e)
@@ -325,6 +390,7 @@ public partial class MainWindow : Window
         };
 
         _cards.Add(newCard);
+        if (IsGenericTitle(newCard.Title)) ResolveCardTitleAsync(newCard);
         SelectCard(newCard);
         UpdateCountDisplay();
         SaveSourcesToDisk();
@@ -470,7 +536,7 @@ public partial class MainWindow : Window
                         }
 
                         // Feed decoded audio samples to local audio output for live listening
-                        localAudio.Send(chunk);
+                        if (!card.IsMuted) localAudio.Send(chunk);
 
                         var (l, r) = MeasurePcmPeak(chunk.Pcm16Stereo48k);
                         int samples = chunk.Pcm16Stereo48k.Length / 4;
@@ -633,6 +699,11 @@ public partial class MainWindow : Window
         if (sender is FrameworkElement fe && fe.DataContext is InputEngineCardModel card)
         {
             SelectCard(card);
+            if (e.ClickCount >= 2 && e.OriginalSource is not System.Windows.Controls.Primitives.ButtonBase)
+            {
+                e.Handled = true;
+                EditCard(card);
+            }
         }
     }
 
@@ -694,7 +765,10 @@ public partial class MainWindow : Window
             File.WriteAllText(filePath, json);
 
             card.RouteStatusText = "ROUTED TO PLAYOUT";
-            card.RouteStatusColor = new SolidColorBrush(Color.FromRgb(128, 85, 179));
+            card.RouteStatusColor = new SolidColorBrush(Color.FromRgb(229, 57, 53));
+            foreach (var other in _cards) other.IsPushed = ReferenceEquals(other, card);
+            ApplyBorders();
+            foreach (var other in _cards.Where(o => !ReferenceEquals(o, card) && o.RouteStatusText == "ROUTED TO PLAYOUT")) { other.RouteStatusText = "READY"; other.RouteStatusColor = new SolidColorBrush(Color.FromRgb(140, 155, 168)); }
             LastActionText.Text = isHardware
                 ? $"Successfully routed '{card.Title}' to Playout (Hardware pin released for Playout engine)."
                 : $"Successfully routed '{card.Title}' to Kashtrix Playout.";

@@ -271,7 +271,10 @@ public sealed class PlayoutEngine : IDisposable
         }
 
         var audioStop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var audioTask = audio is null ? Task.CompletedTask : Task.Run(() => PumpAudio(audio, effectiveItem, part, startAt, session, audioStop.Token));
+        // Audio waits on this gate until the first video frame is decoded. Separate-stream sources
+        // (YouTube/web: video URL + audio URL) open at different speeds, which made audio start first.
+        var avGate = new ManualResetEventSlim(false);
+        var audioTask = audio is null ? Task.CompletedTask : Task.Run(() => PumpAudio(audio, effectiveItem, part, startAt, session, audioStop.Token, avGate));
 
         try
         {
@@ -300,7 +303,14 @@ public sealed class PlayoutEngine : IDisposable
                 }
                 if (frame == null) break;
                 if (!effectiveItem.IsLiveSource && frame.PtsSeconds < startAt.TotalSeconds - 0.050) continue;
-                if (double.IsNaN(firstPts)) firstPts = frame.PtsSeconds;
+                if (double.IsNaN(firstPts))
+                {
+                    firstPts = frame.PtsSeconds;
+                    // Time zero is the first decoded video frame, not the moment decoding was requested.
+                    clock.Restart();
+                    pausedSeconds = 0;
+                    avGate.Set();
+                }
 
                 double segmentElapsed;
                 if (effectiveItem.IsLiveSource)
@@ -354,6 +364,7 @@ public sealed class PlayoutEngine : IDisposable
         }
         finally
         {
+            avGate.Set();
             audioStop.Cancel();
             if (audio is null)
             {
@@ -385,10 +396,15 @@ public sealed class PlayoutEngine : IDisposable
         }
     }
 
-    private void PumpAudio(AudioDecoder audio, PlaylistItem item, MediaPlaybackPart part, TimeSpan startAt, long session, CancellationToken ct)
+    private void PumpAudio(AudioDecoder audio, PlaylistItem item, MediaPlaybackPart part, TimeSpan startAt, long session, CancellationToken ct, ManualResetEventSlim? avGate = null)
     {
         try
         {
+            if (avGate is not null)
+            {
+                try { avGate.Wait(TimeSpan.FromSeconds(8), ct); }
+                catch (OperationCanceledException) { return; }
+            }
             var clock = Stopwatch.StartNew();
             var firstPts = double.NaN;
             var pausedSeconds = 0.0;

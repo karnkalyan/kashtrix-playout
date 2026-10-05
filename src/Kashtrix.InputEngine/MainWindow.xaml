@@ -143,15 +143,17 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis"/>
                                                 <TextBlock Text="{Binding SourceDetails}" FontSize="9" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
                                             </StackPanel>
-                                            <Border Grid.Column="1" Background="{Binding StatusBg}" CornerRadius="3" Padding="8,2" VerticalAlignment="Center" Margin="6,0">
+                                            <Button Grid.Column="1" Content="{Binding MuteLabel}" Click="CardMute_Click" Tag="{Binding}" Style="{StaticResource EngineButton}" Height="22" Padding="6,0" Margin="4,0" FontSize="8.5" ToolTip="Mute / unmute this input's audio monitor"/>
+                                            <Border Grid.Column="2" Background="{Binding StatusBg}" CornerRadius="3" Padding="8,2" VerticalAlignment="Center" Margin="2,0">
                                                 <TextBlock Text="{Binding StatusText, Mode=OneWay}" FontSize="8.5" FontWeight="Bold" Foreground="{Binding StatusFg}"/>
                                             </Border>
-                                            <Button Grid.Column="2" Content="✕" Width="22" Height="22" Padding="0" Margin="4,0,0,0" Style="{StaticResource WindowCloseButton}" Click="DeleteCard_Click" Tag="{Binding}" ToolTip="Remove input source"/>
+                                            <Button Grid.Column="3" Content="✕" Width="22" Height="22" Padding="0" Margin="4,0,0,0" Style="{StaticResource WindowCloseButton}" Click="DeleteCard_Click" Tag="{Binding}" ToolTip="Remove input source"/>
                                         </Grid>
 
                                         <!-- PREVIEW MONITOR / LIVE VIDEO SURFACE (16:9 ASPECT RATIO) -->

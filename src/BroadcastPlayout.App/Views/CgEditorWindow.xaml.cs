@@ -2767,6 +2767,39 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         RenderAll();
     }
 
+    private void SetLightSweepKeyframe_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedLayer is null || SelectedProject is null) return;
+        var l = SelectedLayer;
+        l.LightSweepEnabled = true;
+        var time = Playhead;
+        const double tolerance = 0.05;
+        var existing = l.Keyframes.FirstOrDefault(k => Math.Abs(k.TimeSeconds - time) <= tolerance);
+        if (existing is null)
+        {
+            existing = new CgKeyframe { TimeSeconds = time, Ease = l.DefaultEase ?? "power2.inOut" };
+            CopyLayerTransformToKeyframe(l, existing, string.Empty);
+            l.Keyframes.Add(existing);
+        }
+        else
+        {
+            CopyLayerTransformToKeyframe(l, existing, existing.StyleJson ?? string.Empty);
+        }
+        existing.StyleJson = CgAnimationEngine.CaptureStyleJson(l);
+        l.Keyframes = l.Keyframes.OrderBy(k => k.TimeSeconds).ToList();
+        if (ReferenceEquals(l, SelectedLayer))
+        {
+            Keyframes.Clear();
+            foreach (var item in l.Keyframes) Keyframes.Add(item);
+            SelectedKeyframe = existing;
+        }
+        SyncLayersToProject();
+        _main.SaveCgProjects();
+        Raise(nameof(SelectedKeyframe));
+        Raise(nameof(SelectedLayer));
+        RenderAll();
+    }
+
     private void TextAnimationPreset_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedLayer is null || sender is not FrameworkElement { Tag: string preset }) return;
@@ -2892,6 +2925,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private void Inspector_SliderValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (!IsLoaded) return;
+        CommitInspectorAutoKey();
         SyncLayersToProject();
         RequestInteractiveRender();
     }
@@ -4048,7 +4082,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         }
 
         var layer = SelectedLayer;
-        if (layer is null || !layer.Visible || Playhead < layer.StartSeconds || Playhead > layer.EndSeconds) return;
+        if (layer is null || !layer.Visible) return;
         var motion = CgAnimationEngine.EvaluateLayer(project, layer, Playhead);
         double baseW, baseH, x, y;
         TransformGroup group;
@@ -4186,6 +4220,15 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         AddPreviewHandle(layer, "s", x + pS.X - 5, y + pS.Y - 5, Cursors.SizeNS);
         AddPreviewHandle(layer, "w", x + pW.X - 5, y + pW.Y - 5, Cursors.SizeWE);
         AddPreviewHandle(layer, "e", x + pE.X - 5, y + pE.Y - 5, Cursors.SizeWE);
+        // Skew handles (orange): drag the top/bottom handles sideways to skew X, the left/right handles up/down to skew Y.
+        var pSkN = group.Transform(new Point(baseW * 0.25, 0));
+        var pSkS = group.Transform(new Point(baseW * 0.75, baseH));
+        var pSkW = group.Transform(new Point(0, baseH * 0.75));
+        var pSkE = group.Transform(new Point(baseW, baseH * 0.25));
+        AddPreviewHandle(layer, "skew_n", x + pSkN.X - 5, y + pSkN.Y - 5, Cursors.SizeWE, Brushes.Orange, Brushes.Black);
+        AddPreviewHandle(layer, "skew_s", x + pSkS.X - 5, y + pSkS.Y - 5, Cursors.SizeWE, Brushes.Orange, Brushes.Black);
+        AddPreviewHandle(layer, "skew_w", x + pSkW.X - 5, y + pSkW.Y - 5, Cursors.SizeNS, Brushes.Orange, Brushes.Black);
+        AddPreviewHandle(layer, "skew_e", x + pSkE.X - 5, y + pSkE.Y - 5, Cursors.SizeNS, Brushes.Orange, Brushes.Black);
         var rotHandleOffset = group.Transform(new Point(baseW / 2, -24));
         AddPreviewHandle(layer, "rot", x + rotHandleOffset.X - 5, y + rotHandleOffset.Y - 5, Cursors.Hand, Brushes.Gold, Brushes.Black);
         var label = new Border { Background = new SolidColorBrush(Color.FromArgb(220, 31, 16, 42)), Padding = new Thickness(5,2,5,2), IsHitTestVisible = false,
@@ -4207,10 +4250,22 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (element is null || !layer.LightSweepEnabled || layer.LightSweepIntensity <= 0.01)
             return element;
 
-        var container = new Grid { ClipToBounds = true };
+        var layerW = Math.Max(1.0, layer.Width * sx);
+        var layerH = Math.Max(1.0, layer.Height * sy);
+        var cr = Math.Max(0, layer.CornerRadius * Math.Min(sx, sy));
+
+        var container = new Grid
+        {
+            Width = layerW,
+            Height = layerH,
+            ClipToBounds = true,
+            Clip = new RectangleGeometry(new Rect(0, 0, layerW, layerH), cr, cr)
+        };
+        element.Width = layerW;
+        element.Height = layerH;
         container.Children.Add(element);
 
-        var p = Math.Clamp(layer.LightSweepProgress, 0.0, 1.0);
+        var p = Math.Clamp(layer.LightSweepProgress, -0.5, 1.5);
         var angle = layer.LightSweepAngle;
         var intensity = Math.Clamp(layer.LightSweepIntensity, 0.0, 1.0);
 
@@ -4218,8 +4273,6 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         try { sweepColor = (Color)ColorConverter.ConvertFromString(string.IsNullOrWhiteSpace(layer.LightSweepColor) ? "#FFFFFF" : layer.LightSweepColor); }
         catch { sweepColor = Colors.White; }
 
-        var layerW = Math.Max(1.0, layer.Width * sx);
-        var layerH = Math.Max(1.0, layer.Height * sy);
         var widthRatio = Math.Clamp(layer.LightSweepWidth > 0 ? layer.LightSweepWidth : 0.25, 0.05, 1.0);
         var sweepWidth = layerW * widthRatio;
         var diag = Math.Sqrt(layerW * layerW + layerH * layerH) * 2.5;
@@ -7155,6 +7208,47 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private void AlignVerticalCenter_Click(object sender, RoutedEventArgs e) => AlignSelectedLayers("vcenter");
     private void AlignBottom_Click(object sender, RoutedEventArgs e) => AlignSelectedLayers("bottom");
 
+    private static DependencyObject? FindPreviewHitElement(DependencyObject? d)
+    {
+        while (d is not null)
+        {
+            if (d is FrameworkElement fe && fe.Tag is PreviewHit) return d;
+            d = d is Visual || d is System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d);
+        }
+        return null;
+    }
+
+    /// <summary>Geometric fallback so transparent/thin shapes can still be clicked: topmost layer whose bounds contain the point.</summary>
+    private DependencyObject? FindPreviewHitByBounds(Point p)
+    {
+        DependencyObject? Scan(UIElementCollection children)
+        {
+            for (var i = children.Count - 1; i >= 0; i--)
+            {
+                if (children[i] is not FrameworkElement fe) continue;
+                if (fe.Tag is PreviewHit ph && ph.Mode == "move")
+                {
+                    var w = fe.Width > 0 ? fe.Width : fe.ActualWidth;
+                    var h = fe.Height > 0 ? fe.Height : fe.ActualHeight;
+                    if (w <= 0 || h <= 0) continue;
+                    try
+                    {
+                        var r = fe.TransformToAncestor(PreviewCanvas).TransformBounds(new Rect(0, 0, w, h));
+                        if (r.Contains(p)) return fe;
+                    }
+                    catch { }
+                }
+                else if (fe is Canvas host && fe.Tag is null)
+                {
+                    var inner = Scan(host.Children);
+                    if (inner is not null) return inner;
+                }
+            }
+            return null;
+        }
+        return Scan(PreviewCanvas.Children);
+    }
+
     private void ClearLayerSelection()
     {
         _previewDragLayer = null; _previewEditKeyframe = null; _previewDragMode = string.Empty;
@@ -7196,7 +7290,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             _drawVideoSourceLayer=layer; _drawVideoStart=point; PreviewCanvas.CaptureMouse(); RenderPreview(); e.Handled=true; return;
         }
         var hit = PreviewCanvas.InputHitTest(point) as DependencyObject;
-        while (hit is not null && hit is FrameworkElement fe && fe.Tag is null) hit = VisualTreeHelper.GetParent(hit);
+        hit = FindPreviewHitElement(hit) ?? FindPreviewHitByBounds(point);
         if (hit is FrameworkElement element && element.Tag is PreviewHit ph)
         {
             if (e.ClickCount >= 2 && string.Equals(ph.Layer.Type, "Precomp", StringComparison.OrdinalIgnoreCase) && ph.Layer.Precomposition is not null)
@@ -7213,8 +7307,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 return;
             }
             RecordUndoSnapshot();
-            SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
-            ReorderSelectedLayers(true, false);
+            if (!IsLayerSelected(ph.Layer))
+            {
+                SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
+            }
             _previewDragLayer = ph.Layer;
             _previewDragMode = ph.Mode;
             _previewDragStart = point;
@@ -7302,12 +7398,16 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var anchorPxY = baseH * Math.Clamp(motion.AnchorY, 0, 1);
 
         var group = new TransformGroup();
-        var skewX = Math.Clamp(motion.SkewX, -75, 75);
-        var skewY = Math.Clamp(motion.SkewY, -75, 75);
+        var key = _previewEditKeyframe;
+        var curSkewX = key is not null ? key.SkewX : (Math.Abs(layer.SkewX) > 0.001 ? layer.SkewX : motion.SkewX);
+        var curSkewY = key is not null ? key.SkewY : (Math.Abs(layer.SkewY) > 0.001 ? layer.SkewY : motion.SkewY);
+        var curRot = key is not null ? key.Rotation : (Math.Abs(layer.Rotation) > 0.001 ? layer.Rotation : motion.Rotation);
+        var skewX = Math.Clamp(curSkewX, -75, 75);
+        var skewY = Math.Clamp(curSkewY, -75, 75);
         if (Math.Abs(skewX) > .001 || Math.Abs(skewY) > .001)
             group.Children.Add(new SkewTransform(skewX, skewY, anchorPxX, anchorPxY));
-        if (Math.Abs(motion.Rotation) > .001)
-            group.Children.Add(new RotateTransform(motion.Rotation, anchorPxX, anchorPxY));
+        if (Math.Abs(curRot) > .001)
+            group.Children.Add(new RotateTransform(curRot, anchorPxX, anchorPxY));
 
         if (_previewLayerVisuals.TryGetValue(layer, out var visual))
         {
@@ -7379,6 +7479,14 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (_previewSelectionHandles.TryGetValue("e", out var eH)) { Canvas.SetLeft(eH, rawX + pE.X - 5); Canvas.SetTop(eH, rawY + pE.Y - 5); }
         var rotHandleOffset = group.Transform(new Point(baseW / 2, -24));
         if (_previewSelectionHandles.TryGetValue("rot", out var rotH)) { Canvas.SetLeft(rotH, rawX + rotHandleOffset.X - 5); Canvas.SetTop(rotH, rawY + rotHandleOffset.Y - 5); }
+        var pSkN = group.Transform(new Point(baseW * 0.25, 0));
+        var pSkS = group.Transform(new Point(baseW * 0.75, baseH));
+        var pSkW = group.Transform(new Point(0, baseH * 0.75));
+        var pSkE = group.Transform(new Point(baseW, baseH * 0.25));
+        if (_previewSelectionHandles.TryGetValue("skew_n", out var skn)) { Canvas.SetLeft(skn, rawX + pSkN.X - 5); Canvas.SetTop(skn, rawY + pSkN.Y - 5); }
+        if (_previewSelectionHandles.TryGetValue("skew_s", out var sks)) { Canvas.SetLeft(sks, rawX + pSkS.X - 5); Canvas.SetTop(sks, rawY + pSkS.Y - 5); }
+        if (_previewSelectionHandles.TryGetValue("skew_w", out var skw)) { Canvas.SetLeft(skw, rawX + pSkW.X - 5); Canvas.SetTop(skw, rawY + pSkW.Y - 5); }
+        if (_previewSelectionHandles.TryGetValue("skew_e", out var ske)) { Canvas.SetLeft(ske, rawX + pSkE.X - 5); Canvas.SetTop(ske, rawY + pSkE.Y - 5); }
         if (_previewSelectionLabel is not null)
         {
             Canvas.SetLeft(_previewSelectionLabel, Math.Max(0, rawX + pNW.X));
@@ -7500,18 +7608,78 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (_previewDragMode.StartsWith("skew_"))
+        {
+            var skW = Math.Max(1.0, _previewStartW);
+            var skH = Math.Max(1.0, _previewStartH);
+            var nsx = _previewStartSkewX;
+            var nsy = _previewStartSkewY;
+            const double rad2deg = 180.0 / Math.PI;
+            switch (_previewDragMode)
+            {
+                case "skew_n": nsx = _previewStartSkewX - Math.Atan(2 * dx / skH) * rad2deg; break;
+                case "skew_s": nsx = _previewStartSkewX + Math.Atan(2 * dx / skH) * rad2deg; break;
+                case "skew_w": nsy = _previewStartSkewY - Math.Atan(2 * dy / skW) * rad2deg; break;
+                case "skew_e": nsy = _previewStartSkewY + Math.Atan(2 * dy / skW) * rad2deg; break;
+            }
+            nsx = Math.Round(Math.Clamp(nsx, -75, 75), 1);
+            nsy = Math.Round(Math.Clamp(nsy, -75, 75), 1);
+            if (key is not null) { key.SkewX = nsx; key.SkewY = nsy; }
+            l.SkewX = nsx;
+            l.SkewY = nsy;
+            ApplyInteractivePreviewGeometry(project, l);
+            RequestInteractiveRender();
+            return;
+        }
+
         var isCtrlDown = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
         var isShiftDown = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
 
-        if (isCtrlDown && (_previewDragMode is "nw" or "ne" or "sw" or "se" or "w" or "e" or "n" or "s" or "move"))
+        if (isCtrlDown && (_previewDragMode is "nw" or "ne" or "sw" or "se" or "w" or "e" or "n" or "s"))
         {
-            var skewStepX = dx * 0.15;
-            var skewStepY = dy * 0.15;
-            var newSkewX = Math.Clamp(_previewStartSkewX + skewStepX, -75, 75);
-            var newSkewY = Math.Clamp(_previewStartSkewY + skewStepY, -75, 75);
-            if (key is not null) { key.SkewX = newSkewX; key.SkewY = newSkewY; }
-            l.SkewX = newSkewX;
-            l.SkewY = newSkewY;
+            var skW = Math.Max(20.0, _previewStartW);
+            var skH = Math.Max(20.0, _previewStartH);
+            const double rad2deg = 180.0 / Math.PI;
+            double nsx = _previewStartSkewX;
+            double nsy = _previewStartSkewY;
+
+            switch (_previewDragMode)
+            {
+                case "nw":
+                    nsx = _previewStartSkewX - Math.Atan(dx / skH) * rad2deg;
+                    nsy = _previewStartSkewY - Math.Atan(dy / skW) * rad2deg;
+                    break;
+                case "ne":
+                    nsx = _previewStartSkewX - Math.Atan(dx / skH) * rad2deg;
+                    nsy = _previewStartSkewY + Math.Atan(dy / skW) * rad2deg;
+                    break;
+                case "sw":
+                    nsx = _previewStartSkewX + Math.Atan(dx / skH) * rad2deg;
+                    nsy = _previewStartSkewY - Math.Atan(dy / skW) * rad2deg;
+                    break;
+                case "se":
+                    nsx = _previewStartSkewX + Math.Atan(dx / skH) * rad2deg;
+                    nsy = _previewStartSkewY + Math.Atan(dy / skW) * rad2deg;
+                    break;
+                case "n":
+                    nsx = _previewStartSkewX - Math.Atan(dx / skH) * rad2deg;
+                    break;
+                case "s":
+                    nsx = _previewStartSkewX + Math.Atan(dx / skH) * rad2deg;
+                    break;
+                case "w":
+                    nsy = _previewStartSkewY - Math.Atan(dy / skW) * rad2deg;
+                    break;
+                case "e":
+                    nsy = _previewStartSkewY + Math.Atan(dy / skW) * rad2deg;
+                    break;
+            }
+
+            nsx = Math.Round(Math.Clamp(nsx, -75, 75), 1);
+            nsy = Math.Round(Math.Clamp(nsy, -75, 75), 1);
+            if (key is not null) { key.SkewX = nsx; key.SkewY = nsy; }
+            l.SkewX = nsx;
+            l.SkewY = nsy;
             ApplyInteractivePreviewGeometry(project, l);
             RequestInteractiveRender();
             return;

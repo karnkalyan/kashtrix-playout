@@ -1,25 +1,36 @@
 <Window x:Class="Kashtrix.HAController.AddHaPlayoutWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Add HA Playout Node" Width="520" Height="460"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Title="Add HA Playout Node" Width="520" Height="490"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None"
         Background="{StaticResource Bg0Brush}" Foreground="{StaticResource TextBrush}">
-    <Border Padding="20" Background="{StaticResource Bg0Brush}">
+    <Border BorderBrush="#3B2654" BorderThickness="1" Background="{StaticResource Bg0Brush}">
         <Grid>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Header -->
-            <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                <TextBlock Text="ADD HA PLAYOUT NODE" FontSize="18" FontWeight="Bold" Foreground="#E6C4FF"/>
-                <TextBlock Text="Register a primary, hot standby, or shared pool playout instance for redundancy clustering." Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"/>
+            <!-- Custom Title Bar -->
+            <Border Grid.Row="0" Background="#160C22" Height="34" MouseLeftButtonDown="Header_MouseDown">
+                <DockPanel LastChildFill="True" Margin="12,0,8,0">
+                    <Button DockPanel.Dock="Right" Content="✕" Width="28" Height="24" Background="Transparent" Foreground="#C5D1DE" BorderThickness="0" FontSize="12" Click="Close_Click" ToolTip="Close"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="🛡" Foreground="#E6C4FF" FontSize="13" Margin="0,0,8,0"/>
+                        <TextBlock Text="ADD HA PLAYOUT NODE" FontWeight="Bold" FontSize="11" Foreground="#E6C4FF" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Header Description -->
+            <StackPanel Grid.Row="1" Margin="20,12,20,10">
+                <TextBlock Text="Register a primary, hot standby, or shared pool playout instance for redundancy clustering." Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap"/>
             </StackPanel>
 
             <!-- Form -->
-            <Border Grid.Row="1" Style="{StaticResource PanelBorder}" Padding="16" Background="{StaticResource Bg1Brush}">
+            <Border Grid.Row="2" Style="{StaticResource PanelBorder}" Padding="16" Margin="20,0,20,0" Background="{StaticResource Bg1Brush}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -81,7 +92,7 @@
             </Border>
 
             <!-- Buttons -->
-            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,16,20,16">
                 <Button Content="CANCEL" IsCancel="True" Width="90" Height="30" Margin="0,0,10,0"/>
                 <Button Content="＋ ADD HA PLAYOUT" IsDefault="True" Width="150" Height="30" FontWeight="Bold" Background="#6B34A6" Foreground="White" Click="AddNode_Click"/>
             </StackPanel>

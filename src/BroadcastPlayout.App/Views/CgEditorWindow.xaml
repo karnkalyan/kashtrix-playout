@@ -516,29 +516,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- CARD: LIGHT SWEEP SHINE EFFECT -->
-                            <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
-                                <StackPanel>
-                                    <DockPanel Cursor="Hand" Background="Transparent" MouseLeftButtonUp="ToggleCardHeader_Click">
-                                        <TextBlock Text="▼" DockPanel.Dock="Right" Foreground="#FFD700" FontSize="11" VerticalAlignment="Center"/>
-                                        <TextBlock Text="LIGHT SWEEP SHINE EFFECT" Foreground="#FFD700" FontWeight="SemiBold" FontSize="11"/>
-                                    </DockPanel>
-                                    <StackPanel Visibility="Visible" Margin="0,8,0,0">
-                                        <CheckBox Content="ENABLE LIGHT SWEEP SHINE" IsChecked="{Binding SelectedLayer.LightSweepEnabled, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,0,0,6" Foreground="#FFD700" FontWeight="SemiBold"/>
-                                        <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                            <StackPanel><TextBlock Text="Progress (0.0 .. 1.0)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepProgress, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
-                                            <StackPanel Grid.Column="2"><TextBlock Text="Beam Width (0.1 .. 1.0)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepWidth, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
-                                        </Grid>
-                                        <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                            <StackPanel><TextBlock Text="Angle (°)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepAngle, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
-                                            <StackPanel Grid.Column="2"><TextBlock Text="Intensity (0 .. 1)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepIntensity, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
-                                        </Grid>
-                                        <TextBlock Text="Sweep Beam Color" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
-                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition Width="96"/></Grid.ColumnDefinitions><Border Height="28" Background="{Binding SelectedLayer.LightSweepColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><Button Grid.Column="2" Content="PICK COLOR" Tag="LightSweepColor" Click="ColorPicker_Click"/></Grid>
-                                        <Button Content="⚡ AUTO-KEY SWEEP (START TO END)" Click="AutoKeyLightSweep_Click" Margin="0,8,0,0" Background="#26163B" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" ToolTip="Add keyframes to animate light sweep shine across this layer from start to end"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
+
 
                             <!-- CARD 4: TYPOGRAPHY -->
                             <Border Visibility="{Binding CardTypographyVisibility}" Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
@@ -731,6 +709,49 @@
                                                 <StackPanel Grid.Column="6"><TextBlock Text="Burst Delay" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.TextAnimationDelaySeconds, UpdateSourceTrigger=LostFocus}" ToolTip="Delay in seconds before text appears" LostFocus="Inspector_LostFocus"/></StackPanel>
                                             </Grid>
                                         </StackPanel>
+
+                                        <!-- LIGHT SWEEP SHINE ANIMATION COMPONENT -->
+                                        <Border Background="#121820" BorderBrush="#FFD700" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,10,0,6">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <TextBlock Text="⚡" DockPanel.Dock="Left" Foreground="#FFD700" FontSize="11" Margin="0,0,4,0"/>
+                                                    <TextBlock Text="LIGHT SWEEP SHINE ANIMATION" Foreground="#FFD700" FontWeight="SemiBold" FontSize="10.5"/>
+                                                </DockPanel>
+                                                <CheckBox Content="ENABLE LIGHT SWEEP SHINE" IsChecked="{Binding SelectedLayer.LightSweepEnabled, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,6,0,6" Foreground="#FFD700" FontWeight="SemiBold"/>
+                                                
+                                                <!-- Manual Position / Progress Slider + Numeric Box -->
+                                                <TextBlock Text="Manual Sweep Position / Progress (-0.5 .. 1.5)" Style="{StaticResource SectionCaption}" Foreground="#E2E8F0"/>
+                                                <Grid Margin="0,2,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition/>
+                                                        <ColumnDefinition Width="6"/>
+                                                        <ColumnDefinition Width="65"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Slider Minimum="-0.5" Maximum="1.5" SmallChange="0.02" LargeChange="0.1" Value="{Binding SelectedLayer.LightSweepProgress, Mode=TwoWay}" ValueChanged="Inspector_SliderValueChanged" VerticalAlignment="Center" ToolTip="Scrub light sweep beam position live across the layer"/>
+                                                    <TextBox Grid.Column="2" Text="{Binding SelectedLayer.LightSweepProgress, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus" ToolTip="Light sweep progress position (0.0=start, 1.0=end)"/>
+                                                </Grid>
+
+                                                <Grid Margin="0,4,0,0">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="Beam Width (0.05 .. 1.0)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepWidth, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                                    <StackPanel Grid.Column="2"><TextBlock Text="Intensity (0 .. 1)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepIntensity, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                                </Grid>
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="Angle (°)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepAngle, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Sweep Beam Color" Style="{StaticResource SectionCaption}"/>
+                                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions><Border Height="24" Background="{Binding SelectedLayer.LightSweepColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><Button Grid.Column="2" Content="COLOR" Tag="LightSweepColor" Click="ColorPicker_Click" Height="24"/></Grid>
+                                                    </StackPanel>
+                                                </Grid>
+                                                
+                                                <!-- Action Buttons: Manual Keyframe & Auto-Key -->
+                                                <WrapPanel Margin="0,8,0,0">
+                                                    <Button Content="📍 SET SWEEP KEY @ PLAYHEAD" Click="SetLightSweepKeyframe_Click" Margin="0,0,6,4" Background="#1C2E46" BorderBrush="#00E5FF" Foreground="#00E5FF" FontWeight="SemiBold" ToolTip="Record current light sweep position into a keyframe at current playhead"/>
+                                                    <Button Content="⚡ AUTO-KEY (START TO END)" Click="AutoKeyLightSweep_Click" Margin="0,0,0,4" Background="#26163B" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" ToolTip="Add keyframes to animate light sweep shine across this layer from start to end"/>
+                                                </WrapPanel>
+                                            </StackPanel>
+                                        </Border>
 
                                         <TextBlock Text="KEYFRAME TIMELINE" Foreground="#93A0A8" FontWeight="SemiBold" Margin="0,10,0,3"/>
                                         <ListBox ItemsSource="{Binding Keyframes}" SelectedItem="{Binding SelectedKeyframe, Mode=TwoWay}" Height="90"/>

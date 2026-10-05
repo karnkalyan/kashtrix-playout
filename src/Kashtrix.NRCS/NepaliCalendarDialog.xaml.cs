@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using BroadcastPlayout.Services;
@@ -273,7 +273,7 @@ public partial class NepaliCalendarDialog : Window
         _store.SetSetting("NumeralSystem", num);
 
         StatusLabel.Text = $"NRCS Date System saved: {ds} ({num} numerals). Applying across all modules...";
-        MessageBox.Show($"Date system updated to '{ds}' with '{num}' numerals.\nStory Bank, Rundown, and Planning Diary will now format using this system.", "NRCS Calendar Setting", MessageBoxButton.OK, MessageBoxImage.Information);
+        BroadcastPlayout.Views.MessageBox.Show($"Date system updated to '{ds}' with '{num}' numerals.\nStory Bank, Rundown, and Planning Diary will now format using this system.", "NRCS Calendar Setting", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void ApplyDate_Click(object sender, RoutedEventArgs e)

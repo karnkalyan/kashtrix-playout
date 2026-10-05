@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.Sqlite;
 
@@ -20,8 +20,30 @@ CREATE TABLE IF NOT EXISTS api_credentials(id TEXT PRIMARY KEY,name TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS remembered_sessions(id TEXT PRIMARY KEY,username TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,created_utc TEXT NOT NULL,expires_utc TEXT NOT NULL,last_used_utc TEXT NULL);
 CREATE INDEX IF NOT EXISTS ix_api_credentials_user ON api_credentials(username);
 CREATE TABLE IF NOT EXISTS security_audit(id INTEGER PRIMARY KEY AUTOINCREMENT,utc TEXT NOT NULL,actor TEXT NOT NULL,action TEXT NOT NULL,target TEXT NOT NULL,detail TEXT NOT NULL);
-""";cmd.ExecuteNonQuery();EnsureBootstrapAdmin(c);}
+""";cmd.ExecuteNonQuery();EnsureBootstrapAdmin(c);EnsureFirstRunFile(c);}
     private SqliteConnection Open(){var c=new SqliteConnection(Cs);c.Open();return c;}
+    private static void EnsureFirstRunFile(SqliteConnection c)
+    {
+        try
+        {
+            var path=Path.Combine(Path.GetDirectoryName(DatabasePath)!,"FIRST-RUN-ADMIN.txt");
+            if(File.Exists(path))return;
+            using var q=c.CreateCommand();
+            q.CommandText="SELECT (SELECT COUNT(*) FROM users),(SELECT COUNT(*) FROM users WHERE username='admin' COLLATE NOCASE AND last_login_utc IS NULL)";
+            using var r=q.ExecuteReader();
+            if(!r.Read()||r.GetInt32(0)!=1||r.GetInt32(1)!=1)return;
+            r.Close();
+            var password="Kashtrix-"+Convert.ToHexString(RandomNumberGenerator.GetBytes(6));
+            var salt=RandomNumberGenerator.GetBytes(32);
+            var hash=Rfc2898DeriveBytes.Pbkdf2(password,salt,Pbkdf2Iterations,HashAlgorithmName.SHA256,32);
+            using var up=c.CreateCommand();
+            up.CommandText="UPDATE users SET password_salt=$s,password_hash=$h,password_iterations=$i,updated_utc=$u WHERE username='admin' COLLATE NOCASE";
+            up.Parameters.AddWithValue("$s",Convert.ToBase64String(salt));up.Parameters.AddWithValue("$h",Convert.ToBase64String(hash));up.Parameters.AddWithValue("$i",Pbkdf2Iterations);up.Parameters.AddWithValue("$u",DateTime.UtcNow.ToString("O"));
+            up.ExecuteNonQuery();
+            File.WriteAllText(path,$"Kashtrix first-run administrator\r\nUsername: admin\r\nPassword: {password}\r\nChange this password immediately, then delete this file.\r\n");
+        }
+        catch { }
+    }
     private static void EnsureBootstrapAdmin(SqliteConnection c){using var count=c.CreateCommand();count.CommandText="SELECT COUNT(*) FROM users";if(Convert.ToInt32(count.ExecuteScalar())>0)return;var password="Kashtrix-"+Convert.ToHexString(RandomNumberGenerator.GetBytes(6));CreateUserCore(c,"admin","Kashtrix Administrator","ADMIN",password);var path=Path.Combine(Path.GetDirectoryName(DatabasePath)!,"FIRST-RUN-ADMIN.txt");File.WriteAllText(path,$"Kashtrix first-run administrator\r\nUsername: admin\r\nPassword: {password}\r\nChange this password immediately, then delete this file.\r\n");}
     public IReadOnlyList<KashtrixUser> ListUsers(){var list=new List<KashtrixUser>();using var c=Open();using var cmd=c.CreateCommand();cmd.CommandText="SELECT id,username,display_name,role,enabled,created_utc,updated_utc,last_login_utc FROM users ORDER BY username";using var r=cmd.ExecuteReader();while(r.Read())list.Add(new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetInt32(4)!=0,DateTime.Parse(r.GetString(5)).ToUniversalTime(),DateTime.Parse(r.GetString(6)).ToUniversalTime(),r.IsDBNull(7)?null:DateTime.Parse(r.GetString(7)).ToUniversalTime()));return list;}
     public KashtrixUser CreateUser(string username,string displayName,string role,string password){ValidateUsername(username);if(string.IsNullOrWhiteSpace(password)||password.Length<10)throw new InvalidOperationException("Password must be at least 10 characters.");using var c=Open();var row=CreateUserCore(c,username.Trim(),string.IsNullOrWhiteSpace(displayName)?username.Trim():displayName.Trim(),NormalizeRole(role),password);Audit(c,"SYSTEM","USER_CREATE",row.Username,row.Role);return row;}

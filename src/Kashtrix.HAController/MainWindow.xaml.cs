@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -228,7 +228,7 @@ public partial class MainWindow : Window
         var target = NodeGrid.SelectedItem as HaNodeSnapshot ?? snapshot.FirstOrDefault(x => x.RuntimeRole == "ACTIVE");
         if (target is null)
         {
-            MessageBox.Show("Please select an active node to simulate failover.", "Simulate Failover", MessageBoxButton.OK, MessageBoxImage.Information);
+            BroadcastPlayout.Views.MessageBox.Show("Please select an active node to simulate failover.", "Simulate Failover", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 

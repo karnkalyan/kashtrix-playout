@@ -22,14 +22,14 @@ public partial class AddHaPlayoutWindow : Window
         var channel = ChannelCombo.Text?.Trim();
         if (string.IsNullOrWhiteSpace(channel))
         {
-            MessageBox.Show("Please enter or select a Channel ID.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            BroadcastPlayout.Views.MessageBox.Show("Please enter or select a Channel ID.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         var nodeId = NodeIdBox.Text?.Trim();
         if (string.IsNullOrWhiteSpace(nodeId))
         {
-            MessageBox.Show("Please enter a Node ID.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            BroadcastPlayout.Views.MessageBox.Show("Please enter a Node ID.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -58,6 +58,17 @@ public partial class AddHaPlayoutWindow : Window
         );
 
         DialogResult = true;
+        Close();
+    }
+
+    private void Header_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == System.Windows.Input.MouseButton.Left) DragMove();
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
         Close();
     }
 }
