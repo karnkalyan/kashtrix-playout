@@ -400,33 +400,55 @@ public sealed class PlayoutEngine : IDisposable
     {
         try
         {
+            var retries = 0;
+            AudioChunk firstChunk = null!;
+
+            // Pre-read initial audio chunk so network connect & demuxing delay (crucial for YouTube/web streams) is paid upfront
+            while (!audio.TryRead(out firstChunk))
+            {
+                if (ct.IsCancellationRequested || !IsCurrentSession(session)) return;
+                if ((item.IsLiveSource || item.SourceKind.Equals("URL", StringComparison.OrdinalIgnoreCase)) && retries++ < 35)
+                {
+                    if (ct.WaitHandle.WaitOne(20)) return;
+                    continue;
+                }
+                return;
+            }
+            retries = 0;
+
             if (avGate is not null)
             {
                 try { avGate.Wait(TimeSpan.FromSeconds(8), ct); }
                 catch (OperationCanceledException) { return; }
             }
+
             var clock = Stopwatch.StartNew();
             var firstPts = double.NaN;
             var pausedSeconds = 0.0;
             var audioPumpedSec = 0.0;
-            var retries = 0;
+            var isFirstChunk = true;
+            AudioChunk chunk = firstChunk;
+
             while (!ct.IsCancellationRequested && IsCurrentSession(session))
             {
                 pausedSeconds += WaitWhilePaused(session, ct);
                 if (ct.IsCancellationRequested || !IsCurrentSession(session)) return;
 
-                AudioChunk chunk;
-                while (!audio.TryRead(out chunk))
+                if (!isFirstChunk)
                 {
-                    if (ct.IsCancellationRequested || !IsCurrentSession(session)) return;
-                    if ((item.IsLiveSource || item.SourceKind.Equals("URL", StringComparison.OrdinalIgnoreCase)) && retries++ < 35)
+                    while (!audio.TryRead(out chunk))
                     {
-                        if (ct.WaitHandle.WaitOne(20)) return;
-                        continue;
+                        if (ct.IsCancellationRequested || !IsCurrentSession(session)) return;
+                        if ((item.IsLiveSource || item.SourceKind.Equals("URL", StringComparison.OrdinalIgnoreCase)) && retries++ < 35)
+                        {
+                            if (ct.WaitHandle.WaitOne(20)) return;
+                            continue;
+                        }
+                        return;
                     }
-                    return;
+                    retries = 0;
                 }
-                retries = 0;
+                isFirstChunk = false;
 
                 if (!item.IsLiveSource && chunk.PtsSeconds < startAt.TotalSeconds - 0.100) continue;
                 if (double.IsNaN(firstPts)) firstPts = chunk.PtsSeconds;
@@ -457,6 +479,13 @@ public sealed class PlayoutEngine : IDisposable
                     pausedSeconds += WaitWhilePaused(session, ct);
                     var activeElapsed = clock.Elapsed.TotalSeconds - pausedSeconds;
                     var wait = target - activeElapsed;
+
+                    // Dynamic drift correction: if audio lags behind presentation clock by > 80ms, catch up immediately
+                    if (wait < -0.080 && !item.IsLiveSource)
+                    {
+                        break;
+                    }
+
                     if (wait <= 0.001) break;
                     if (ct.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(Math.Min(20.0, wait * 1000.0)))) return;
                 }

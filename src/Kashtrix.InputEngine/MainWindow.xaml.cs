@@ -49,7 +49,21 @@ public sealed class InputEngineCardModel : INotifyPropertyChanged
         get => _isMuted;
         set { if (Set(ref _isMuted, value)) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(MuteLabel))); }
     }
-    public bool IsPushed { get => _isPushed; set => Set(ref _isPushed, value); }
+    public bool IsPushed
+    {
+        get => _isPushed;
+        set
+        {
+            if (Set(ref _isPushed, value))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PushButtonText)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PushButtonBg)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BorderBrush)));
+            }
+        }
+    }
+    public string PushButtonText => _isPushed ? "REMOVE FROM PLAYOUT" : "PUSH TO PLAYOUT";
+    public Brush PushButtonBg => _isPushed ? new SolidColorBrush(Color.FromRgb(185, 28, 28)) : new SolidColorBrush(Color.FromRgb(107, 52, 166));
     public string MuteLabel => _isMuted ? "🔇 UNMUTE" : "🔊 MUTE";
 
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -124,7 +138,8 @@ public sealed record RoutedInputPayload(
     string AlternateAudioUrl,
     string FormatLabel,
     double SourceFrameRate,
-    DateTime TimestampUtc
+    DateTime TimestampUtc,
+    string Action = "Push"
 );
 
 public sealed record PersistedSourceRecord(
@@ -168,6 +183,23 @@ public partial class MainWindow : Window
         {
             card.IsMuted = !card.IsMuted;
             LastActionText.Text = (card.IsMuted ? "Muted: " : "Unmuted: ") + card.Title;
+        }
+    }
+
+    private void CardFullScreen_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.Tag is InputEngineCardModel card)
+        {
+            var win = new FullScreenInputWindow(card) { Owner = this };
+            win.ShowDialog();
+        }
+    }
+
+    private void CardEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.Tag is InputEngineCardModel card)
+        {
+            EditCard(card);
         }
     }
 
@@ -432,7 +464,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private void StartCardPipeline(InputEngineCardModel card)
+    private async void StartCardPipeline(InputEngineCardModel card)
     {
         StopCardPipeline(card, retainStatus: false);
 
@@ -448,6 +480,34 @@ public partial class MainWindow : Window
 
         var item = ToPlaylistItem(card);
 
+        if (YtDlpResolver.LooksLikeWebVideoPage(item.FilePath))
+        {
+            try
+            {
+                card.ResolutionInfo = "Resolving web video streams...";
+                var resolved = await YtDlpResolver.ResolveAsync(item.FilePath, cts.Token);
+                item.FilePath = resolved.MediaUrl;
+                if (!string.IsNullOrWhiteSpace(resolved.AudioUrl))
+                {
+                    item.AlternateAudioUrl = resolved.AudioUrl;
+                    card.AlternateAudioUrl = resolved.AudioUrl;
+                }
+                card.ResolutionInfo = "Web stream resolved";
+            }
+            catch (Exception ex)
+            {
+                if (cts.IsCancellationRequested) return;
+                card.StatusText = "NO SIGNAL";
+                card.StatusBg = new SolidColorBrush(Color.FromRgb(60, 20, 20));
+                card.StatusFg = new SolidColorBrush(Color.FromRgb(248, 113, 113));
+                card.ResolutionInfo = ShortMessage(ex.Message);
+                return;
+            }
+        }
+
+        var avGate = new ManualResetEventSlim(false);
+        var clock = new Stopwatch();
+
         // 1. Video decoding & live preview rendering task
         _ = Task.Run(() =>
         {
@@ -456,7 +516,6 @@ public partial class MainWindow : Window
                 do
                 {
                     using var videoDecoder = new VideoDecoder(item);
-                    var clock = Stopwatch.StartNew();
                     var firstPts = double.NaN;
                     var lastPublish = DateTime.MinValue;
 
@@ -469,13 +528,27 @@ public partial class MainWindow : Window
 
                         if (!item.IsLiveSource)
                         {
-                            if (double.IsNaN(firstPts)) firstPts = frame.PtsSeconds;
+                            if (double.IsNaN(firstPts))
+                            {
+                                firstPts = frame.PtsSeconds;
+                                clock.Restart();
+                                avGate.Set();
+                            }
                             var target = Math.Max(0, frame.PtsSeconds - firstPts);
                             var elapsed = clock.Elapsed.TotalSeconds;
                             if (target > elapsed)
                             {
                                 var waitMs = (int)((target - elapsed) * 1000);
                                 if (waitMs > 1) Thread.Sleep(Math.Min(waitMs, 40));
+                            }
+                        }
+                        else
+                        {
+                            if (double.IsNaN(firstPts))
+                            {
+                                firstPts = frame.PtsSeconds;
+                                clock.Restart();
+                                avGate.Set();
                             }
                         }
 
@@ -511,9 +584,13 @@ public partial class MainWindow : Window
                     card.ResolutionInfo = ShortMessage(ex.Message);
                 });
             }
+            finally
+            {
+                avGate.Set();
+            }
         });
 
-        // 2. Audio decoding & true measurement task with smooth pacing and broadcast ballistics
+        // 2. Audio decoding & true measurement task with synchronized pacing and broadcast ballistics
         _ = Task.Run(() =>
         {
             if (item.SourceKind.Equals("Screen", StringComparison.OrdinalIgnoreCase)) return;
@@ -524,12 +601,40 @@ public partial class MainWindow : Window
                 do
                 {
                     using var audioDecoder = new AudioDecoder(item);
+
+                    // Pre-read initial audio chunk so network connect & demuxing is ready
+                    AudioChunk firstChunk = null!;
+                    var preRetries = 0;
+                    while (!audioDecoder.TryRead(out firstChunk))
+                    {
+                        if (cts.IsCancellationRequested) return;
+                        if ((item.IsLiveSource || item.SourceKind.Equals("URL", StringComparison.OrdinalIgnoreCase)) && preRetries++ < 35)
+                        {
+                            Thread.Sleep(20);
+                            continue;
+                        }
+                        return;
+                    }
+
+                    // Wait for video frame 0 to trigger start gate
+                    try { avGate.Wait(TimeSpan.FromSeconds(5), cts.Token); }
+                    catch (OperationCanceledException) { return; }
+
                     var lastAudioUiPublish = DateTime.MinValue;
                     double smoothL = 0;
                     double smoothR = 0;
+                    var firstAudioPts = double.NaN;
+                    var isFirst = true;
+                    AudioChunk chunk = firstChunk;
 
-                    while (!cts.IsCancellationRequested && audioDecoder.TryRead(out var chunk))
+                    while (!cts.IsCancellationRequested)
                     {
+                        if (!isFirst)
+                        {
+                            if (!audioDecoder.TryRead(out chunk)) break;
+                        }
+                        isFirst = false;
+
                         while (!cts.IsCancellationRequested && card.IsPaused)
                         {
                             Thread.Sleep(30);
@@ -539,17 +644,22 @@ public partial class MainWindow : Window
                         if (!card.IsMuted) localAudio.Send(chunk);
 
                         var (l, r) = MeasurePcmPeak(chunk.Pcm16Stereo48k);
-                        int samples = chunk.Pcm16Stereo48k.Length / 4;
-                        double durationSec = (double)samples / 48000.0;
 
                         if (!item.IsLiveSource)
                         {
-                            int waitMs = (int)(durationSec * 1000.0);
-                            if (waitMs > 1) Thread.Sleep(waitMs);
+                            if (double.IsNaN(firstAudioPts)) firstAudioPts = chunk.PtsSeconds;
+                            var target = Math.Max(0, chunk.PtsSeconds - firstAudioPts);
+                            var elapsed = clock.Elapsed.TotalSeconds;
+                            var wait = target - elapsed;
+                            if (wait > 0.002)
+                            {
+                                var waitMs = (int)(wait * 1000.0);
+                                if (waitMs > 1) Thread.Sleep(Math.Min(waitMs, 40));
+                            }
                         }
                         else
                         {
-                            Thread.Sleep(4);
+                            Thread.Sleep(1);
                         }
 
                         // Broadcast PPM ballistics: fast attack, smooth decay
@@ -721,7 +831,14 @@ public partial class MainWindow : Window
         if (sender is FrameworkElement fe && fe.Tag is InputEngineCardModel card)
         {
             SelectCard(card);
-            PushSourceToPlayout(card);
+            if (card.IsPushed)
+            {
+                RemoveSourceFromPlayout(card);
+            }
+            else
+            {
+                PushSourceToPlayout(card);
+            }
         }
     }
 
@@ -758,7 +875,8 @@ public partial class MainWindow : Window
                 card.AlternateAudioUrl,
                 card.FormatLabel,
                 card.SourceFrameRate > 0 ? card.SourceFrameRate : 25.0,
-                DateTime.UtcNow
+                DateTime.UtcNow,
+                "Push"
             );
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
@@ -776,6 +894,53 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             LastActionText.Text = $"Error routing to Playout: {ex.Message}";
+        }
+    }
+
+    private void RemoveSourceFromPlayout(InputEngineCardModel card)
+    {
+        try
+        {
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kashtrix");
+            Directory.CreateDirectory(dir);
+            var filePath = Path.Combine(dir, "routed_input.json");
+
+            var payload = new RoutedInputPayload(
+                card.Id,
+                card.Title,
+                card.SourceKind,
+                card.FilePath,
+                card.InputOptions,
+                card.VideoDevice,
+                card.AudioDevice,
+                card.AlternateAudioUrl,
+                card.FormatLabel,
+                card.SourceFrameRate > 0 ? card.SourceFrameRate : 25.0,
+                DateTime.UtcNow,
+                "Remove"
+            );
+
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(filePath, json);
+
+            card.IsPushed = false;
+            card.RouteStatusText = "READY";
+            card.RouteStatusColor = new SolidColorBrush(Color.FromRgb(140, 155, 168));
+            ApplyBorders();
+
+            var isHardware = card.SourceKind.Equals("DirectShow", StringComparison.OrdinalIgnoreCase) ||
+                             card.SourceKind.Equals("Device", StringComparison.OrdinalIgnoreCase);
+
+            if (isHardware)
+            {
+                StartCardPipeline(card);
+            }
+
+            LastActionText.Text = $"Removed '{card.Title}' from Playout.";
+        }
+        catch (Exception ex)
+        {
+            LastActionText.Text = $"Error removing from Playout: {ex.Message}";
         }
     }
 

@@ -583,28 +583,52 @@ public partial class MainWindow : Window
             var json = File.ReadAllText(filePath);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
+            var action = root.TryGetProperty("Action", out var actP) ? actP.GetString() ?? "Push" : "Push";
+            var id = root.TryGetProperty("Id", out var idP) && Guid.TryParse(idP.GetString(), out var gid) ? gid : Guid.Empty;
             var title = root.TryGetProperty("Title", out var tp) ? tp.GetString() ?? "Live Input" : "Live Input";
             var kind = root.TryGetProperty("SourceKind", out var kp) ? kp.GetString() ?? "Url" : "Url";
             var path = root.TryGetProperty("FilePath", out var pp) ? pp.GetString() ?? "" : "";
             var opt = root.TryGetProperty("InputOptions", out var op) ? op.GetString() ?? "" : "";
             var vdev = root.TryGetProperty("VideoDevice", out var vp) ? vp.GetString() ?? "" : "";
             var adev = root.TryGetProperty("AudioDevice", out var ap) ? ap.GetString() ?? "" : "";
+            var altAudio = root.TryGetProperty("AlternateAudioUrl", out var altAp) ? altAp.GetString() ?? "" : "";
 
-            var item = new PlaylistItem
+            if (string.Equals(action, "Remove", StringComparison.OrdinalIgnoreCase))
             {
-                Title = title,
-                EventType = "Live",
-                SourceKind = kind,
-                FilePath = path,
-                InputOptions = opt,
-                VideoDevice = vdev,
-                AudioDevice = adev,
-                InPoint = TimeSpan.Zero,
-                OutPoint = TimeSpan.FromHours(1)
-            };
-            _vm.RegisterInputSource(item);
-            var tile = InputMonitorTiles.FirstOrDefault(x => string.Equals(x.Source.FilePath, path, StringComparison.OrdinalIgnoreCase) || string.Equals(x.Source.Title, title, StringComparison.OrdinalIgnoreCase));
-            if (tile is not null) InputSourceList.SelectedItem = tile;
+                var existing = _vm.InputSources.FirstOrDefault(x =>
+                    (id != Guid.Empty && x.Id == id) ||
+                    (!string.IsNullOrWhiteSpace(path) && string.Equals(x.FilePath, path, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(vdev) && string.Equals(x.VideoDevice, vdev, StringComparison.OrdinalIgnoreCase)) ||
+                    string.Equals(x.Title, title, StringComparison.OrdinalIgnoreCase));
+
+                if (existing != null)
+                {
+                    _vm.RemoveInputSource(existing);
+                }
+            }
+            else
+            {
+                var item = new PlaylistItem
+                {
+                    Id = id != Guid.Empty ? id : Guid.NewGuid(),
+                    Title = title,
+                    EventType = "Live",
+                    SourceKind = kind,
+                    FilePath = path,
+                    InputOptions = opt,
+                    VideoDevice = vdev,
+                    AudioDevice = adev,
+                    AlternateAudioUrl = altAudio,
+                    InPoint = TimeSpan.Zero,
+                    OutPoint = TimeSpan.FromHours(1)
+                };
+                _vm.RegisterInputSource(item);
+                var tile = InputMonitorTiles.FirstOrDefault(x =>
+                    (id != Guid.Empty && x.Source.Id == id) ||
+                    string.Equals(x.Source.FilePath, path, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(x.Source.Title, title, StringComparison.OrdinalIgnoreCase));
+                if (tile is not null) InputSourceList.SelectedItem = tile;
+            }
         }
         catch { }
     }

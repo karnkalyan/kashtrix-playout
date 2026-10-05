@@ -129,6 +129,17 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Width="386" Height="336" Margin="8" Background="{StaticResource Bg1Brush}" BorderBrush="{Binding BorderBrush}" BorderThickness="1.5" CornerRadius="4" Padding="10" MouseLeftButtonDown="InputCard_MouseLeftButtonDown">
+                                    <Border.ContextMenu>
+                                        <ContextMenu Background="#0E1724" BorderBrush="#2A384C" Foreground="#E2E8F0">
+                                            <MenuItem Header="⛶  FULL SCREEN PREVIEW" Click="CardFullScreen_Click" Tag="{Binding}" FontWeight="Bold" Foreground="#00E5FF"/>
+                                            <Separator Background="#223044"/>
+                                            <MenuItem Header="{Binding PushButtonText}" Click="PushCardSource_Click" Tag="{Binding}" FontWeight="SemiBold"/>
+                                            <MenuItem Header="{Binding MuteLabel}" Click="CardMute_Click" Tag="{Binding}"/>
+                                            <Separator Background="#223044"/>
+                                            <MenuItem Header="⚙  EDIT SOURCE SETTINGS" Click="CardEdit_Click" Tag="{Binding}"/>
+                                            <MenuItem Header="✕  REMOVE SOURCE" Click="DeleteCard_Click" Tag="{Binding}" Foreground="#F87171"/>
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -218,7 +229,7 @@
                                             </StackPanel>
 
                                             <TextBlock Grid.Column="1" Text="{Binding RouteStatusText}" FontSize="8.5" FontWeight="SemiBold" Foreground="{Binding RouteStatusColor}" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="4,0" TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="2" Content="PUSH TO PLAYOUT" Style="{StaticResource RouteButton}" Height="26" FontSize="9" Click="PushCardSource_Click" Tag="{Binding}"/>
+                                            <Button Grid.Column="2" Content="{Binding PushButtonText}" Background="{Binding PushButtonBg}" Style="{StaticResource RouteButton}" Height="26" FontSize="9" Click="PushCardSource_Click" Tag="{Binding}"/>
                                         </Grid>
                                     </Grid>
                                 </Border>
