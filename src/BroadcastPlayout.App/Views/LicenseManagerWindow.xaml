@@ -276,8 +276,8 @@
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
 
-                                                    <!-- CHECKBOX TOGGLE -->
-                                                    <CheckBox IsChecked="{Binding IsActive, Mode=TwoWay}" VerticalAlignment="Center" HorizontalAlignment="Left" ToolTip="Toggle module activation gate"/>
+                                                    <!-- CHECKBOX TOGGLE (LOCKED UNLESS CERTIFIED BY TOKEN) -->
+                                                    <CheckBox IsChecked="{Binding IsActive, Mode=TwoWay}" IsEnabled="{Binding CanActivate}" VerticalAlignment="Center" HorizontalAlignment="Left" ToolTip="Toggle module activation gate (requires certified license)"/>
 
                                                     <!-- MODULE DETAILS -->
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,10,0">

@@ -38,7 +38,21 @@ public sealed class ModuleGateItem : INotifyPropertyChanged
         }
     }
 
-    public string StatusBadgeText => IsActive ? "ACTIVE · LICENSED" : "UNLICENSED";
+    private bool _canActivate;
+    public bool CanActivate
+    {
+        get => _canActivate;
+        set
+        {
+            if (_canActivate != value)
+            {
+                _canActivate = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string StatusBadgeText => IsActive ? "ACTIVE · LICENSED" : (CanActivate ? "INACTIVE (LICENSED)" : "UNLICENSED");
     public Brush StatusBadgeBg => IsActive ? new SolidColorBrush(Color.FromRgb(16, 42, 24)) : new SolidColorBrush(Color.FromRgb(30, 41, 59));
     public Brush StatusBadgeFg => IsActive ? new SolidColorBrush(Color.FromRgb(85, 200, 120)) : new SolidColorBrush(Color.FromRgb(148, 163, 184));
     public Brush StatusBorderBrush => IsActive ? new SolidColorBrush(Color.FromRgb(36, 92, 54)) : new SolidColorBrush(Color.FromRgb(51, 65, 85));
@@ -58,6 +72,20 @@ public partial class LicenseManagerWindow : Window
         WindowChromeActions.ApplyCleanBorder(this);
         ModuleGatesControl.ItemsSource = _modules;
         LoadLicenseDetails();
+
+        KashtrixLicenseAuthority.OnLicenseDelivered += HandleLicenseDelivered;
+        Closed += (_, _) => KashtrixLicenseAuthority.OnLicenseDelivered -= HandleLicenseDelivered;
+        KashtrixLicenseAuthority.StartAutoResolveListener();
+    }
+
+    private void HandleLicenseDelivered(bool success, string msg)
+    {
+        if (!success) return;
+        Dispatcher.InvokeAsync(() =>
+        {
+            LoadLicenseDetails();
+            StatusMessageText.Text = "✓ Remote auto-resolve: " + msg;
+        });
     }
 
     private void LoadLicenseDetails()
@@ -149,13 +177,15 @@ public partial class LicenseManagerWindow : Window
 
         foreach (var def in definitions)
         {
+            var isAuthorized = p.IsActivated && p.IsModuleAuthorizedByToken(def.Key);
             _modules.Add(new ModuleGateItem
             {
                 AppKey = def.Key,
                 Name = def.Name,
                 Description = def.Desc,
                 Capabilities = def.Caps,
-                IsActive = def.Active
+                IsActive = isAuthorized && def.Active,
+                CanActivate = isAuthorized
             });
         }
     }
@@ -204,8 +234,23 @@ public partial class LicenseManagerWindow : Window
 
     private void ActivateAll_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var m in _modules) m.IsActive = true;
-        StatusMessageText.Text = "All 17 suite modules marked active. Click 'SAVE LICENSE PROFILE' to apply.";
+        var p = KashtrixLicenseAuthority.Current;
+        if (!p.IsActivated)
+        {
+            MessageBox.Show("Cannot activate suite modules: Kashtrix Broadcast Suite is UNLICENSED.\n\nPlease activate with an authentic cryptographically-signed license token first.", "Licensing Authority Security", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        int activatedCount = 0;
+        foreach (var m in _modules)
+        {
+            if (m.CanActivate)
+            {
+                m.IsActive = true;
+                activatedCount++;
+            }
+        }
+        StatusMessageText.Text = $"{activatedCount} certified suite module(s) marked active. Click 'SAVE LICENSE PROFILE' to apply.";
     }
 
     private void DeactivateAll_Click(object sender, RoutedEventArgs e)
@@ -219,45 +264,51 @@ public partial class LicenseManagerWindow : Window
         try
         {
             var p = KashtrixLicenseAuthority.Current;
+            if (!p.IsActivated)
+            {
+                MessageBox.Show("Cannot save module states while UNLICENSED. Workstation must be activated with a certified license first.", "Licensing Authority Security", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             p.CustomerName = LicensedToBox.Text.Trim();
             p.LicensedCompany = OrgBox.Text.Trim();
             p.RegisteredOrg = OrgBox.Text.Trim();
             p.SerialNumber = LicenseKeyBox.Text.Trim();
 
-            // Apply module states directly to policy
+            // Apply module states directly to policy ONLY if certified by token
             foreach (var m in _modules)
             {
+                var active = m.CanActivate && m.IsActive;
                 switch (m.AppKey)
                 {
-                    case "Playout": p.PlayoutActive = m.IsActive; break;
-                    case "OutputEngine": p.OutputEngineActive = m.IsActive; break;
-                    case "InputEngine": p.InputEngineActive = m.IsActive; break;
-                    case "HAController": p.HaControllerActive = m.IsActive; break;
-                    case "NRCS": p.NrcsActive = m.IsActive; break;
-                    case "ApiGateway": p.ApiGatewayActive = m.IsActive; break;
-                    case "CGController": p.CgControllerActive = m.IsActive; break;
-                    case "CGEditor": p.CgEditorActive = m.IsActive; break;
-                    case "ChannelController": p.ChannelControllerActive = m.IsActive; break;
-                    case "IngestServer": p.IngestActive = m.IsActive; break;
-                    case "MAM": p.MamActive = m.IsActive; break;
-                    case "Multiview": p.MultiviewerActive = m.IsActive; break;
-                    case "PlaylistEditor": p.PlaylistEditorActive = m.IsActive; break;
-                    case "Scheduler": p.PlaylistSchedulerActive = m.IsActive; break;
-                    case "Prompter": p.PrompterActive = m.IsActive; break;
-                    case "QCController": p.QcControllerActive = m.IsActive; break;
-                    case "FileManager": p.FileManagerActive = m.IsActive; break;
+                    case "Playout": p.PlayoutActive = active; break;
+                    case "OutputEngine": p.OutputEngineActive = active; break;
+                    case "InputEngine": p.InputEngineActive = active; break;
+                    case "HAController": p.HaControllerActive = active; break;
+                    case "NRCS": p.NrcsActive = active; break;
+                    case "ApiGateway": p.ApiGatewayActive = active; break;
+                    case "CGController": p.CgControllerActive = active; break;
+                    case "CGEditor": p.CgEditorActive = active; break;
+                    case "ChannelController": p.ChannelControllerActive = active; break;
+                    case "IngestServer": p.IngestActive = active; break;
+                    case "MAM": p.MamActive = active; break;
+                    case "Multiview": p.MultiviewerActive = active; break;
+                    case "PlaylistEditor": p.PlaylistEditorActive = active; break;
+                    case "Scheduler": p.PlaylistSchedulerActive = active; break;
+                    case "Prompter": p.PrompterActive = active; break;
+                    case "QCController": p.QcControllerActive = active; break;
+                    case "FileManager": p.FileManagerActive = active; break;
                 }
             }
 
             KashtrixLicenseAuthority.SavePolicy(p);
-
-            var activeCount = _modules.Count(m => m.IsActive);
-            StatusMessageText.Text = $"License policy saved successfully. {activeCount} of {_modules.Count} modules active.";
-            MessageBox.Show($"License policy successfully applied!\n\n{activeCount} of {_modules.Count} modules active.\nApplications will strictly run according to these activation gates.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
+            LoadLicenseDetails();
+            StatusMessageText.Text = $"License policy profile successfully verified and saved ({DateTime.Now:HH:mm:ss}).";
+            MessageBox.Show("License policy profile successfully updated and secured.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error saving license policy: {ex.Message}", "Save Policy Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show($"Failed to save policy: {ex.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

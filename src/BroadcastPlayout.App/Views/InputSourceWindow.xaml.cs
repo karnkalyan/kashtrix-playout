@@ -565,6 +565,20 @@ public partial class InputSourceWindow : Window
     {
         var url = UrlBox.Text.Trim();
         if (url.Length == 0 || url.Equals("rtsp://", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Enter a URL/stream address.");
+        var isYoutube = (!string.IsNullOrWhiteSpace(_originalWebPageUrl) && YtDlpResolver.LooksLikeWebVideoPage(_originalWebPageUrl)) ||
+                        url.Contains("youtube.com", StringComparison.OrdinalIgnoreCase) || url.Contains("youtu.be", StringComparison.OrdinalIgnoreCase);
+        var policy = KashtrixLicenseAuthority.Current;
+        if (policy.IsActivated)
+        {
+            if (isYoutube && !policy.AllowYoutubeInputs)
+            {
+                throw new InvalidOperationException("YouTube & Web video streaming inputs (IN_YOUTUBE) are not licensed in your current Kashtrix profile. Please activate this module in License Manager.");
+            }
+            if (!isYoutube && !policy.AllowStreamingInputs)
+            {
+                throw new InvalidOperationException("IP Streaming inputs (IN_STREAMING) are not licensed in your current Kashtrix profile. Please activate this module in License Manager.");
+            }
+        }
         var duration = ParseDuration(UrlDurationBox.Text);
         var live = UrlLiveCheck.IsChecked == true;
         var probe = live ? null : _urlProbe;
@@ -584,6 +598,11 @@ public partial class InputSourceWindow : Window
 
     private PlaylistItem CreateNdiItem()
     {
+        var policy = KashtrixLicenseAuthority.Current;
+        if (policy.IsActivated && !policy.AllowNdiInputs)
+        {
+            throw new InvalidOperationException("NDI Network video inputs (IN_NDI) are not licensed in your current Kashtrix profile. Please activate this module in License Manager.");
+        }
         if (NdiSourceBox.SelectedItem is not NdiDiscoveryService.NdiSourceInfo source || string.IsNullOrWhiteSpace(source.Name))
             throw new InvalidOperationException("Select an NDI source. The source list refreshes every 10 seconds.");
         var duration = ParseDuration(NdiDurationBox.Text);
@@ -601,7 +620,20 @@ public partial class InputSourceWindow : Window
         var video = GetComboText(VideoDeviceBox);
         var audio = GetComboText(AudioDeviceBox);
         if (string.IsNullOrWhiteSpace(video)) throw new InvalidOperationException("Select a video/capture device.");
+        var policy = KashtrixLicenseAuthority.Current;
+        if (policy.IsActivated && !policy.AllowHardwareInputs)
+        {
+            throw new InvalidOperationException("Hardware SDI/Capture inputs (IN_HARDWARE) are not licensed in your current Kashtrix profile. Please activate this module in License Manager.");
+        }
         ParseResolution(GetComboText(CaptureResolutionBox), out var width, out var height);
+        if (policy.IsActivated && width > 0 && height > 0)
+        {
+            var resLevel = width > 3840 || height > 2160 ? "8K" : width > 1920 || height > 1080 ? "4K" : width > 1280 || height > 720 ? "FHD" : width > 720 || height > 576 ? "HD" : "SD";
+            if (!KashtrixLicenseAuthority.IsResolutionAllowed(policy.InputMaxResolution, resLevel))
+            {
+                throw new InvalidOperationException($"Input resolution {width}x{height} exceeds licensed maximum input resolution ({policy.InputMaxResolution}).");
+            }
+        }
         var fps = GetComboText(CaptureFpsBox).StartsWith("AUTO", StringComparison.OrdinalIgnoreCase) ? 0 : ParseDouble(GetComboText(CaptureFpsBox), 25);
         var duration = ParseDuration(CaptureDurationBox.Text);
         var formatText = width > 0 && height > 0 ? $"{width}x{height} " + (fps > 0 ? $"{fps:0.###}p" : "device fps") : "Device Default";

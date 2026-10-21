@@ -17,6 +17,26 @@ public partial class LicenseActivationPromptWindow : Window
 
         KtxTokenBox.Text = KashtrixLicenseAuthority.ProvisioningKtxCode;
         HwidBox.Text = KashtrixLicenseAuthority.HardwareId;
+
+        KashtrixLicenseAuthority.OnLicenseDelivered += HandleLicenseDelivered;
+        Closed += (_, _) => KashtrixLicenseAuthority.OnLicenseDelivered -= HandleLicenseDelivered;
+        KashtrixLicenseAuthority.StartAutoResolveListener();
+    }
+
+    private void HandleLicenseDelivered(bool success, string msg)
+    {
+        if (!success) return;
+        Dispatcher.InvokeAsync(async () =>
+        {
+            AutoResolveStatusText.Text = "✓ License automatically delivered and activated via server!";
+            AutoResolveStatusText.Foreground = System.Windows.Media.Brushes.LightGreen;
+            FooterFeedbackText.Text = "✓ Activated! Launching application...";
+            FooterFeedbackText.Foreground = System.Windows.Media.Brushes.LightGreen;
+            CopyKtxButton.Content = "✓ ACTIVATED";
+            await System.Threading.Tasks.Task.Delay(1000);
+            try { DialogResult = true; } catch { }
+            Close();
+        });
     }
 
     public static void ShowPrompt(string appName, string reason)

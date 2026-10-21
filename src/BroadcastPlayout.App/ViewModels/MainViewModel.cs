@@ -1443,6 +1443,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
             if (value)
             {
+                var policy = KashtrixLicenseAuthority.Current;
+                if (!policy.DirectPlayoutNdiOutputEnabled)
+                {
+                    _ndiEnabled = false;
+                    Raise(nameof(NdiEnabled));
+                    NdiStatus = "OFF (ROUTED VIA OUTPUT ENGINE)";
+                    WpfMessageBox.Show(
+                        "Direct NDI output from Playout application is disabled by default.\n\n" +
+                        "Broadcast NDI transmission is routed through Kashtrix.OutputEngine for synchronized multi-destination playout.\n\n" +
+                        "To enable direct Playout NDI output, activate the 'Playout Direct NDI Output' (PLAYOUT_DIRECT_NDI) module in Kashtrix License Manager.",
+                        "Kashtrix Playout NDI",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Information);
+                    return;
+                }
+
                 NdiStatus = "STARTING";
                 if (!_ndi.Open(NdiName))
                 {
@@ -1697,9 +1713,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public async Task<PlaylistItem> ImportMediaFileAsync(string file, int? insertionIndex = null)
     {
         if (string.IsNullOrWhiteSpace(file) || !File.Exists(file)) throw new FileNotFoundException("Media file was not found.", file);
-        var mam = new EnterpriseMamCatalog();
-        var catalogAsset = mam.RegisterFile(file, MediaAssetMetadataStore.Get(file), "Playout import");
-        mam.AssertMayUse(file, DateTime.UtcNow);
+        Guid? assetId = null;
+        try
+        {
+            var mam = new EnterpriseMamCatalog();
+            var catalogAsset = mam.RegisterFile(file, MediaAssetMetadataStore.Get(file), "Playout import");
+            assetId = catalogAsset?.AssetId;
+            mam.AssertMayUse(file, DateTime.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            RuntimeDiagnosticsService.Write("IMPORT_MAM_NOTE", $"MAM catalog validation note for '{file}': {ex.Message}");
+        }
+
         var info = await Task.Run(() => MediaProbe.Read(file));
         var item = new PlaylistItem
         {
@@ -1712,12 +1738,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         if (EnableQcOnImport)
         {
+            var capturedAssetId = assetId;
             _ = Task.Run(async () =>
             {
                 try
                 {
                     var qc = await QualityControlService.CheckAsync(file, QcPreset, deepDecode: false);
-                    mam.SetQc(catalogAsset.AssetId, qc.Status, qc.Summary, "Playout import QC");
+                    if (capturedAssetId.HasValue)
+                    {
+                        try
+                        {
+                            var mam = new EnterpriseMamCatalog();
+                            mam.SetQc(capturedAssetId.Value, qc.Status, qc.Summary, "Playout import QC");
+                        }
+                        catch { }
+                    }
                     Ui(() =>
                     {
                         item.QcStatus = qc.Status;

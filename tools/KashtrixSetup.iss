@@ -122,6 +122,8 @@ Source: "{#BrandingDir}\*"; DestDir: "{app}\Branding"; Flags: ignoreversion recu
 Source: "{#BrandingDir}\kashtrix-playout.ico"; DestDir: "{app}"; DestName: "kashtrix-playout.ico"; Flags: ignoreversion
 Source: "{#WorkspaceRoot}\cg-demo\*"; DestDir: "{app}\cg-demo"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#WorkspaceRoot}\native\*"; DestDir: "{app}\native"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#WorkspaceRoot}\src\BroadcastPlayout.App\native\*"; DestDir: "{app}\native"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#WorkspaceRoot}\src\BroadcastPlayout.App\native\ffmpeg\*"; DestDir: "{app}\ffmpeg"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; =====================================================================
 ; START MENU SHORTCUTS

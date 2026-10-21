@@ -4,18 +4,21 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BroadcastPlayout.Services;
 
 /// <summary>
 /// KTX Module Definition matching Omni License Protocol v2 (referenced from K-Mix specification).
+/// Note: strict schema requires boolean or integer only, with no null serialized properties.
 /// </summary>
 public sealed class KtxModuleDefinition
 {
@@ -42,7 +45,7 @@ public sealed class KtxModuleDefinition
 /// and complete license details.
 /// By default, software starts in UNLICENSED mode until activated.
 /// Includes reference architecture from K-Mix (Omni License Protocol v2, KTX token provisioning,
-/// and authoritative per-module execution gating).
+/// TLS background auto-wait/auto-resolve, and authoritative per-module execution gating).
 /// </summary>
 public static class KashtrixLicenseAuthority
 {
@@ -51,6 +54,11 @@ public static class KashtrixLicenseAuthority
     private static bool _initialized;
     private static string? _cachedHwid;
     private static string? _cachedKtx;
+
+    // Background Auto-Wait / Auto-Resolve client
+    public static event Action<bool, string>? OnLicenseDelivered;
+    private static CancellationTokenSource? _autoResolveCts;
+    private static Task? _autoResolveTask;
 
     // Security Obfuscation Key & Entropy Mask (Prevents plain-text discovery / reverse engineering extraction)
     private static readonly byte[] _entropyKey = { 0x5A, 0xC3, 0x1F, 0x8E, 0x72, 0x4B, 0x9D, 0x36 };
@@ -78,29 +86,96 @@ public static class KashtrixLicenseAuthority
     public const string ProductVersion = "4.9.0";
     private static string IntegritySecretSeed => RevealProtectedString(_obfSeed);
 
+    /// <summary>
+    /// Master Module and Capability Catalog conforming strictly to Omni License Protocol v2
+    /// and the detailed specification in tools/license-requirements.md.
+    /// </summary>
     public static readonly IReadOnlyList<KtxModuleDefinition> SuiteModuleCatalog = new[]
     {
+        // 1. Playout.app Core & Capabilities
         new KtxModuleDefinition { code="PLAYOUT", name="Kashtrix Playout Master Engine", description="Core multi-format transmission playout engine (SD to 8K, EPG, SCTE, MOS)", type="boolean", defaultValue=false },
-        new KtxModuleDefinition { code="OUTPUT_ENGINE", name="Kashtrix Output Engine Master", description="Hardware SDI (DeckLink/Matrox/AJA), NDI, RTMP/UDP/SRT & Virtual outputs", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="RES_SD", name="Resolution: Standard Definition (SD)", description="Standard definition 576i / 480i playout & output preset", type="boolean", defaultValue=true },
+        new KtxModuleDefinition { code="RES_HD", name="Resolution: High Definition (HD)", description="High definition 720p broadcast preset", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="RES_FHD", name="Resolution: Full HD (1080p/i)", description="Full HD 1080p / 1080i broadcast transmission preset", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="RES_4K", name="Resolution: 4K UHD (3840x2160)", description="Hierarchical 4K UHD transmission output capability (includes FHD, HD, SD)", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="RES_8K", name="Resolution: 8K Ultra HD (7680x4320)", description="Hierarchical 8K Ultra HD transmission capability (includes 4K, FHD, HD, SD)", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="AUDIO_STEREO", name="Audio: Stereo Output", description="Standard 2-channel stereo broadcast audio", type="boolean", defaultValue=true },
+        new KtxModuleDefinition { code="AUDIO_5_1", name="Audio: 5.1 Surround Sound", description="Multi-channel 5.1 surround sound audio mixing & output", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="AUDIO_7_1", name="Audio: 7.1 Immersive Surround", description="Immersive 8-channel 7.1 surround sound audio", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="FEAT_EPG", name="Feature: Electronic Program Guide (EPG)", description="EPG event metadata generation and DVB / ATSC guide tables", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="FEAT_SCTE", name="Feature: SCTE-35 / SCTE-104 Ad Triggers", description="Automated ad insertion signaling (SCTE-35 DPI & SCTE-104 VANC)", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="FEAT_MOS", name="Feature: MOS Protocol Integration", description="Media Object Server (MOS) integration for live newsroom rundowns", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="PLAYOUT_DIRECT_NDI", name="Playout Direct NDI Output", description="Direct NDI output from Playout application (Disabled by default, Output Engine preferred)", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="CHANNELS_QUOTA", name="Playout Simultaneous Channels", description="Maximum active playout transmission channels", type="integer", min=1, max=64, step=1, defaultValue=16, unit="channels" },
+        new KtxModuleDefinition { code="INPUTS_QUOTA", name="Simultaneous Input Sources", description="Maximum simultaneous live input sources", type="integer", min=1, max=64, step=1, defaultValue=16, unit="inputs" },
+
+        // 2. Kashtrix.OutputEngine
+        new KtxModuleDefinition { code="OUTPUT_ENGINE", name="Kashtrix Output Engine Master", description="Output Engine master transmission controller", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="OUTPUTS_QUOTA", name="Simultaneous Output Instances", description="Maximum simultaneous broadcast outputs", type="integer", min=1, max=64, step=1, defaultValue=8, unit="outputs" },
+        new KtxModuleDefinition { code="OUT_HARDWARE", name="Output: Hardware SDI Cards", description="SDI/HDMI hardware cards (DeckLink, Matrox, AJA)", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="OUT_STREAMING", name="Output: IP Streaming", description="Streaming protocols (RTMP, UDP, UDP DVB-TS, SRT, HLS)", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="OUT_NDI", name="Output: NDI Video Network", description="Network Device Interface (NDI) low-latency IP broadcast", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="OUT_VIRTUAL", name="Output: Virtual Camera / DirectShow", description="Virtual video device output for OBS, Zoom & Teams", type="boolean", defaultValue=false },
+
+        // 3. Kashtrix.InputEngine
         new KtxModuleDefinition { code="INPUT_ENGINE", name="Kashtrix Input Engine", description="Live video capture, frame synchronizer & streaming ingestion hub", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="IN_HARDWARE", name="Input: Hardware SDI/HDMI", description="Baseband capture via DeckLink, Matrox & AJA cards", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="IN_STREAMING", name="Input: IP Streams", description="Live IP streaming inputs (RTMP, UDP, UDP DVB, SRT)", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="IN_NDI", name="Input: NDI Video Sources", description="Live NDI IP network video sources", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="IN_YOUTUBE", name="Input: YouTube & Web Video Streams", description="YouTube live stream and web video ingestion", type="boolean", defaultValue=false },
+
+        // 4. Kashtrix.HAController
         new KtxModuleDefinition { code="HA_CONTROLLER", name="Kashtrix High-Availability Redundancy", description="1+1 Mirror redundancy and seamless automated failover", type="boolean", defaultValue=false },
+
+        // 5. Kashtrix.NRCS & API Gateway
         new KtxModuleDefinition { code="NRCS", name="Kashtrix NRCS Newsroom Computer System", description="Newsroom rundowns, story editor, MOS automation & BS/AD calendar", type="boolean", defaultValue=false },
         new KtxModuleDefinition { code="API_GATEWAY", name="Kashtrix API Gateway & Web MCR", description="REST / WebSocket broadcast control, web master control room & third-party automation", type="boolean", defaultValue=false },
-        new KtxModuleDefinition { code="CG_CONTROLLER", name="Kashtrix CG Controller", description="On-air graphic playout, external DeckLink/NDI outputs, tickers & DVE", type="boolean", defaultValue=false },
-        new KtxModuleDefinition { code="CG_EDITOR", name="Kashtrix CG Designer", description="Multi-layer 8K/4K broadcast template designer with Quick Edit", type="boolean", defaultValue=false },
-        new KtxModuleDefinition { code="CHANNEL_CTRL", name="Kashtrix Channel Controller", description="Multi-channel master control, emergency cutover & CG play supervision", type="boolean", defaultValue=false },
+
+        // 6. Kashtrix.CGController
+        new KtxModuleDefinition { code="CG_CONTROLLER", name="Kashtrix CG Controller", description="On-air graphic playout controller", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="CG_EXTERNAL_OUT", name="CG External Output", description="External video output from CG controller (Disabled by default)", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="CG_DECKLINK_OUT", name="CG DeckLink Key & Fill", description="Dedicated DeckLink Key and Fill hardware output", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="CG_NDI_OUT", name="CG NDI Alpha Output", description="Dedicated NDI with alpha channel output", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="CG_QUICK_EDIT", name="CG Quick Edit Mode", description="On-air dynamic text & lower-third quick editor", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="CG_SCHEDULER", name="CG Automated Scheduler", description="Automated graphics scheduling & triggers", type="boolean", defaultValue=false },
+
+        // 7. Kashtrix.CGEditor
+        new KtxModuleDefinition { code="CG_EDITOR", name="Kashtrix CG Designer", description="Multi-layer 8K/4K broadcast template designer", type="boolean", defaultValue=false },
+
+        // 8. Kashtrix.ChannelController
+        new KtxModuleDefinition { code="CHANNEL_CTRL", name="Kashtrix Channel Controller", description="Multi-channel master control & emergency cutover", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="CG_CHANNEL_PLAY", name="Channel Controller CG Play", description="Allow CG graphic playout triggering on channel master", type="boolean", defaultValue=false },
+
+        // 9. Kashtrix.IngestServer
         new KtxModuleDefinition { code="INGEST_SERVER", name="Kashtrix Ingest Server", description="Scheduled multi-channel baseband & streaming recording", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="INGEST_QUOTA", name="Simultaneous Ingest Channels", description="Maximum simultaneous recording channels", type="integer", min=1, max=32, step=1, defaultValue=4, unit="channels" },
+        new KtxModuleDefinition { code="INGEST_HARDWARE", name="Ingest Hardware SDI", description="Recording from SDI hardware capture cards", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="INGEST_STREAMING", name="Ingest IP Streaming", description="Recording from RTMP, UDP, SRT streams", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="INGEST_NDI", name="Ingest NDI Networks", description="Recording from NDI network video streams", type="boolean", defaultValue=false },
+
+        // 10. Kashtrix.MAM
         new KtxModuleDefinition { code="MAM", name="Kashtrix Media Asset Management", description="Enterprise asset database, metadata indexing & fast proxy playback", type="boolean", defaultValue=false },
+
+        // 11. Kashtrix.Multiviewer
         new KtxModuleDefinition { code="MULTIVIEWER", name="Kashtrix Multiviewer Monitor", description="Low-latency multi-channel video wall with tally & live VU meters", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="MULTIVIEW_INPUTS_QUOTA", name="Multiview Max Monitored Inputs", description="Maximum simultaneous video inputs on multiview wall", type="integer", min=1, max=64, step=1, defaultValue=16, unit="inputs" },
+
+        // 12. Kashtrix.PlaylistEditor & Scheduler
         new KtxModuleDefinition { code="PLAYLIST_EDITOR", name="Kashtrix Playlist Editor", description="Multi-channel playlist sequencing, segment trimming & event tagging", type="boolean", defaultValue=false },
         new KtxModuleDefinition { code="SCHEDULER", name="Kashtrix Broadcast Scheduler", description="24/7 automated daypart scheduling, program clocks & traffic reconciliation", type="boolean", defaultValue=false },
-        new KtxModuleDefinition { code="PROMPTER", name="Kashtrix Teleprompter", description="Studio newsroom prompter with talent confidence monitor & NDI/SDI feed", type="boolean", defaultValue=false },
+
+        // 13. Kashtrix.Prompter
+        new KtxModuleDefinition { code="PROMPTER", name="Kashtrix Teleprompter", description="Studio newsroom prompter with talent confidence monitor", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="PROMPTER_NDI", name="Prompter NDI Output", description="Teleprompter NDI video feed", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="PROMPTER_CARDS", name="Prompter Video Hardware", description="Teleprompter SDI/HDMI hardware output", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="PROMPTER_DISPLAY", name="Prompter Multi-Display", description="Teleprompter multi-monitor display outputs", type="boolean", defaultValue=false },
+
+        // 14. Kashtrix.QCController
         new KtxModuleDefinition { code="QC_CONTROLLER", name="Kashtrix QC Controller", description="Automated broadcast audio/video silence, freeze & format compliance verification", type="boolean", defaultValue=false },
-        new KtxModuleDefinition { code="FILE_MANAGER", name="Kashtrix File Manager", description="Broadcast media preparation, format validation & staging tool", type="boolean", defaultValue=false },
-        new KtxModuleDefinition { code="CHANNELS_QUOTA", name="Simultaneous Playout Channels", description="Maximum active playout transmission channels", type="integer", min=1, max=64, step=1, defaultValue=16, unit="channels" },
-        new KtxModuleDefinition { code="INPUTS_QUOTA", name="Simultaneous Input Sources", description="Maximum simultaneous live input sources", type="integer", min=1, max=64, step=1, defaultValue=16, unit="inputs" },
-        new KtxModuleDefinition { code="RES_4K", name="4K UHD Resolution Output", description="Hierarchical 4K UHD transmission output capability", type="boolean", defaultValue=false },
-        new KtxModuleDefinition { code="RES_8K", name="8K Ultra HD Resolution Output", description="Hierarchical 8K Ultra HD transmission output capability", type="boolean", defaultValue=false }
+        new KtxModuleDefinition { code="QC_CHANNELS_QUOTA", name="QC Simultaneous Channels", description="Maximum simultaneous QC inspection channels", type="integer", min=1, max=32, step=1, defaultValue=8, unit="channels" },
+
+        // 15. Kashtrix.FileManager
+        new KtxModuleDefinition { code="FILE_MANAGER", name="Kashtrix File Manager", description="Broadcast media preparation, format validation & staging tool", type="boolean", defaultValue=false }
     };
 
     public static string PolicyFilePath => Path.Combine(
@@ -154,7 +229,6 @@ public static class KashtrixLicenseAuthority
                     var loaded = JsonSerializer.Deserialize<LicensePolicy>(json);
                     if (loaded != null)
                     {
-                        // Ensure tenant ID and app ID match latest specification
                         if (string.IsNullOrWhiteSpace(loaded.TenantId) || loaded.TenantId == "39aa8d9d-55bc-4b4a-8939-0c0b49e29bc2")
                         {
                             loaded.TenantId = ProductTenantId;
@@ -191,6 +265,7 @@ public static class KashtrixLicenseAuthority
                             loaded.PrompterActive = false;
                             loaded.QcControllerActive = false;
                             loaded.FileManagerActive = false;
+                            loaded.AuthorizedModules.Clear();
                             SavePolicy(loaded);
                         }
 
@@ -207,6 +282,12 @@ public static class KashtrixLicenseAuthority
                 _currentPolicy = new LicensePolicy();
             }
             _initialized = true;
+
+            // Automatically start background auto-resolve listener if unactivated
+            if (!_currentPolicy.IsActivated)
+            {
+                StartAutoResolveListener();
+            }
         }
     }
 
@@ -250,21 +331,18 @@ public static class KashtrixLicenseAuthority
 
     public static bool ValidatePolicyIntegrity(LicensePolicy loaded, out string breachReason)
     {
-        // 1. Check if server host is missing or deleted by hacker/reverse engineer
         if (string.IsNullOrWhiteSpace(loaded.LicenseServerHost))
         {
             breachReason = "License server host endpoint is missing or cleared. License authority requires valid server FQDN.";
             return false;
         }
 
-        // If not activated, it's validly in UNLICENSED mode
         if (!loaded.IsActivated)
         {
             breachReason = string.Empty;
             return true;
         }
 
-        // 2. Validate cryptographic signature
         if (string.IsNullOrWhiteSpace(loaded.IntegritySignature))
         {
             breachReason = "Cryptographic integrity signature is missing.";
@@ -281,7 +359,6 @@ public static class KashtrixLicenseAuthority
             return false;
         }
 
-        // 3. Validate Hardware ID binding: Must match current HWID OR match an authorized node HWID
         var currentHwid = HardwareId;
         bool hwidMatches = string.Equals(loaded.HwidBinding, currentHwid, StringComparison.OrdinalIgnoreCase) ||
                            loaded.AuthorizedNodes.Any(n => n.IsAuthorized && string.Equals(n.HardwareId, currentHwid, StringComparison.OrdinalIgnoreCase));
@@ -463,6 +540,11 @@ public static class KashtrixLicenseAuthority
         return Convert.FromBase64String(output);
     }
 
+    /// <summary>
+    /// Hierarchical resolution comparison:
+    /// 8K (5) > 4K (4) > FHD (3) > HD (2) > SD (1).
+    /// If licensed for higher, all lower resolutions are automatically supported.
+    /// </summary>
     public static int GetResolutionLevel(string? resolution)
     {
         if (string.IsNullOrWhiteSpace(resolution)) return 3; // Default FHD
@@ -509,7 +591,7 @@ public static class KashtrixLicenseAuthority
             "PLAYLISTSCHEDULER" or "SCHEDULER" => "SCHEDULER",
             "PROMPTER" => "PROMPTER",
             "QCCONTROLLER" or "QC" => "QCCONTROLLER",
-            "FILEMANAGER" => "FILEMANAGER",
+            "FILEMANAGER" or "FILES" => "FILEMANAGER",
             "SETTINGS" => "SETTINGS",
             "ENGINEDASHBOARD" => "ENGINEDASHBOARD",
             "LICENSEMANAGER" => "LICENSEMANAGER",
@@ -558,13 +640,20 @@ public static class KashtrixLicenseAuthority
     }
 
     /// <summary>
-    /// Sets module activation state and saves the updated policy.
+    /// Sets module activation state and saves the updated policy,
+    /// enforcing that only modules certified by the license token may be activated.
     /// </summary>
     public static void SetModuleActive(string appName, bool active)
     {
         EnsureLoaded();
         var p = _currentPolicy;
+        if (!p.IsActivated && active) return; // Strict security: unlicensed cannot enable modules
         var key = NormalizeAppKey(appName);
+
+        if (active && !p.IsModuleAuthorizedByToken(appName))
+        {
+            return; // Not granted in cryptographic token
+        }
 
         switch (key)
         {
@@ -667,21 +756,21 @@ public static class KashtrixLicenseAuthority
                         }
                     }
 
-                    int channelsQuota = 16;
-                    int inputsQuota = 16;
-                    bool has4K = modulesSet.Contains("RES_4K");
-                    bool has8K = modulesSet.Contains("RES_8K");
-
                     if (root.TryGetProperty("ent", out var entEl) && entEl.ValueKind == JsonValueKind.Object)
                     {
-                        if (entEl.TryGetProperty("CHANNELS_QUOTA", out var cqEl) && cqEl.TryGetInt32(out var cq))
-                            channelsQuota = Math.Clamp(cq, 1, 64);
-                        if (entEl.TryGetProperty("INPUTS_QUOTA", out var iqEl) && iqEl.TryGetInt32(out var iq))
-                            inputsQuota = Math.Clamp(iq, 1, 64);
-                        if (entEl.TryGetProperty("RES_4K", out var r4El) && r4El.ValueKind == JsonValueKind.True)
-                            has4K = true;
-                        if (entEl.TryGetProperty("RES_8K", out var r8El) && r8El.ValueKind == JsonValueKind.True)
-                            has8K = true;
+                        foreach (var prop in entEl.EnumerateObject())
+                        {
+                            if (prop.Value.ValueKind == JsonValueKind.True || (prop.Value.ValueKind == JsonValueKind.Number && prop.Value.GetInt32() > 0))
+                            {
+                                modulesSet.Add(prop.Name);
+                            }
+                        }
+                    }
+
+                    p.AuthorizedModules.Clear();
+                    foreach (var code in modulesSet)
+                    {
+                        p.AuthorizedModules.Add(code);
                     }
 
                     p.IsActivated = true;
@@ -695,6 +784,7 @@ public static class KashtrixLicenseAuthority
                     p.ExpirationDate = expFormatted;
                     p.SupportContract = "Enterprise Broadcast Master SLA · Active";
 
+                    // Core Application Activation states
                     p.PlayoutActive = modulesSet.Contains("PLAYOUT");
                     p.OutputEngineActive = modulesSet.Contains("OUTPUT_ENGINE");
                     p.InputEngineActive = modulesSet.Contains("INPUT_ENGINE");
@@ -713,14 +803,86 @@ public static class KashtrixLicenseAuthority
                     p.QcControllerActive = modulesSet.Contains("QC_CONTROLLER");
                     p.FileManagerActive = modulesSet.Contains("FILE_MANAGER");
 
-                    p.PlayoutMaxChannels = channelsQuota;
-                    p.PlayoutMaxInputSources = inputsQuota;
-                    p.PlayoutMaxResolution = has8K ? "8K" : (has4K ? "4K" : "FHD");
+                    // Sub-Capability Flags & Hardware/Streaming/NDI modules
+                    p.AllowHardwareOutputs = modulesSet.Contains("OUT_HARDWARE");
+                    p.AllowStreamingOutputs = modulesSet.Contains("OUT_STREAMING");
+                    p.AllowNdiOutputs = modulesSet.Contains("OUT_NDI");
+                    p.AllowVirtualOutputs = modulesSet.Contains("OUT_VIRTUAL");
+
+                    p.AllowHardwareInputs = modulesSet.Contains("IN_HARDWARE");
+                    p.AllowStreamingInputs = modulesSet.Contains("IN_STREAMING");
+                    p.AllowNdiInputs = modulesSet.Contains("IN_NDI");
+                    p.AllowYoutubeInputs = modulesSet.Contains("IN_YOUTUBE");
+
+                    p.FeatureEpg = modulesSet.Contains("FEAT_EPG");
+                    p.FeatureScte = modulesSet.Contains("FEAT_SCTE");
+                    p.FeatureMos = modulesSet.Contains("FEAT_MOS");
+                    p.DirectPlayoutNdiOutputEnabled = modulesSet.Contains("PLAYOUT_DIRECT_NDI");
+
+                    p.CgControllerAllowExternalOutput = modulesSet.Contains("CG_EXTERNAL_OUT") || modulesSet.Contains("CG_DECKLINK_OUT") || modulesSet.Contains("CG_NDI_OUT");
+                    p.CgControllerDeckLinkOut = modulesSet.Contains("CG_DECKLINK_OUT");
+                    p.CgControllerNdiOut = modulesSet.Contains("CG_NDI_OUT");
+                    p.CgControllerQuickEdit = modulesSet.Contains("CG_QUICK_EDIT");
+                    p.CgControllerScheduler = modulesSet.Contains("CG_SCHEDULER");
+                    p.CgEditorQuickEdit = modulesSet.Contains("CG_QUICK_EDIT");
+                    p.ChannelControllerCgPlayAllowed = modulesSet.Contains("CG_CHANNEL_PLAY");
+
+                    p.IngestAllowHardware = modulesSet.Contains("INGEST_HARDWARE");
+                    p.IngestAllowStreaming = modulesSet.Contains("INGEST_STREAMING");
+                    p.IngestAllowNdi = modulesSet.Contains("INGEST_NDI");
+
+                    p.PrompterAllowNdi = modulesSet.Contains("PROMPTER_NDI");
+                    p.PrompterAllowCards = modulesSet.Contains("PROMPTER_CARDS");
+                    p.PrompterAllowDisplay = modulesSet.Contains("PROMPTER_DISPLAY");
+
+                    // Hierarchical Resolution Limitation (8K > 4K > FHD > HD > SD)
+                    if (modulesSet.Contains("RES_8K"))
+                        p.PlayoutMaxResolution = "8K";
+                    else if (modulesSet.Contains("RES_4K"))
+                        p.PlayoutMaxResolution = "4K";
+                    else if (modulesSet.Contains("RES_FHD"))
+                        p.PlayoutMaxResolution = "FHD";
+                    else if (modulesSet.Contains("RES_HD"))
+                        p.PlayoutMaxResolution = "HD";
+                    else if (modulesSet.Contains("RES_SD"))
+                        p.PlayoutMaxResolution = "SD";
+                    else
+                        p.PlayoutMaxResolution = "FHD";
+
                     p.OutputMaxResolution = p.PlayoutMaxResolution;
                     p.InputMaxResolution = p.PlayoutMaxResolution;
+                    p.CgControllerMaxResolution = p.PlayoutMaxResolution;
+                    p.CgEditorMaxResolution = p.PlayoutMaxResolution;
+                    p.IngestMaxResolution = p.PlayoutMaxResolution;
+
+                    // Audio output formats (7.1 > 5.1 > Stereo)
+                    if (modulesSet.Contains("AUDIO_7_1"))
+                        p.PlayoutAudioFormat = "7.1";
+                    else if (modulesSet.Contains("AUDIO_5_1"))
+                        p.PlayoutAudioFormat = "5.1";
+                    else
+                        p.PlayoutAudioFormat = "Stereo";
+
+                    // Integer Quotas
+                    if (root.TryGetProperty("ent", out var entObj) && entObj.ValueKind == JsonValueKind.Object)
+                    {
+                        if (entObj.TryGetProperty("CHANNELS_QUOTA", out var cqEl) && cqEl.TryGetInt32(out var cq))
+                            p.PlayoutMaxChannels = Math.Clamp(cq, 1, 64);
+                        if (entObj.TryGetProperty("INPUTS_QUOTA", out var iqEl) && iqEl.TryGetInt32(out var iq))
+                            p.PlayoutMaxInputSources = Math.Clamp(iq, 1, 64);
+                        if (entObj.TryGetProperty("OUTPUTS_QUOTA", out var oqEl) && oqEl.TryGetInt32(out var oq))
+                            p.MaxOutputInstances = Math.Clamp(oq, 1, 64);
+                        if (entObj.TryGetProperty("INGEST_QUOTA", out var inqEl) && inqEl.TryGetInt32(out var inq))
+                            p.IngestTotalChannels = Math.Clamp(inq, 1, 32);
+                        if (entObj.TryGetProperty("MULTIVIEW_INPUTS_QUOTA", out var mvqEl) && mvqEl.TryGetInt32(out var mvq))
+                            p.MultiviewerMaxInputs = Math.Clamp(mvq, 1, 64);
+                        if (entObj.TryGetProperty("QC_CHANNELS_QUOTA", out var qcqEl) && qcqEl.TryGetInt32(out var qcq))
+                            p.QcControllerChannelsCount = Math.Clamp(qcq, 1, 32);
+                    }
 
                     SavePolicy(p);
-                    message = $"Kashtrix Broadcast Suite successfully activated! Certified for {modulesSet.Count} modules with {channelsQuota} Playout channels ({p.PlayoutMaxResolution} resolution).";
+                    StopAutoResolveListener();
+                    message = $"Kashtrix Broadcast Suite successfully activated! Certified for {modulesSet.Count} modules with {p.PlayoutMaxChannels} Playout channels ({p.PlayoutMaxResolution} resolution).";
                     return true;
                 }
                 catch (Exception ex)
@@ -733,6 +895,121 @@ public static class KashtrixLicenseAuthority
 
         message = "Invalid license key format. Please paste the official signed cryptographic license key token issued by Kashtrix License Server.";
         return false;
+    }
+
+    /// <summary>
+    /// Starts background TLS connection to license server (port 7443)
+    /// to wait for remote license generation/dispatch (matching K-Mix protocol).
+    /// </summary>
+    public static void StartAutoResolveListener()
+    {
+        lock (_sync)
+        {
+            if (_autoResolveTask != null && !_autoResolveTask.IsCompleted) return;
+            _autoResolveCts = new CancellationTokenSource();
+            _autoResolveTask = Task.Run(() => AutoResolveLoopAsync(_autoResolveCts.Token));
+        }
+    }
+
+    public static void StopAutoResolveListener()
+    {
+        lock (_sync)
+        {
+            try { _autoResolveCts?.Cancel(); } catch { }
+            _autoResolveCts = null;
+            _autoResolveTask = null;
+        }
+    }
+
+    private static async Task AutoResolveLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested && !IsActivated)
+        {
+            try
+            {
+                var host = Current.LicenseServerHost;
+                var port = Current.LicenseServerPort;
+                using var tcp = new TcpClient();
+                var connectTask = tcp.ConnectAsync(host, port, ct).AsTask();
+                var timeoutTask = Task.Delay(8000, ct);
+                if (await Task.WhenAny(connectTask, timeoutTask) != connectTask || !tcp.Connected)
+                {
+                    await Task.Delay(6000, ct);
+                    continue;
+                }
+
+                using var stream = tcp.GetStream();
+                using var ssl = new SslStream(stream, false, (s, c, ch, err) => true);
+                await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+                {
+                    TargetHost = host,
+                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls13 | System.Security.Authentication.SslProtocols.Tls12
+                }, ct);
+
+                // Send PROVISION frame
+                var provisionFrame = JsonSerializer.Serialize(new
+                {
+                    type = "PROVISION",
+                    protocol = 2,
+                    clientId = GetOrCreatePersistentClientId(),
+                    tenantId = ProductTenantId.ToLowerInvariant(),
+                    applicationId = ProductApplicationId.ToLowerInvariant(),
+                    hwid = HardwareId.ToLowerInvariant(),
+                    provisioningId = ProvisioningKtxCode
+                }) + "\n";
+
+                var frameBytes = Encoding.UTF8.GetBytes(provisionFrame);
+                await ssl.WriteAsync(frameBytes, ct);
+                await ssl.FlushAsync(ct);
+
+                using var reader = new StreamReader(ssl, Encoding.UTF8, leaveOpen: true);
+                var lastHeartbeat = DateTime.UtcNow;
+
+                while (!ct.IsCancellationRequested && tcp.Connected)
+                {
+                    var readLineTask = reader.ReadLineAsync(ct).AsTask();
+                    var hbWaitTask = Task.Delay(5000, ct);
+                    var completed = await Task.WhenAny(readLineTask, hbWaitTask);
+
+                    if (completed == readLineTask)
+                    {
+                        var line = await readLineTask;
+                        if (string.IsNullOrWhiteSpace(line)) break;
+
+                        using var doc = JsonDocument.Parse(line);
+                        var root = doc.RootElement;
+                        var type = root.TryGetProperty("type", out var tEl) ? tEl.GetString() : null;
+
+                        if (type == "LICENSE_READY")
+                        {
+                            if (root.TryGetProperty("licenseKey", out var lkEl) && lkEl.GetString() is string lk && lk.Length > 50)
+                            {
+                                if (ActivateLicense(lk, "Licensed Operator", "Kashtrix Broadcast Systems Ltd.", out var msg))
+                                {
+                                    OnLicenseDelivered?.Invoke(true, msg);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    // Send heartbeat every 25 seconds
+                    if ((DateTime.UtcNow - lastHeartbeat).TotalSeconds >= 25)
+                    {
+                        var hb = JsonSerializer.Serialize(new { type = "PROVISION_HEARTBEAT", ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n";
+                        var hbBytes = Encoding.UTF8.GetBytes(hb);
+                        await ssl.WriteAsync(hbBytes, ct);
+                        await ssl.FlushAsync(ct);
+                        lastHeartbeat = DateTime.UtcNow;
+                    }
+                }
+            }
+            catch (OperationCanceledException) { break; }
+            catch
+            {
+                try { await Task.Delay(6000, ct); } catch { break; }
+            }
+        }
     }
 
     /// <summary>
@@ -754,6 +1031,7 @@ public static class KashtrixLicenseAuthority
             _currentPolicy = new LicensePolicy();
             _cachedKtx = null;
             _initialized = true;
+            StartAutoResolveListener();
         }
     }
 
@@ -872,10 +1150,13 @@ public sealed class LicensePolicy
     public string HwidBinding { get; set; } = string.Empty;
     public string IntegritySignature { get; set; } = string.Empty;
 
+    // Authorized Module Codes explicitly granted by cryptographic license token
+    public List<string> AuthorizedModules { get; set; } = [];
+
     // Playout.app settings
     public bool PlayoutActive { get; set; } = false;
     public string PlayoutMaxResolution { get; set; } = "FHD"; // SD, HD, FHD, 4K, 8K
-    public string PlayoutAudioFormat { get; set; } = "Stereo";
+    public string PlayoutAudioFormat { get; set; } = "Stereo"; // Stereo, 5.1, 7.1
     public int PlayoutMaxChannels { get; set; } = 1;
     public int PlayoutMaxInputSources { get; set; } = 1;
     public bool DirectPlayoutNdiOutputEnabled { get; set; } = false;
@@ -899,6 +1180,7 @@ public sealed class LicensePolicy
     public bool AllowHardwareInputs { get; set; } = false;
     public bool AllowStreamingInputs { get; set; } = false;
     public bool AllowNdiInputs { get; set; } = false;
+    public bool AllowYoutubeInputs { get; set; } = false;
 
     // Kashtrix.HAController
     public bool HaControllerActive { get; set; } = false;
@@ -911,6 +1193,8 @@ public sealed class LicensePolicy
     // Kashtrix.CGController
     public bool CgControllerActive { get; set; } = false;
     public bool CgControllerAllowExternalOutput { get; set; } = false;
+    public bool CgControllerDeckLinkOut { get; set; } = false;
+    public bool CgControllerNdiOut { get; set; } = false;
     public string CgControllerMaxResolution { get; set; } = "FHD";
     public bool CgControllerQuickEdit { get; set; } = false;
     public bool CgControllerScheduler { get; set; } = false;
@@ -928,6 +1212,9 @@ public sealed class LicensePolicy
     public bool IngestActive { get; set; } = false;
     public int IngestTotalChannels { get; set; } = 1;
     public string IngestMaxResolution { get; set; } = "FHD";
+    public bool IngestAllowHardware { get; set; } = false;
+    public bool IngestAllowStreaming { get; set; } = false;
+    public bool IngestAllowNdi { get; set; } = false;
 
     // Kashtrix.MAM
     public bool MamActive { get; set; } = false;
@@ -942,6 +1229,9 @@ public sealed class LicensePolicy
 
     // Kashtrix.Prompter
     public bool PrompterActive { get; set; } = false;
+    public bool PrompterAllowNdi { get; set; } = false;
+    public bool PrompterAllowCards { get; set; } = false;
+    public bool PrompterAllowDisplay { get; set; } = false;
 
     // Kashtrix.QCController
     public bool QcControllerActive { get; set; } = false;
@@ -952,6 +1242,40 @@ public sealed class LicensePolicy
 
     // Authorized Network Workstation & Channel Nodes (Multi-System Broadcast Licensing)
     public List<AuthorizedWorkstationNode> AuthorizedNodes { get; set; } = [];
+
+    public bool IsModuleAuthorizedByToken(string appKey)
+    {
+        if (!IsActivated) return false;
+        var norm = KashtrixLicenseAuthority.NormalizeAppKey(appKey);
+        var tokenCode = norm switch
+        {
+            "PLAYOUT" => "PLAYOUT",
+            "OUTPUTENGINE" => "OUTPUT_ENGINE",
+            "INPUTENGINE" => "INPUT_ENGINE",
+            "HACONTROLLER" => "HA_CONTROLLER",
+            "NRCS" => "NRCS",
+            "APIGATEWAY" => "API_GATEWAY",
+            "CGCONTROLLER" => "CG_CONTROLLER",
+            "CGEDITOR" => "CG_EDITOR",
+            "CHANNELCONTROLLER" => "CHANNEL_CTRL",
+            "INGESTSERVER" => "INGEST_SERVER",
+            "MAM" => "MAM",
+            "MULTIVIEWER" => "MULTIVIEWER",
+            "PLAYLISTEDITOR" => "PLAYLIST_EDITOR",
+            "SCHEDULER" => "SCHEDULER",
+            "PROMPTER" => "PROMPTER",
+            "QCCONTROLLER" => "QC_CONTROLLER",
+            "FILEMANAGER" => "FILE_MANAGER",
+            _ => norm
+        };
+        return AuthorizedModules.Contains(tokenCode, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public bool IsResolutionAuthorized(string requested)
+    {
+        if (!IsActivated) return false;
+        return KashtrixLicenseAuthority.IsResolutionAllowed(PlayoutMaxResolution, requested);
+    }
 }
 
 /// <summary>

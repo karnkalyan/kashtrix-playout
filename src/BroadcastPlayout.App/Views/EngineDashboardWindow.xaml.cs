@@ -109,8 +109,19 @@ public partial class EngineDashboardWindow : Window
         _pollTimer.Tick += (_, _) => RefreshStatus();
         _pollTimer.Start();
 
+        KashtrixLicenseAuthority.OnLicenseDelivered += HandleLicenseDelivered;
         Loaded += (_, _) => RefreshStatus();
-        Closed += (_, _) => _pollTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _pollTimer.Stop();
+            KashtrixLicenseAuthority.OnLicenseDelivered -= HandleLicenseDelivered;
+        };
+    }
+
+    private void HandleLicenseDelivered(bool success, string msg)
+    {
+        if (!success) return;
+        Dispatcher.InvokeAsync(() => RefreshStatus());
     }
 
     private void InitializeEngineList()
@@ -213,7 +224,7 @@ public partial class EngineDashboardWindow : Window
             Description = "Planning, Story Bank, live news rundowns, revisions, MOS graphics and Playout publishing",
             ProcessName = "Kashtrix.NRCS",
             IconGlyph = "📰",
-            AccentBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11))
+            AccentBrush = new SolidColorBrush(Color.FromRgb(56, 189, 248))
         });
 
         _engines.Add(new EngineItemModel
@@ -397,10 +408,10 @@ public partial class EngineDashboardWindow : Window
                 if (!KashtrixLicenseAuthority.IsModuleActive(engine.Key))
                 {
                     engine.StatusText = "DEACTIVATED";
-                    engine.StatusBg = new SolidColorBrush(Color.FromRgb(38, 22, 18));
-                    engine.StatusBorder = new SolidColorBrush(Color.FromRgb(110, 40, 30));
-                    engine.StatusFg = new SolidColorBrush(Color.FromRgb(240, 140, 90));
-                    engine.StatusDotBrush = new SolidColorBrush(Color.FromRgb(240, 140, 90));
+                    engine.StatusBg = new SolidColorBrush(Color.FromRgb(30, 41, 59));
+                    engine.StatusBorder = new SolidColorBrush(Color.FromRgb(51, 65, 85));
+                    engine.StatusFg = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+                    engine.StatusDotBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139));
                     engine.CardBorderBrush = CardStoppedBorder;
                     engine.Telemetry = "Module is deactivated in current license profile. Open License Manager to activate.";
                 }
