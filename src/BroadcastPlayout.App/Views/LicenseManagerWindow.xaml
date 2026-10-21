@@ -1,7 +1,7 @@
 <Window x:Class="BroadcastPlayout.Views.LicenseManagerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Kashtrix License Manager" Width="920" Height="620" MinWidth="800" MinHeight="520"
+        Title="Kashtrix Broadcast License Manager" Width="1180" Height="760" MinWidth="1020" MinHeight="660"
         WindowStartupLocation="CenterOwner" WindowStyle="None" ResizeMode="CanResizeWithGrip"
         Background="{StaticResource Bg0Brush}" Foreground="{StaticResource TextBrush}"
         Icon="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-playout.ico">
@@ -9,17 +9,17 @@
         <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Border BorderBrush="{StaticResource LineStrongBrush}" BorderThickness="1" Background="{StaticResource Bg0Brush}">
+    <Border BorderBrush="{StaticResource LineStrongBrush}" BorderThickness="0" Background="{StaticResource Bg0Brush}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="46"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="48"/>
+                <RowDefinition Height="50"/>
             </Grid.RowDefinitions>
 
             <!-- CUSTOM TITLEBAR -->
             <Border Grid.Row="0" Background="#0C1116" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <Grid Margin="12,0,8,0">
+                <Grid Margin="14,0,8,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -28,6 +28,9 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Image Source="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-playout.png" Width="22" Height="22" Stretch="Uniform" Margin="0,0,8,0"/>
                         <TextBlock Text="KASHTRIX BROADCAST LICENSE MANAGER" FontWeight="Bold" FontSize="13" Foreground="White" VerticalAlignment="Center"/>
+                        <Border Background="#1A2736" CornerRadius="3" Padding="6,2" Margin="10,0,0,0">
+                            <TextBlock Text="BROADCAST MASTER AUTHORITY" FontSize="9" FontWeight="SemiBold" Foreground="#38BDF8"/>
+                        </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource WindowControlButton}" Click="Minimize_Click"><TextBlock Style="{StaticResource WindowMinimizeGlyph}"/></Button>
@@ -38,127 +41,326 @@
             </Border>
 
             <!-- CONTENT BODY -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="18,14">
-                    <!-- LICENSE STATUS BANNER -->
-                    <Border Background="#101824" BorderBrush="#2A3D54" BorderThickness="1" CornerRadius="4" Padding="16,14" Margin="0,0,0,14">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="64"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Border Width="48" Height="48" Background="#1D2A3A" BorderBrush="#38BDF8" BorderThickness="1.5" CornerRadius="24" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock Text="🛡" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
-                                <TextBlock Text="ENTERPRISE BROADCAST MASTER · PERPETUAL" FontWeight="Bold" FontSize="15" Foreground="#F0F6FC"/>
-                                <TextBlock Text="Active broadcast license verified · Unlimited transmission channels &amp; full 4K UHD capability" Foreground="{StaticResource MutedBrush}" FontSize="10.5" Margin="0,3,0,0"/>
-                            </StackPanel>
-                            <Border Grid.Column="2" Background="#173122" BorderBrush="#55C878" BorderThickness="1.5" CornerRadius="4" Padding="12,6" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Ellipse Width="8" Height="8" Fill="#55C878" Margin="0,0,6,0"/>
-                                    <TextBlock Text="VALID &amp; ACTIVE" FontWeight="Bold" FontSize="11" Foreground="#85DE80"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </Border>
+            <Grid Grid.Row="1" Margin="16,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                    <!-- DETAILS GRID -->
-                    <Grid Margin="0,0,0,14">
+                <!-- TOP STATUS BANNER -->
+                <Border x:Name="TopBannerBorder" Grid.Row="0" Background="#181310" BorderBrush="#5C2B14" BorderThickness="1.5" CornerRadius="4" Padding="16,12" Margin="0,0,0,12">
+                    <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="54"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="14"/>
-                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-
-                        <!-- LEFT DETAILS -->
-                        <Border Grid.Column="0" Style="{StaticResource PanelBorder}" Padding="14">
-                            <StackPanel>
-                                <TextBlock Text="LICENSE DETAILS" FontWeight="Bold" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,10"/>
-
-                                <TextBlock Text="WORKSTATION NODE ID" Style="{StaticResource SectionCaption}"/>
-                                <TextBox x:Name="NodeIdBox" Text="KTX-NODE-88F4-992C-4KPRO" IsReadOnly="True" Margin="0,3,0,10" Background="#070A0E"/>
-
-                                <TextBlock Text="PRODUCT SERIAL / LICENSE KEY" Style="{StaticResource SectionCaption}"/>
-                                <TextBox x:Name="LicenseKeyBox" Text="KTX-ENT-2026-9482-991A-F49H-PRO" Margin="0,3,0,10"/>
-
-                                <TextBlock Text="REGISTERED ORGANIZATION" Style="{StaticResource SectionCaption}"/>
-                                <TextBox x:Name="OrgBox" Text="Kashtrix Broadcast Systems Ltd." Margin="0,3,0,10"/>
-
-                                <Grid Margin="0,4,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="EXPIRATION" Style="{StaticResource SectionCaption}"/>
-                                        <TextBlock Text="Never (Permanent)" FontWeight="SemiBold" Foreground="#85DE80" Margin="0,3,0,0"/>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="CHANNEL QUOTA" Style="{StaticResource SectionCaption}"/>
-                                        <TextBlock Text="16 Channels (Unlimited)" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,3,0,0"/>
-                                    </StackPanel>
-                                </Grid>
+                        <Border x:Name="BannerIconBorder" Width="42" Height="42" Background="#261A14" BorderBrush="#F59E0B" BorderThickness="1.5" CornerRadius="21" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock x:Name="BannerIconText" Text="🔒" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
+                            <TextBlock x:Name="TierBannerText" Text="KASHTRIX SUITE · UNLICENSED EVALUATION" FontWeight="Bold" FontSize="14" Foreground="#F0F6FC"/>
+                            <TextBlock x:Name="TierBannerSubtext" Text="Centralized Omni License Protocol v2 · Activation key required to unlock broadcast transmission engines." Foreground="{StaticResource MutedBrush}" FontSize="10.5" Margin="0,3,0,0"/>
+                        </StackPanel>
+                        <Border x:Name="BannerBadgeBorder" Grid.Column="2" Background="#2D1C12" BorderBrush="#A34E24" BorderThickness="1.5" CornerRadius="4" Padding="14,7" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse x:Name="BannerBadgeDot" Width="8" Height="8" Fill="#F59E0B" Margin="0,0,7,0"/>
+                                <TextBlock x:Name="BannerBadgeText" Text="UNLICENSED · ACTIVATION REQUIRED" FontWeight="Bold" FontSize="10.5" Foreground="#F59E0B"/>
                             </StackPanel>
                         </Border>
+                    </Grid>
+                </Border>
 
-                        <!-- RIGHT FEATURE ENTITLEMENTS -->
-                        <Border Grid.Column="2" Style="{StaticResource PanelBorder}" Padding="14">
-                            <StackPanel>
-                                <TextBlock Text="ACTIVATED MODULES &amp; CAPABILITIES" FontWeight="Bold" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,10"/>
+                <!-- TWO-COLUMN MAIN WORKSPACE -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="490" MinWidth="440"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                                <ItemsControl x:Name="FeaturesList">
+                    <!-- LEFT COLUMN: IDENTIFIERS & SERVER DETAILS -->
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,6,0">
+                            <!-- CARD 1: LICENSEE & HWID -->
+                            <Border Style="{StaticResource PanelBorder}" Padding="14" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="LICENSEE &amp; WORKSTATION IDENTIFIERS" FontWeight="Bold" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,10"/>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="LICENSED TO / OPERATOR" Style="{StaticResource SectionCaption}"/>
+                                            <TextBox x:Name="LicensedToBox" Text="Chief Transmission Engineer" Margin="0,3,0,0" Height="28"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="COMPANY / ORGANIZATION" Style="{StaticResource SectionCaption}"/>
+                                            <TextBox x:Name="OrgBox" Text="Kashtrix Broadcast Systems Ltd." Margin="0,3,0,0" Height="28"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.3*"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="LICENSE SERIAL KEY" Style="{StaticResource SectionCaption}"/>
+                                            <TextBox x:Name="LicenseKeyBox" Text="" Margin="0,3,0,0" Height="28" FontFamily="Consolas"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="LICENSE ID" Style="{StaticResource SectionCaption}"/>
+                                            <TextBox x:Name="LicenseIdBox" Text="UNREGISTERED-TRIAL" IsReadOnly="True" Margin="0,3,0,0" Height="28" Background="#070A0E" FontFamily="Consolas"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- SUITE ACTIVATION ACTION BUTTONS -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.4*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="⚡ ACTIVATE SUITE" Style="{StaticResource DemoActionButton}" Click="ActivateLicense_Click" Height="28" ToolTip="Validate serial key and activate enterprise broadcast features"/>
+                                        <Button Grid.Column="2" Content="RESET UNLICENSED" Style="{StaticResource SmallTool}" Click="ResetToUnlicensed_Click" Height="28" ToolTip="Reset suite back to default unlicensed evaluation state"/>
+                                    </Grid>
+
+                                    <TextBlock Text="WORKSTATION SECURE HARDWARE ID (HWID)" Style="{StaticResource SectionCaption}"/>
+                                    <TextBox x:Name="NodeIdBox" Text="KTX-NODE-88F4-992C-4KPRO" IsReadOnly="True" Margin="0,3,0,8" Height="28" Background="#070A0E" FontFamily="Consolas"/>
+
+                                    <TextBlock Text="KTX DEVICE PROVISIONING TOKEN" Style="{StaticResource SectionCaption}"/>
+                                    <Grid Margin="0,3,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="KtxTokenBox" Text="KTX1..." IsReadOnly="True" Margin="0,0,8,0" Height="28" Background="#070A0E" TextWrapping="NoWrap" FontFamily="Consolas" FontSize="9.5" Padding="6,4"/>
+                                        <Button Grid.Column="1" Content="COPY KTX" Style="{StaticResource SmallTool}" Click="CopyKtx_Click" Height="28" Padding="12,2" MinWidth="82" ToolTip="Copy KTX code to register on License Server"/>
+                                    </Grid>
+
+                                    <!-- STATUS METRICS BOX (NO OVERLAP) -->
+                                    <Border Background="#090E14" BorderBrush="#1C2634" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,4,0,0">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="135"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="LICENSE STATUS" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" x:Name="ActivationStatusText" Text="Unlicensed · Activation Required" FontWeight="Bold" Foreground="#F59E0B" TextWrapping="Wrap"/>
+                                            </Grid>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="135"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="EXPIRATION" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" x:Name="ExpirationText" Text="Requires License Key Activation" FontWeight="SemiBold" Foreground="#E2E8F0" TextWrapping="Wrap"/>
+                                            </Grid>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="135"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="RESOLUTION LIMIT" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" x:Name="MaxResText" Text="8K UHD (SD / HD / FHD / 4K / 8K)" FontWeight="SemiBold" Foreground="#38BDF8" TextWrapping="Wrap"/>
+                                            </Grid>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="135"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="SUPPORT &amp; SLA" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" x:Name="SupportContractText" Text="Evaluation Support · Unlicensed" FontWeight="SemiBold" Foreground="#C084FC" TextWrapping="Wrap"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- CARD 2: LICENSE SERVER & PROTOCOL (Referenced from K-Mix) -->
+                            <Border Style="{StaticResource PanelBorder}" Padding="14">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="LICENSE SERVER CONFIGURATION (OMNI V2)" FontWeight="Bold" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                                        <Border Grid.Column="1" Background="#142436" CornerRadius="3" Padding="6,2">
+                                            <TextBlock Text="K-MIX COMPATIBLE" FontSize="8.5" FontWeight="Bold" Foreground="#38BDF8"/>
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2.2*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="SERVER HOST / FQDN" Style="{StaticResource SectionCaption}"/>
+                                            <TextBox x:Name="LicenseServerHostBox" Text="license.simulcast.com.np" Margin="0,3,0,0" Height="28" FontFamily="Consolas"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="PORT" Style="{StaticResource SectionCaption}"/>
+                                            <TextBox x:Name="LicenseServerPortBox" Text="7443" Margin="0,3,0,0" Height="28" FontFamily="Consolas"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="PRODUCT TENANT UUID" Style="{StaticResource SectionCaption}"/>
+                                    <TextBox x:Name="TenantIdBox" Text="efbdb195-bf65-489d-b54c-bf807533151b" Margin="0,3,0,8" Height="28" FontFamily="Consolas" FontSize="10"/>
+
+                                    <TextBlock Text="PRODUCT APPLICATION UUID" Style="{StaticResource SectionCaption}"/>
+                                    <TextBox x:Name="AppIdBox" Text="91bdcf8a-d5e0-4cc4-9246-cafdda90d69a" Margin="0,3,0,10" Height="28" FontFamily="Consolas" FontSize="10"/>
+
+                                    <WrapPanel>
+                                        <Button Content="TEST CONNECTIVITY" Click="TestServer_Click" Style="{StaticResource SmallTool}" Height="28" Padding="12,2" Margin="0,0,8,0" ToolTip="Test connection to remote license server"/>
+                                        <Button Content="RESET DEFAULTS" Click="ResetServerDefaults_Click" Style="{StaticResource SmallTool}" Height="28" Padding="12,2" ToolTip="Restore production license server endpoint"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- CARD 3: AUTHORIZED WORKSTATION NODES -->
+                            <Border Style="{StaticResource PanelBorder}" Padding="14" Margin="0,12,0,0">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="AUTHORIZED WORKSTATION &amp; CHANNEL NODES" FontWeight="Bold" FontSize="11" Foreground="#38BDF8"/>
+                                            <TextBlock x:Name="PlayoutQuotaSummaryText" Text="Playout Quota: 1 / 16 Channels Allowed" Foreground="{StaticResource MutedBrush}" FontSize="9.5" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="＋ ADD NODE" Style="{StaticResource DemoActionButton}" Click="AddWorkstationNode_Click" Height="26" Padding="10,2" ToolTip="Authorize an application node on another workstation"/>
+                                    </Grid>
+
+                                    <!-- ITEMS CONTROL FOR NODES -->
+                                    <ItemsControl x:Name="AuthorizedNodesControl">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#090E14" BorderBrush="#1C2D44" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding ChannelName}" FontWeight="Bold" FontSize="11" Foreground="#F0F6FC"/>
+                                                                <TextBlock Text="{Binding ApplicationType, StringFormat='  · {0}'}" FontSize="9.5" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding HostEndpoint, StringFormat='Workstation IP: {0}'}" FontSize="9.5" FontFamily="Consolas" Foreground="#55C878" Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding AuthorizationToken, StringFormat='Token: {0}'}" FontSize="8.5" FontFamily="Consolas" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1" Content="REVOKE" Style="{StaticResource SmallTool}" Click="RevokeNode_Click" Tag="{Binding NodeId}" Height="24" Padding="8,1" VerticalAlignment="Center" ToolTip="Revoke node authorization"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- RIGHT COLUMN: MODULE GATES & ACTIVATION LIST -->
+                    <Border Grid.Column="2" Style="{StaticResource PanelBorder}" Padding="14">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="AUTHORITATIVE SUITE MODULE GATES" FontWeight="Bold" FontSize="12" Foreground="{StaticResource AccentBrush}"/>
+                                    <TextBlock Text="Applications only run when their module is actively licensed and enabled" Foreground="{StaticResource MutedBrush}" FontSize="9.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="ACTIVATE ALL" Style="{StaticResource SmallTool}" Click="ActivateAll_Click" Height="26" Padding="10,2" Margin="0,0,6,0" ToolTip="Enable all suite application modules"/>
+                                    <Button Content="DEACTIVATE ALL" Style="{StaticResource SmallTool}" Click="DeactivateAll_Click" Height="26" Padding="10,2" ToolTip="Disable all modules for testing license gates"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Grid.Row="1" Background="#080C10" BorderBrush="#1C242E" BorderThickness="1" CornerRadius="3" Padding="8,5" Margin="0,0,0,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="34"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="130"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="GATE" FontWeight="Bold" FontSize="9" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Grid.Column="1" Text="APPLICATION MODULE &amp; CAPABILITIES" FontWeight="Bold" FontSize="9" Foreground="{StaticResource MutedBrush}"/>
+                                    <TextBlock Grid.Column="2" Text="AUTHORITY STATUS" FontWeight="Bold" FontSize="9" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </Border>
+
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl x:Name="ModuleGatesControl">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Margin="0,3" Padding="6,4" Background="#0A0E13" BorderBrush="#1C242E" BorderThickness="1" CornerRadius="3">
+                                            <Border Margin="0,0,0,6" Padding="10,8" Background="#0A0E14" BorderBrush="{Binding StatusBorderBrush}" BorderThickness="1" CornerRadius="4">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="34"/>
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="✓" Foreground="#55C878" FontWeight="Bold" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="10" Foreground="#E2E7EC" VerticalAlignment="Center"/>
-                                                    <Border Grid.Column="2" Background="#162A1E" Padding="6,2" CornerRadius="2">
-                                                        <TextBlock Text="UNLOCKED" FontSize="8.5" FontWeight="Bold" Foreground="#85DE80"/>
+
+                                                    <!-- CHECKBOX TOGGLE -->
+                                                    <CheckBox IsChecked="{Binding IsActive, Mode=TwoWay}" VerticalAlignment="Center" HorizontalAlignment="Left" ToolTip="Toggle module activation gate"/>
+
+                                                    <!-- MODULE DETAILS -->
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,10,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="11" Foreground="#F0F6FC"/>
+                                                            <TextBlock Text="{Binding AppKey, StringFormat='  [{0}]'}" FontSize="9.5" FontFamily="Consolas" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Description}" FontSize="9.5" Foreground="#CBD5E1" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Capabilities}" FontSize="8.5" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+                                                    </StackPanel>
+
+                                                    <!-- STATUS BADGE -->
+                                                    <Border Grid.Column="2" Background="{Binding StatusBadgeBg}" BorderBrush="{Binding StatusBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="8,4" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding StatusBadgeText}" FontSize="9" FontWeight="Bold" Foreground="{Binding StatusBadgeFg}"/>
                                                     </Border>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                    <!-- ACTION BUTTONS -->
-                    <Border Style="{StaticResource PanelBorder}" Padding="12">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="StatusMessageText" Text="Mock license status: all broadcast engines active and unlocked." Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" FontSize="10.5"/>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Content="UPDATE KEY" Style="{StaticResource DemoActionButton}" Click="UpdateKey_Click" Margin="0,0,6,0"/>
-                                <Button Content="EXPORT CERTIFICATE" Style="{StaticResource WindowControlButton}" Click="ExportCertificate_Click" Margin="0,0,6,0"/>
-                                <Button Content="REFRESH" Style="{StaticResource WindowControlButton}" Click="Refresh_Click"/>
-                            </StackPanel>
+                            </ScrollViewer>
                         </Grid>
                     </Border>
-                </StackPanel>
-            </ScrollViewer>
+                </Grid>
+            </Grid>
 
-            <!-- FOOTER -->
-            <Border Grid.Row="2" Background="#0C1116" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="14,0">
+            <!-- FOOTER ACTION BAR -->
+            <Border Grid.Row="2" Background="#0C1116" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Kashtrix Broadcast Systems · License Engine v4.9 · Offline Dongle-Free Licensing" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" FontSize="10"/>
-                    <Button Grid.Column="1" Content="CLOSE" Width="80" Height="28" Click="Close_Click" Style="{StaticResource WindowControlButton}"/>
+                    <TextBlock x:Name="StatusMessageText" Text="All broadcast module gates verified. Applications will only execute when active." Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" FontSize="10.5"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="SAVE LICENSE PROFILE" Style="{StaticResource DemoActionButton}" Click="SavePolicy_Click" Margin="0,0,8,0" Height="28" Padding="14,2" ToolTip="Persist module gates and authority settings"/>
+                        <Button Content="EXPORT CERTIFICATE" Style="{StaticResource SmallTool}" Click="ExportCertificate_Click" Margin="0,0,8,0" Height="28" Padding="14,2" ToolTip="Export JSON license certificate"/>
+                        <Button Content="REFRESH" Style="{StaticResource SmallTool}" Click="Refresh_Click" Margin="0,0,8,0" Height="28" Padding="12,2" ToolTip="Reload license policy from disk"/>
+                        <Button Content="CLOSE" Style="{StaticResource SmallTool}" Click="Close_Click" Width="76" Height="28" Padding="12,2"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

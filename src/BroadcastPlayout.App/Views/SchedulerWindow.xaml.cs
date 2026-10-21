@@ -31,11 +31,51 @@ public partial class SchedulerWindow : Window, INotifyPropertyChanged
         if (d.ShowDialog() != true) return;
         try
         {
-            var info = MediaProbe.Read(d.FileName);
-            var item = new PlaylistItem { Title=Path.GetFileNameWithoutExtension(d.FileName), FilePath=d.FileName, SourceKind="File", EventType="VIDEO", InPoint=TimeSpan.Zero, OutPoint=info.Duration, SourceDuration=info.Duration, SourceFrameRate=info.FramesPerSecond, Codec=info.VideoCodec, VideoFormat=$"{info.Width}x{info.Height} {info.FramesPerSecond:0.###}p" };
+            var dur = TimeSpan.FromMinutes(30);
+            var codec = "auto";
+            var fps = 25.0;
+            var format = "1080p25";
+            try
+            {
+                var info = MediaProbe.Read(d.FileName);
+                if (info.Duration > TimeSpan.Zero) dur = info.Duration;
+                if (!string.IsNullOrWhiteSpace(info.VideoCodec)) codec = info.VideoCodec;
+                if (info.FramesPerSecond > 0) fps = info.FramesPerSecond;
+                if (info.Width > 0 && info.Height > 0) format = $"{info.Width}x{info.Height} {fps:0.###}p";
+            }
+            catch { }
+
+            var item = new PlaylistItem
+            {
+                Title = Path.GetFileNameWithoutExtension(d.FileName),
+                FilePath = d.FileName,
+                SourceKind = "File",
+                EventType = "VIDEO",
+                InPoint = TimeSpan.Zero,
+                OutPoint = dur,
+                SourceDuration = dur,
+                SourceFrameRate = fps,
+                Codec = codec,
+                VideoFormat = format
+            };
             var package = SaveSchedulePackage(item);
-            var entry = new ScheduleEntry { Name=item.Title, StartAt=DateTime.Now.AddMinutes(5), PlaylistPath=package, SourceLabel=d.FileName, EventType="Program", Duration=info.Duration, Repeat="One Time", StartMode="Hard Start", Enabled=true };
-            _vm.Schedules.Add(entry); _vm.SaveSchedules(); ScheduleGrid.SelectedItem = entry; SelectedSchedule = entry;
+            var entry = new ScheduleEntry
+            {
+                Name = item.Title,
+                StartAt = DateTime.Now.AddMinutes(5),
+                PlaylistPath = d.FileName,
+                SourceLabel = d.FileName,
+                EventType = "Program",
+                Duration = dur,
+                Repeat = "One Time",
+                StartMode = "Force Play (Hard Cut on Time)",
+                AutoTrigger = true,
+                Enabled = true
+            };
+            _vm.Schedules.Add(entry);
+            _vm.SaveSchedules();
+            ScheduleGrid.SelectedItem = entry;
+            SelectedSchedule = entry;
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Insert Media"); }
     }
@@ -116,6 +156,29 @@ public partial class SchedulerWindow : Window, INotifyPropertyChanged
 
     private void Publish_Click(object sender, RoutedEventArgs e) { _vm.SaveSchedules(); SignalPlayoutReload(); MessageBox.Show("Schedule published to the shared Kashtrix channel database.", "Scheduler"); }
     private void Save_Click(object sender, RoutedEventArgs e) { _vm.SaveSchedules(); SignalPlayoutReload(); }
+    private void PushToPlayout_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _vm.SaveSchedules();
+            SignalPlayoutReload();
+            SignalPlaylistReload();
+
+            if (SelectedSchedule is not null && !string.IsNullOrWhiteSpace(SelectedSchedule.PlaylistPath) && File.Exists(SelectedSchedule.PlaylistPath))
+            {
+                InsertIntoPlayout_Click(sender, e);
+            }
+            else
+            {
+                MessageBox.Show("All scheduled events and triggers synced and pushed to Playout channel.", "Scheduler", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Push to Playout", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void BrowseMediaOrPlaylist_Click(object sender, RoutedEventArgs e)
     {
         if (SelectedSchedule is null) return;
@@ -141,8 +204,16 @@ public partial class SchedulerWindow : Window, INotifyPropertyChanged
             }
             else
             {
-                var info = MediaProbe.Read(d.FileName);
-                SelectedSchedule.Duration = info.Duration;
+                try
+                {
+                    var info = MediaProbe.Read(d.FileName);
+                    if (info.Duration > TimeSpan.Zero) SelectedSchedule.Duration = info.Duration;
+                }
+                catch
+                {
+                    if (SelectedSchedule.Duration <= TimeSpan.Zero)
+                        SelectedSchedule.Duration = TimeSpan.FromMinutes(30);
+                }
                 SelectedSchedule.EventType = "Program";
             }
             _vm.SaveSchedules();
@@ -155,7 +226,8 @@ public partial class SchedulerWindow : Window, INotifyPropertyChanged
 
     private void InsertIntoPlayout_Click(object sender, RoutedEventArgs e)
     {
-        var entry = ScheduleGrid.SelectedItem as ScheduleEntry; if (entry is null || string.IsNullOrWhiteSpace(entry.PlaylistPath) || !File.Exists(entry.PlaylistPath)) return;
+        var entry = ScheduleGrid.SelectedItem as ScheduleEntry ?? SelectedSchedule;
+        if (entry is null || string.IsNullOrWhiteSpace(entry.PlaylistPath) || !File.Exists(entry.PlaylistPath)) return;
         try
         {
             if (entry.PlaylistPath.EndsWith(".kashtrix", StringComparison.OrdinalIgnoreCase) ||
@@ -165,24 +237,38 @@ public partial class SchedulerWindow : Window, INotifyPropertyChanged
             }
             else
             {
-                var info = MediaProbe.Read(entry.PlaylistPath);
+                var dur = entry.Duration > TimeSpan.Zero ? entry.Duration : TimeSpan.FromMinutes(30);
+                var codec = "auto";
+                var fps = 25.0;
+                var fmt = "1080p25";
+                try
+                {
+                    var info = MediaProbe.Read(entry.PlaylistPath);
+                    if (info.Duration > TimeSpan.Zero) dur = info.Duration;
+                    if (!string.IsNullOrWhiteSpace(info.VideoCodec)) codec = info.VideoCodec;
+                    if (info.FramesPerSecond > 0) fps = info.FramesPerSecond;
+                    if (info.Width > 0 && info.Height > 0) fmt = $"{info.Width}x{info.Height} {fps:0.###}p";
+                }
+                catch { }
+
                 var item = new PlaylistItem
                 {
-                    Title = Path.GetFileNameWithoutExtension(entry.PlaylistPath),
+                    Title = !string.IsNullOrWhiteSpace(entry.Name) ? entry.Name : Path.GetFileNameWithoutExtension(entry.PlaylistPath),
                     FilePath = entry.PlaylistPath,
                     SourceKind = "File",
                     EventType = "VIDEO",
                     InPoint = TimeSpan.Zero,
-                    OutPoint = info.Duration,
-                    SourceDuration = info.Duration,
-                    SourceFrameRate = info.FramesPerSecond,
-                    Codec = info.VideoCodec,
-                    VideoFormat = $"{info.Width}x{info.Height} {info.FramesPerSecond:0.###}p"
+                    OutPoint = dur,
+                    SourceDuration = dur,
+                    SourceFrameRate = fps,
+                    Codec = codec,
+                    VideoFormat = fmt,
+                    Category = entry.Category
                 };
                 _vm.AddInputSource(item);
             }
             SignalPlaylistReload();
-            MessageBox.Show("Scheduled media inserted into the shared playout rundown.", "Scheduler");
+            MessageBox.Show($"Pushed '{entry.Name}' directly to Playout rundown.", "Scheduler");
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "Scheduler"); }
     }
@@ -193,7 +279,7 @@ public partial class SchedulerWindow : Window, INotifyPropertyChanged
         MessageBox.Show(missing.Length == 0 ? "Schedule validation passed." : $"{missing.Length} enabled event(s) have missing media/playlist packages.", "Schedule Validation");
     }
     private void Close_Click(object sender, RoutedEventArgs e) { _vm.SaveSchedules(); SignalPlayoutReload(); Close(); }
-    private static void SignalPlayoutReload() { try { var folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KashtrixPlayout"); Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder,"scheduler.reload"), DateTime.UtcNow.ToString("O")); } catch { } }
+    private static void SignalPlayoutReload() { try { var folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KashtrixPlayout"); Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder,"scheduler.reload"), DateTime.UtcNow.ToString("O")); File.WriteAllText(Path.Combine(folder,"schedules.reload"), DateTime.UtcNow.ToString("O")); } catch { } }
     private static void SignalPlaylistReload() { try { var folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"KashtrixPlayout"); Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder,"playlist.reload"), DateTime.UtcNow.ToString("O")); } catch { } }
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => WindowChromeActions.Drag(this, e);
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

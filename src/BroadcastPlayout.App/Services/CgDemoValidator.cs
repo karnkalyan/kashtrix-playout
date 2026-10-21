@@ -81,19 +81,12 @@ public static class CgDemoValidator
             layer.CornerRadiusTopRightPercent=double.IsFinite(layer.CornerRadiusTopRightPercent)?Math.Clamp(layer.CornerRadiusTopRightPercent,0,50):0;
             layer.CornerRadiusBottomRightPercent=double.IsFinite(layer.CornerRadiusBottomRightPercent)?Math.Clamp(layer.CornerRadiusBottomRightPercent,0,50):0;
             layer.CornerRadiusBottomLeftPercent=double.IsFinite(layer.CornerRadiusBottomLeftPercent)?Math.Clamp(layer.CornerRadiusBottomLeftPercent,0,50):0;
-            // Keep bundled examples broadcast-safe. Generated templates must not render text or
-            // geometry outside the 16:9 design raster, and single-line display text is scaled
-            // down when its estimated glyph width would overflow its authored box.
-            layer.Width=Math.Clamp(layer.Width,4,project.Width); layer.Height=Math.Clamp(layer.Height,4,project.Height);
-            layer.X=Math.Clamp(layer.X,0,Math.Max(0,project.Width-layer.Width)); layer.Y=Math.Clamp(layer.Y,0,Math.Max(0,project.Height-layer.Height));
-            if(layer.Type.Equals("Text",StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(layer.Text))
-            {
-                layer.FontSize=Math.Clamp(layer.FontSize,10,260);
-                var longest=layer.Text.Replace("\r","").Split('\n').Select(x=>x.Length).DefaultIfEmpty(0).Max();
-                var estimated=longest*layer.FontSize*.58;
-                var singleLine=layer.Height <= layer.FontSize*2.35;
-                if(singleLine && estimated>layer.Width*.94 && estimated>0) layer.FontSize=Math.Max(12,layer.FontSize*(layer.Width*.94/estimated));
-            }
+            // Preserve authored layer dimensions, placement, and typography.
+            // Do not forcibly clamp X, Y, Width, Height or shrink font size.
+            if (!double.IsFinite(layer.Width) || layer.Width <= 0) layer.Width = 100;
+            if (!double.IsFinite(layer.Height) || layer.Height <= 0) layer.Height = 100;
+            if (!double.IsFinite(layer.X)) layer.X = 0;
+            if (!double.IsFinite(layer.Y)) layer.Y = 0;
             layer.Keyframes ??=[];
             foreach(var key in layer.Keyframes)
             {

@@ -19,10 +19,8 @@ public partial class ChannelControllerWindow : Window, INotifyPropertyChanged
     private readonly DispatcherTimer _timer;
     private readonly HashSet<string> _targetIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ChannelDefinition> _definitions = [];
-    private readonly Dictionary<string, ChannelStatusSnapshot> _demoStatuses = new(StringComparer.OrdinalIgnoreCase);
     private ChannelNodeView? _selectedChannel;
     private CgProject? _selectedGraphic;
-    private bool _demoMode;
     private string _listenerStatus = "STARTING";
 
     public ObservableCollection<ChannelNodeView> Channels { get; } = [];
@@ -83,7 +81,6 @@ public partial class ChannelControllerWindow : Window, INotifyPropertyChanged
         var ids = new HashSet<string>(live.Keys, StringComparer.OrdinalIgnoreCase);
         foreach (var definition in _definitions) ids.Add(definition.ChannelId);
         ids.Add(_vm.ChannelId);
-        if (_demoMode) foreach (var id in _demoStatuses.Keys) ids.Add(id);
         _targetIds.RemoveWhere(id => !ids.Contains(id));
         if (_targetIds.Count == 0)
         {
@@ -96,16 +93,8 @@ public partial class ChannelControllerWindow : Window, INotifyPropertyChanged
         foreach (var id in ids.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
             var definition = _definitions.FirstOrDefault(x => x.ChannelId.Equals(id, StringComparison.OrdinalIgnoreCase));
-            ChannelStatusSnapshot? demoStatus = null;
-            var isDemo = false;
-            if (_demoMode && _demoStatuses.TryGetValue(id, out var resolvedDemoStatus))
-            {
-                isDemo = true;
-                demoStatus = resolvedDemoStatus;
-            }
             var isOnline = live.TryGetValue(id, out var liveStatus);
-            var status = isOnline ? liveStatus : demoStatus;
-            status ??= new ChannelStatusSnapshot
+            var status = liveStatus ?? new ChannelStatusSnapshot
             {
                 ChannelId = id,
                 ChannelName = definition?.ChannelName ?? (id.Equals(_vm.ChannelId, StringComparison.OrdinalIgnoreCase) ? _vm.ChannelName : "Unregistered Channel"),
@@ -121,7 +110,7 @@ public partial class ChannelControllerWindow : Window, INotifyPropertyChanged
                 if (string.IsNullOrWhiteSpace(status.Format)) status.Format = definition.Format;
             }
 
-            var node = new ChannelNodeView(index++, status, isOnline || isDemo, isDemo, OnTargetChanged)
+            var node = new ChannelNodeView(index++, status, isOnline, false, OnTargetChanged)
             {
                 IsSelected = _targetIds.Contains(id)
             };
@@ -216,43 +205,7 @@ public partial class ChannelControllerWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void LoadDemo_Click(object sender, RoutedEventArgs e)
-    {
-        _demoMode = true;
-        _definitions.Clear();
-        _definitions.AddRange(DemoDataFactory.CreateChannels());
-        ChannelRegistryStore.Save(_definitions);
-        _vm.LoadDemoWorkspace();
-        BuildDemoStatuses();
-        SelectedGraphic = Graphics.FirstOrDefault();
-        RefreshChannels();
-        AddLog("Demo workspace loaded: channels, rundown, schedules and graphics.");
-    }
-
-    private void BuildDemoStatuses()
-    {
-        _demoStatuses.Clear();
-        var programs = new[] { "Morning Headlines", "National News", "Market Open", "Sports Live", "Digital Bulletin", "UHD Showcase" };
-        var next = new[] { "Weather Update", "Business Desk", "Market Watch", "Match Highlights", "Social Desk", "Prime Promo" };
-        var i = 0;
-        foreach (var channel in _definitions)
-        {
-            _demoStatuses[channel.ChannelId] = new ChannelStatusSnapshot
-            {
-                ChannelId = channel.ChannelId,
-                ChannelName = channel.ChannelName,
-                State = i % 3 == 1 ? "CUED" : "ON AIR",
-                ProgramTitle = programs[i % programs.Length],
-                NextTitle = next[i % next.Length],
-                Format = channel.Format,
-                ElapsedSeconds = 120 + i * 73,
-                AudioLeft = .42 + (i % 3) * .12,
-                AudioRight = .37 + (i % 2) * .18,
-                LastSeenUtc = DateTime.UtcNow
-            };
-            i++;
-        }
-    }
+    // Demo channel seeding removed - only actual registered and connected channels are displayed.
 
     private void OpenCg_Click(object sender, RoutedEventArgs e)
     {

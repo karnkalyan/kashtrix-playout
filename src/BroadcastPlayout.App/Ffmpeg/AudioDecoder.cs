@@ -115,12 +115,33 @@ public sealed unsafe class AudioDecoder : IDisposable
                 ? item.FilePath
                 : (YtDlpResolver.LooksLikeWebVideoPage(item.AlternateAudioUrl) ? item.AlternateAudioUrl : null);
 
-            if (!string.IsNullOrWhiteSpace(webUrl))
+            string? directAudioUrl = null;
+            if (!string.IsNullOrWhiteSpace(item.AlternateAudioUrl) && !YtDlpResolver.LooksLikeWebVideoPage(item.AlternateAudioUrl))
+            {
+                directAudioUrl = item.AlternateAudioUrl;
+            }
+            else if (!string.IsNullOrWhiteSpace(webUrl))
+            {
+                if (YtDlpResolver.TryGetCached(webUrl, out var cached) && cached is not null)
+                {
+                    directAudioUrl = !string.IsNullOrWhiteSpace(cached.AudioUrl) ? cached.AudioUrl : cached.MediaUrl;
+                }
+                else
+                {
+                    try
+                    {
+                        var resolved = YtDlpResolver.ResolveAsync(webUrl).GetAwaiter().GetResult();
+                        directAudioUrl = !string.IsNullOrWhiteSpace(resolved.AudioUrl) ? resolved.AudioUrl : resolved.MediaUrl;
+                    }
+                    catch { }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(directAudioUrl))
             {
                 try
                 {
-                    var resolved = YtDlpResolver.ResolveAsync(webUrl).GetAwaiter().GetResult();
-                    var targetUrl = !string.IsNullOrWhiteSpace(resolved.AudioUrl) ? resolved.AudioUrl : resolved.MediaUrl;
+                    var targetUrl = directAudioUrl;
                     if (!string.IsNullOrWhiteSpace(targetUrl))
                     {
                         var ytItem = new PlaylistItem

@@ -1,0 +1,250 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-0: #080A0D;
+  --color-bg-1: #0D1015;
+  --color-bg-2: #13171F;
+  --color-bg-3: #1B212B;
+  --color-line: #242B36;
+  --color-line-strong: #333D4D;
+  --color-text-main: #F1F5F9;
+  --color-text-muted: #8E9BAE;
+  --color-accent: #8B5CF6;
+  --color-accent-light: #C4B5FD;
+  --color-accent-dark: #6D28D9;
+  --color-pink: #EC4899;
+  --color-pink-light: #FBCFE8;
+  --color-onair: #EF4444;
+  --color-good: #10B981;
+  --color-warning: #F59E0B;
+  --color-cyan: #06B6D4;
+  --font-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+:root {
+  /* Light Mode Default - Ultra-clean High-Tech Enterprise White */
+  --bg-page: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F1F5F9;
+  --bg-sidebar: #FFFFFF;
+  --bg-popover: #FFFFFF;
+  
+  --border-subtle: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --border-accent: rgba(124, 58, 237, 0.3);
+  
+  --text-main: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  
+  --accent: #7C3AED;
+  --accent-light: #8B5CF6;
+  --accent-dark: #6D28D9;
+  --accent-glow: rgba(124, 58, 237, 0.16);
+  
+  --onair: #DC2626;
+  --onair-glow: rgba(220, 38, 38, 0.2);
+  --pvw: #059669;
+  --pvw-glow: rgba(5, 150, 105, 0.2);
+  --genlock: #0891B2;
+  --warning: #D97706;
+  
+  --shadow-card: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-card-hover: 0 14px 34px -4px rgba(15, 23, 42, 0.1), 0 0 20px rgba(124, 58, 237, 0.1);
+}
+
+html.dark {
+  /* Dark Mode - Broadcast Master Control Suite */
+  --bg-page: #080A0D;
+  --bg-surface: #0E1217;
+  --bg-card: #131821;
+  --bg-card-hover: #1A212D;
+  --bg-sidebar: #0B0E13;
+  --bg-popover: #131821;
+  
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-accent: rgba(139, 92, 246, 0.35);
+  
+  --text-main: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  
+  --accent: #8B5CF6;
+  --accent-light: #C4B5FD;
+  --accent-dark: #6D28D9;
+  --accent-glow: rgba(139, 92, 246, 0.28);
+  
+  --onair: #EF4444;
+  --onair-glow: rgba(239, 68, 68, 0.35);
+  --pvw: #10B981;
+  --pvw-glow: rgba(16, 185, 129, 0.35);
+  --genlock: #06B6D4;
+  --warning: #F59E0B;
+  
+  --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.6), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+  --shadow-card-hover: 0 20px 40px -12px rgba(0, 0, 0, 0.75), 0 0 25px rgba(139, 92, 246, 0.15);
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-main);
+  font-family: var(--font-display);
+  overflow-x: hidden;
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+::-webkit-scrollbar-thumb {
+  background: #4C2882;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8B5CF6;
+}
+
+/* Keyframe Animations */
+@keyframes auroraMesh {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(-25px, 15px) scale(1.06);
+    opacity: 0.65;
+  }
+}
+
+@keyframes tallyPulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 7px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes livePulseGreen {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 7px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes shimmerGlow {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes vuMeterBounce {
+  0%, 100% { height: 28%; }
+  25% { height: 88%; }
+  50% { height: 55%; }
+  75% { height: 96%; }
+}
+
+.animate-aurora {
+  animation: auroraMesh 12s ease-in-out infinite;
+}
+
+.animate-tally-red {
+  animation: tallyPulse 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+.animate-tally-green {
+  animation: livePulseGreen 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+/* Typography Gradient Utilities */
+.gradient-text-kashtrix {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 25%, #C4B5FD 65%, #F472B6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+html.light .gradient-text-kashtrix {
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 35%, #7C3AED 70%, #A855F7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-brand {
+  background: linear-gradient(135deg, #7C3AED 0%, #A855F7 45%, #EC4899 100%);
+}
+
+.gradient-brand-subtle {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.12) 0%, rgba(168, 85, 247, 0.08) 50%, rgba(236, 72, 153, 0.05) 100%);
+}
+
+/* Modern Card Surfaces (Shadcn + Glassmorphism) */
+.glass-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-elevated {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-card);
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-elevated:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Subtle inner top-edge highlight for ultra-sleek hardware/modern look */
+.border-top-highlight {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+html.light .border-top-highlight {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+}
+
+/* Button Shimmer */
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #7C3AED, #9333EA, #7C3AED);
+  background-size: 200% 100%;
+  transition: background-position 0.5s ease;
+}
+
+.btn-shimmer:hover {
+  background-position: right center;
+}
+
+/* High-Tech Background Grid */
+.bg-grid-tech {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+html.light .bg-grid-tech {
+  background-image: 
+    linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+}

@@ -6,7 +6,7 @@
         <Grid Background="{StaticResource Bg0Brush}">
             <Grid.RowDefinitions>
                 <RowDefinition x:Name="TopNavRow" Height="52"/>
-                <RowDefinition x:Name="TopConfidenceRow" Height="220" MinHeight="0"/>
+                <RowDefinition x:Name="TopConfidenceRow" Height="265" MinHeight="220"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition x:Name="BottomStatusRow" Height="32"/>
             </Grid.RowDefinitions>
@@ -133,8 +133,8 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="20"/>
                             <RowDefinition Height="*"/>
-                            <RowDefinition Height="24"/>
-                            <RowDefinition Height="26"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="32"/>
                         </Grid.RowDefinitions>
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -151,20 +151,20 @@
                         <Grid Grid.Row="2" Margin="0,2">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="2"/>
+                                <ColumnDefinition Width="3"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="2"/>
+                                <ColumnDefinition Width="3"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="▶ PLAY" Click="SelectedPlay_Click" Background="#16291C" BorderBrush="{StaticResource GoodBrush}" FontSize="8.5" ToolTip="Play or resume selected input feed"/>
-                            <Button Grid.Column="2" Content="⏸ PAUSE" Click="SelectedPause_Click" Background="#261E10" BorderBrush="{StaticResource WarningBrush}" FontSize="8.5" ToolTip="Pause selected input feed"/>
-                            <Button Grid.Column="4" Content="⏹ STOP" Click="SelectedStop_Click" Background="#2A161E" BorderBrush="{StaticResource OnAirBrush}" FontSize="8.5" ToolTip="Stop selected input feed"/>
+                            <Button Grid.Column="0" Content="▶ PLAY" Click="SelectedPlay_Click" Height="26" Background="#16291C" BorderBrush="{StaticResource GoodBrush}" FontSize="8.5" ToolTip="Play or resume selected input feed"/>
+                            <Button Grid.Column="2" Content="⏸ PAUSE" Click="SelectedPause_Click" Height="26" Background="#261E10" BorderBrush="{StaticResource WarningBrush}" FontSize="8.5" ToolTip="Pause selected input feed"/>
+                            <Button Grid.Column="4" Content="⏹ STOP" Click="SelectedStop_Click" Height="26" Background="#2A161E" BorderBrush="{StaticResource OnAirBrush}" FontSize="8.5" ToolTip="Stop selected input feed"/>
                         </Grid>
                         <!-- Take PVW / Take PGM -->
                         <Grid Grid.Row="3" Margin="0,2,0,0">
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="TAKE PVW" Click="TakePreview_Click" Background="#2E1643" BorderBrush="{StaticResource PinkBrush}" FontSize="9"/>
-                            <Button Grid.Column="2" Content="TAKE PGM" Click="TakeProgram_Click" Background="#3D141C" BorderBrush="{StaticResource OnAirBrush}" FontSize="9"/>
+                            <Button Grid.Column="0" Content="TAKE PVW" Click="TakePreview_Click" Height="28" Background="#2E1643" BorderBrush="{StaticResource PinkBrush}" FontSize="9" FontWeight="SemiBold"/>
+                            <Button Grid.Column="2" Content="TAKE PGM" Click="TakeProgram_Click" Height="28" Background="#3D141C" BorderBrush="{StaticResource OnAirBrush}" FontSize="9" FontWeight="SemiBold"/>
                         </Grid>
                     </Grid>
                 </Border>
@@ -172,9 +172,9 @@
                 <!-- SIGNAL QC & ALERT MONITOR -->
                 <Border Grid.Column="3" Style="{StaticResource PanelBorder}" Margin="4,0,0,0" Padding="8">
                     <Grid>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="34"/></Grid.RowDefinitions>
                         <TextBlock Text="SIGNAL MONITOR / ALERTS" Style="{StaticResource PanelTitle}" FontSize="9.5"/>
-                        <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,4">
+                        <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,2">
                             <Grid Margin="0,2">
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Black Frame Detector" FontSize="8.5" Foreground="{StaticResource MutedBrush}"/>
@@ -196,14 +196,14 @@
                                 <TextBlock Grid.Column="1" Text="NOMINAL" FontSize="8.5" Foreground="{StaticResource GoodBrush}" FontWeight="SemiBold"/>
                             </Grid>
                         </StackPanel>
-                        <Grid Grid.Row="2">
+                        <Grid Grid.Row="2" Margin="0,2,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="4"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="+ STUDIO" Click="AddStudioTile_Click" Style="{StaticResource SmallTool}" Height="24" FontSize="8.5" Background="#33144D" BorderBrush="#8B2FC9" Foreground="#FFFFFF" ToolTip="Add Kashtrix Studio live confidence tile"/>
-                            <Button Grid.Column="2" Content="CONFIG" Click="OpenInput_Click" Style="{StaticResource SmallTool}" Height="24" FontSize="8.5"/>
+                            <Button Grid.Column="0" Content="+ STUDIO" Click="AddStudioTile_Click" Height="28" FontSize="9" Background="#33144D" BorderBrush="#8B2FC9" Foreground="#FFFFFF" FontWeight="SemiBold" ToolTip="Add Kashtrix Studio live confidence tile"/>
+                            <Button Grid.Column="2" Content="CONFIG" Click="OpenInput_Click" Height="28" FontSize="9" FontWeight="SemiBold"/>
                         </Grid>
                     </Grid>
                 </Border>

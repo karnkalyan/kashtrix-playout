@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b101b">
+  <title>MarketCG Studio — Single File Broadcast Controller</title>
+  <style>
+:root {
+  --page: #0b1019;
+  --panel: #101725;
+  --panel-soft: #131c2b;
+  --panel-border: #263346;
+  --muted: #7f90a8;
+  --text: #eaf0fa;
+  --green: #60e4ab;
+  --red: #ff7b8a;
+  --blue: #61a8ff;
+  --highlight: #a4fb43;
+}
+* { box-sizing: border-box; }
+html { min-height: 100%; }
+body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.5 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #79bcff; outline-offset: 3px; }
+.app-shell { min-height: 100vh; max-width: 1920px; margin: 0 auto; }
+.app-header { display: flex; align-items: center; justify-content: space-between; padding: 18px clamp(18px, 2.1vw, 34px); gap: 18px; border-bottom: 1px solid #202b3a; background: linear-gradient(90deg,#101927 0%,#0b1019 70%); }
+.brand-area, .header-right, .app-name, .app-name strong, .header-btn, .primary-header-btn { display: flex; align-items: center; }
+.brand-area { gap: 12px; min-width: 0; }
+.app-symbol { width: 37px; height: 37px; background: #b2ff49; border-radius: 10px; display: flex; align-items: flex-end; gap: 3px; padding: 9px; transform: skewX(-5deg); flex: none; }
+.app-symbol span { background: #101a14; width: 6px; border-radius: 2px 2px 0 0; }
+.app-symbol span:nth-child(1) { height: 8px; }.app-symbol span:nth-child(2) { height: 14px; }.app-symbol span:nth-child(3) { height: 22px; }
+.app-name { flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.app-name strong { gap: 2px; font-size: 19px; letter-spacing: -.8px; font-weight: 850; }
+.app-name strong span { color: #b2ff49; }
+.app-name small { color: #8a9ab0; letter-spacing: 1.4px; font-size: 8px; font-weight: 800; margin-top: 5px; white-space: nowrap; }
+.header-version { color: #8494ad; font: 700 10px/1.6 monospace; border: 1px solid #35445a; border-radius: 4px; padding: 2px 6px; margin-left: 2px; }
+.header-right { gap: 9px; }
+.header-tag { color: #9babbe; font-size: 10px; font-weight: 800; letter-spacing: .9px; white-space: nowrap; margin-right: 9px; }
+.pulse-dot, .preview-led, .onair-label span { display: inline-block; background: #83fcae; box-shadow: 0 0 0 3px #83fcae15; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+.header-btn, .primary-header-btn { gap: 8px; padding: 9px 12px; border-radius: 8px; text-decoration: none; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.header-btn { background: #172132; border: 1px solid #2e3c52; color: #d5e0ef; }
+.header-btn:hover { background: #243248; }
+.primary-header-btn { background: #b7ff56; border: 1px solid #b7ff56; color: #10200a; }
+.primary-header-btn:hover { background: #d0ff93; }
+.workspace { padding: 22px clamp(15px, 2.1vw, 34px) 24px; display: grid; grid-template-columns: minmax(257px, 296px) minmax(0, 1fr) minmax(265px, 302px); gap: 19px; align-items: start; }
+.panel { border: 1px solid var(--panel-border); border-radius: 12px; background: var(--panel); min-width: 0; overflow: hidden; }
+.panel-header { padding: 18px 17px 15px; display: flex; align-items: center; justify-content: space-between; gap: 7px; border-bottom: 1px solid #273345; }
+.micro-label { font-size: 9px; line-height: 1.8; color: #7488a2; letter-spacing: 1.65px; font-weight: 850; }
+.panel-header h2 { margin: 1px 0 0; line-height: 1.2; font-size: 18px; font-weight: 780; letter-spacing: -.4px; }
+.onair-label { font-size: 9px; padding: 5px 7px; background: #173d34; border: 1px solid #265644; color: #92e5bb; border-radius: 5px; letter-spacing: .9px; font-weight: 850; white-space: nowrap; }
+.onair-label span { width: 5px; height: 5px; }
+.control-summary { display: grid; grid-template-columns: 1fr 1fr; padding: 14px 17px; border-bottom: 1px solid #273345; }
+.control-summary > div { display: flex; flex-direction: column; gap: 4px; }
+.control-summary > div + div { padding-left: 16px; border-left: 1px solid #2e3a4e; }
+.summary-label { color: #8496af; letter-spacing: 1.15px; font-size: 8px; font-weight: 850; }
+.control-summary strong { font-size: 22px; letter-spacing: -.5px; font-weight: 800; }
+.control-summary strong span { font-size: 12px; color: #8ea4bf; font-weight: 700; }
+.layer-list { padding: 11px; display: grid; gap: 9px; }
+.layer-control { border: 1px solid #27384d; padding: 11px; border-radius: 9px; background: #141e2e; transition: border-color .2s ease, background .2s ease; }
+.layer-control.playing { border-color: #42624b; background: linear-gradient(140deg,#19283a,#15291f); }
+.layer-control-meta { display: flex; align-items: center; gap: 9px; }
+.layer-icon { width: 30px; height: 30px; border-radius: 7px; background: #25334a; display: grid; place-items: center; font-size: 19px; font-weight: 800; color: #9db9d8; flex: none; }
+.layer-control-meta > div { min-width: 0; flex: 1; }
+.layer-control-meta strong { display: block; font-size: 12px; font-weight: 800; }
+.layer-control-meta small { display: block; color: #8293aa; font-size: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.layer-state { font: 800 9px/1.4 monospace; color: #8d9fb8; background: #263146; padding: 4px 6px; border-radius: 4px; }
+.playing .layer-state { color: #8effbd; background: #194a36; }
+.layer-control-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 11px; }
+.play-button, .stop-button { border-radius: 6px; height: 30px; font-size: 10px; font-weight: 850; letter-spacing: .45px; }
+.play-button { color: #bcf8cc; border: 1px solid #327653; background: #153b2a; }
+.stop-button { color: #f0b2b9; border: 1px solid #714047; background: #38252e; }
+.play-button:hover:not(:disabled) { background: #22543b; }.stop-button:hover:not(:disabled) { background: #53303b; }
+.play-button:disabled, .stop-button:disabled { opacity: .38; cursor: not-allowed; }
+.bulk-control { display: flex; gap: 8px; padding: 4px 11px 12px; }
+.bulk-control button { flex: 1; height: 38px; border-radius: 7px; font-weight: 850; font-size: 11px; }
+.bulk-play { background: #b8fc64; color: #10200a; border: 1px solid #b8fc64; }.bulk-play:hover { background: #d3ffa1; }
+.bulk-stop { background: #243044; color: #eff3fb; border: 1px solid #3b4860; }.bulk-stop:hover { background: #34435c; }
+.control-hint { margin: 2px 12px 15px; padding: 10px; font-size: 10px; color: #9bb0c7; background: #1b2637; border-radius: 7px; display: flex; gap: 9px; }
+.control-hint span { color: #c5f688; }
+.preview-panel { min-width: 0; }
+.preview-heading { display: flex; justify-content: space-between; align-items: end; padding: 0 2px 13px; gap: 10px; }
+.preview-heading h1 { font-size: clamp(18px, 1.7vw, 22px); letter-spacing: -.65px; margin: 1px 0 0; font-weight: 780; }
+.resolution-tag { font: 700 10px/1.5 monospace; color: #92a4bb; vertical-align: middle; padding: 5px 7px; border: 1px solid #2b394c; border-radius: 5px; margin-left: 7px; white-space: nowrap; }
+.preview-status { display: flex; align-items: center; gap: 3px; font-weight: 800; letter-spacing: 1.2px; font-size: 10px; color: #95a7bd; padding-bottom: 5px; }
+.preview-led { background: #84e6b0; }
+.monitor-frame { background: #151d29; border: 1px solid #334258; border-radius: 11px; padding: 8px; box-shadow: 0 14px 40px #0005; }
+.monitor-toolbar, .monitor-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #8b9bad; padding: 1px 4px 8px; font-size: 9px; letter-spacing: 1.1px; font-weight: 750; }
+.monitor-toolbar i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #db787e; margin-right: 4px; }
+.monitor-footer { padding: 9px 4px 0; }
+.green-square { display: inline-block; background: #86e3a4; height: 6px; width: 6px; margin-right: 4px; }
+.footer-divider { margin-inline: 8px; color: #4f5e73; }
+.stage-holder { width: 100%; border: 1px solid #46566b; overflow: hidden; border-radius: 2px; }
+.cg-stage { --acid: #b5f65b; --accent: #12c9b0; --dark: #071825; --dark2: #102a36; --pos: #71f5a7; --neg: #ff768c; --crawl-size: 5.85cqw; --ticker-height: 4.4cqw; --lower-height: 6.65cqw; position: relative; width: 100%; aspect-ratio: 16/9; isolation: isolate; overflow: hidden; container-type: inline-size; background-color: #d5dbe2; background-image: conic-gradient(#f3f5f9 25%,#d4dae3 0 50%,#f3f5f9 0 75%,#d4dae3 0); background-size: 24px 24px; user-select: none; }
+.cg-stage[data-theme="ocean"] { --acid: #61ecfd; --accent: #298fff; --dark: #09182d; --dark2: #122a52; --pos: #71f5a7; --neg: #ff8b96; }
+.cg-stage[data-theme="crimson"] { --acid: #ffc557; --accent: #ff4266; --dark: #230c1c; --dark2: #4b1429; --pos: #84efaf; --neg: #ff8d9e; }
+.stage-guides { pointer-events: none; position: absolute; inset: 5% 5%; border: 1px dashed #60778a77; z-index: 1; }
+.stage-guides::before, .stage-guides::after { content: ""; position: absolute; width: 1cqw; height: 1cqw; border: 1px solid #60778a88; }
+.stage-guides::before { top: calc(50% - .5cqw); left: calc(50% - .5cqw); transform: rotate(45deg); }
+.stage-guides::after { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.cg-stage:not(.show-guides) .stage-guides { opacity: 0; }
+.preview-only { position: absolute; top: 49%; left: 50%; transform: translate(-50%,-50%); z-index: 0; font-size: 1.4cqw; color: #8e9cac; font-weight: 900; letter-spacing: .4cqw; opacity: .7; white-space: nowrap; }
+.market-ident, .live-cluster, .index-chip { position: absolute; z-index: 4; display: flex; align-items: center; transition: transform .42s cubic-bezier(.25,.8,.25,1), opacity .3s; }
+.market-ident { left: 4.8cqw; top: 3cqw; gap: .8cqw; filter: drop-shadow(0 .18cqw .45cqw #0003); }
+.market-ident:not(.is-on) { transform: translateX(-15cqw); opacity: 0; visibility: hidden; }
+.channel-emblem { display: grid; place-items: center; width: 4.8cqw; height: 4.8cqw; background: var(--acid); clip-path: polygon(0 0,100% 0,100% 78%,78% 100%,0 100%); position: relative; }
+.channel-emblem svg { width: 3.1cqw; height: 3.1cqw; fill: #0b1a25; }
+.ident-type { display: flex; align-items: baseline; padding: .45cqw 1.2cqw .43cqw .45cqw; background: linear-gradient(90deg,#0a1824eb,#0a1824c7); border-right: .27cqw solid var(--acid); }
+.ident-type strong { font-size: 2.1cqw; color: #fff; line-height: 1; font-weight: 900; letter-spacing: -.12cqw; }
+.ident-type b { font-size: 2.1cqw; margin-left: .5cqw; color: var(--acid); font-weight: 950; }
+.index-chip { top: 9cqw; left: 4.8cqw; padding: .45cqw .7cqw; background: #091624df; font-weight: 800; gap: .65cqw; border-left: .22cqw solid var(--acid); border-radius: .1cqw; font-size: 1.15cqw; letter-spacing: .04cqw; }
+.index-chip span { color: #a6bed0; }.index-chip strong { color: var(--pos); }
+.cg-stage:has(.market-ident:not(.is-on)) .index-chip { opacity: 0; transform: translateX(-15cqw); visibility: hidden; }
+.live-cluster { top: 3.2cqw; right: 4.8cqw; gap: 0; overflow: hidden; border-radius: .22cqw; filter: drop-shadow(0 .18cqw .4cqw #0003); }
+.live-cluster:not(.is-on) { transform: translateY(-7cqw); opacity: 0; visibility: hidden; }
+.live-sign { background: #f33756; color: white; padding: .48cqw 1.07cqw; font-size: 1.5cqw; font-weight: 900; letter-spacing: .16cqw; display: flex; align-items: center; gap: .48cqw; }
+.live-sign i { display: inline-block; width: .65cqw; height: .65cqw; background: #fff; border-radius: 50%; animation: liveBlink 1.2s infinite; }
+.clock-sign { color: white; background: #071824ec; padding: .48cqw 1.05cqw; font-size: 1.5cqw; font-weight: 850; font-variant-numeric: tabular-nums; letter-spacing: .02cqw; }
+@keyframes liveBlink { 50% { opacity: .3; } }
+.bottom-stack { z-index: 5; position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; justify-content: end; pointer-events: none; filter: drop-shadow(0 -.18cqw .5cqw #09131a4d); }
+.bottom-stack .layer { height: 0; min-height: 0; opacity: 0; visibility: hidden; overflow: hidden; position: relative; flex: none; transition: height .52s cubic-bezier(.18,.82,.22,1), opacity .28s ease, visibility .52s step-end; }
+.bottom-stack .layer.is-on, .bottom-stack .layer.is-mounted { opacity: 1; visibility: visible; }
+.bottom-stack .lowerthird.is-on, .bottom-stack .lowerthird.is-mounted { height: var(--lower-height); }
+.bottom-stack .ticker.is-on { height: var(--ticker-height); }
+.bottom-stack .crawl.is-on { height: var(--crawl-size); }
+.lowerthird { display: block; color: #fff; padding-left: 0; }
+.lowerthird-shell { display: flex; align-items: stretch; width: 100%; height: 100%; padding-left: 4.5cqw; transform: translate3d(-108%,0,0); opacity: 0; filter: blur(18px) drop-shadow(0 0 0 rgba(255,222,94,0)); will-change: transform, opacity, filter; backface-visibility: hidden; transition: transform .82s cubic-bezier(.12,.9,.18,1), opacity .42s ease, filter .72s ease; }
+.lowerthird.is-on .lowerthird-shell { transform: translate3d(0,0,0); opacity: 1; filter: blur(0) drop-shadow(0 0 1.3cqw rgba(255,215,83,.24)); }
+.lowerthird.is-leaving .lowerthird-shell { transform: translate3d(118%,0,0); opacity: 0; filter: blur(14px) drop-shadow(0 0 1.8cqw rgba(255,215,83,.5)); }
+.lowerthird-main { height: calc(100% - .2cqw); background: linear-gradient(110deg,var(--dark),var(--dark2)); display: flex; min-width: 0; flex: 0 1 76%; clip-path: polygon(0 0,100% 0,97% 100%,0 100%); border-left: .26cqw solid #ffd451; }
+.lower-third-label { background: var(--acid); color: #081a25; padding: 0 1.25cqw; display: flex; flex-direction: column; justify-content: center; flex: none; min-width: 11cqw; }
+.lower-third-label small { font-weight: 900; font-size: 1.03cqw; letter-spacing: .16cqw; }
+.lower-third-label b { font-size: 2.0cqw; line-height: 1.2; font-weight: 950; }
+.lowerthird-copy { padding: .35cqw 2.1cqw .28cqw; display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; }
+.headline-anim { display: flex; flex-direction: column; justify-content: center; min-width: 0; transform-origin: left center; will-change: transform, filter, opacity; }
+.lowerthird.is-on .headline-anim { animation: headlineFlipIn .82s cubic-bezier(.13,.87,.17,1) both; }
+.lowerthird.is-leaving .headline-anim { animation: headlinePushOut .48s cubic-bezier(.4,0,.84,.34) both; }
+.lowerthird-copy .lt-kicker { display: block; color: #ffe17b; letter-spacing: .17cqw; font-size: 1.02cqw; font-weight: 950; white-space: nowrap; }
+.lowerthird-copy .lt-headline { color: #fff; font-weight: 900; font-size: 2.38cqw; line-height: 1.08; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; letter-spacing: -.06cqw; }
+.lowerthird-copy .lt-subline { color: #c6d8df; font-weight: 680; letter-spacing: .05cqw; font-size: 1.1cqw; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.breaking-badge { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-width: 15.5cqw; padding: 0 1.05cqw 0 1.15cqw; background: linear-gradient(135deg,#ffd74b 0%,#fff08f 26%,#ffcf2a 64%,#ffb100 100%); color: #231b02; box-shadow: inset 0 0 0 .12cqw #fff7, 0 0 1.1cqw #ffd34a4a; clip-path: polygon(0 0,100% 0,87% 100%,0 100%); }
+.breaking-badge small { font-size: .96cqw; line-height: 1; font-weight: 1000; letter-spacing: .24cqw; }
+.breaking-badge b { font-size: 2.18cqw; line-height: .9; font-weight: 1000; letter-spacing: .04cqw; }
+.breaking-badge::after { content: ""; position: absolute; inset: -25% -45%; background: linear-gradient(115deg, transparent 33%, rgba(255,255,255,0.05) 40%, rgba(255,255,255,0.95) 48%, rgba(255,255,255,0.08) 56%, transparent 65%); transform: translateX(-135%) skewX(-18deg); mix-blend-mode: screen; animation: breakingShine 2.8s linear infinite; }
+.lowerthird-side { flex: 1; display: flex; align-items: center; justify-content: center; gap: .45cqw; align-self: end; height: 4.7cqw; margin-left: -2cqw; padding-left: 2.5cqw; padding-right: 4.5cqw; background: linear-gradient(100deg,var(--accent),#0e5360); clip-path: polygon(10% 0,100% 0,100% 100%,0 100%); }
+.lowerthird-side b { font-size: 1.26cqw; font-weight: 950; color: #fff; line-height: 1; }
+.lowerthird-side span { background: #ffffff2e; border-radius: .2cqw; color: #fff; font-size: 1.15cqw; font-weight: 900; padding: .25cqw .5cqw; white-space: nowrap; }
+.lower-third-accent { position: absolute; left: 5.1cqw; right: 0; bottom: 0; height: .16cqw; background: linear-gradient(90deg,#ffd451,#ffffff66,var(--acid)); opacity: .92; }
+.ticker { background: #071926; display: flex; }
+.ticker.is-on { border-top: .24cqw solid var(--acid); border-bottom: .12cqw solid #294254; }
+.ticker-label { flex: none; align-items: center; justify-content: center; display: flex; gap: .45cqw; padding: 0 1.6cqw; background: var(--acid); color: #0c1b22; min-width: 17cqw; font-size: 1.4cqw; font-weight: 950; letter-spacing: .035cqw; clip-path: polygon(0 0,100% 0,94% 100%,0 100%); }
+.ticker-label b { font-size: 1.6cqw; }
+.ticker-window, .crawl-window { min-width: 0; flex: 1; overflow: hidden; display: flex; align-items: center; }
+.marquee-track { display: inline-flex; align-items: center; white-space: nowrap; gap: 0; min-width: max-content; animation: marqueeRun var(--duration,24s) linear infinite; will-change: transform; transform: translate3d(0,0,0); backface-visibility: hidden; contain: content; }
+.marquee-copy { display: inline-flex; align-items: center; padding: 0 1.5cqw; white-space: nowrap; }
+@keyframes marqueeRun { to { transform: translate3d(-50%,0,0); } }
+.stock { display: inline-flex; align-items: center; gap: .6cqw; color: #e4edf2; font-size: 1.55cqw; }
+.stock-symbol { font-weight: 950; letter-spacing: .03cqw; }.stock-price { font-weight: 750; font-variant-numeric: tabular-nums; color: #e1e6e9; }.stock-change { font-weight: 850; font-variant-numeric: tabular-nums; }.stock-up .stock-change { color: var(--pos); }.stock-down .stock-change { color: var(--neg); }
+.stock-separator { opacity: .32; color: #8fa5b4; }
+.crawl { display: flex; align-items: stretch; background: linear-gradient(90deg,var(--dark),#102939); }
+.crawl.is-on { border-top: .12cqw solid #355466; }
+.crawl-label { flex: none; color: #fff; background: #ef3551; min-width: 17cqw; display: flex; align-items: center; justify-content: center; gap: .4cqw; font-size: 1.43cqw; font-weight: 950; letter-spacing: .06cqw; padding: 0 1.15cqw; }
+.crawl-label i { width: .57cqw; height: .57cqw; flex: none; background: #fff; border-radius: 50%; }
+.crawl-window { position: relative; }
+.crawl-text { font-size: 1.75cqw; color: #f3f7fa; font-weight: 700; letter-spacing: .03cqw; }
+.crawl-divider { font-size: 1.2cqw; color: var(--acid); margin: 0 1.5cqw; }
+.crawl-time { min-width: 8.5cqw; align-items: center; justify-content: center; display: flex; background: #123647; font-size: 1.38cqw; font-weight: 850; color: #d4e6ef; font-variant-numeric: tabular-nums; padding: 0 .7cqw; border-left: .15cqw solid #527083; }
+.cg-stage[data-crawl-mode="full"] .crawl-label { font-size: 2cqw; min-width: 18cqw; }.cg-stage[data-crawl-mode="full"] .crawl-text { font-size: 2.25cqw; }.cg-stage[data-crawl-mode="full"] .crawl-time { font-size: 1.65cqw; }
+.cg-stage[data-crawl-mode="medium"] .crawl-text { font-size: 1.95cqw; }
+.cg-stage[data-crawl-mode="compact"] .crawl-text { font-size: 1.37cqw; }.cg-stage[data-crawl-mode="compact"] .crawl-label { font-size: 1.18cqw; }.cg-stage[data-crawl-mode="compact"] .crawl-time { font-size: 1.16cqw; }
+@keyframes breakingShine {
+  to { transform: translateX(135%) skewX(-18deg); }
+}
+@keyframes headlineFlipIn {
+  0% { transform: perspective(1200px) rotateX(76deg) scale(.72); filter: blur(16px); opacity: 0; text-shadow: 0 0 0 rgba(255,214,71,0); }
+  40% { opacity: 1; text-shadow: 0 0 1.3cqw rgba(255,214,71,.7); }
+  100% { transform: perspective(1200px) rotateX(0) scale(1); filter: blur(0); opacity: 1; text-shadow: 0 0 .18cqw rgba(255,214,71,.18); }
+}
+@keyframes headlinePushOut {
+  0% { transform: perspective(1200px) rotateX(0) rotateY(0) scale(1); filter: blur(0); opacity: 1; }
+  100% { transform: perspective(1200px) rotateX(-20deg) rotateY(-24deg) scale(.86) translateX(9%); filter: blur(12px); opacity: 0; }
+}
+.below-preview { display: grid; grid-template-columns: minmax(0,1fr) 205px; gap: 13px; margin-top: 14px; }
+.geometry-panel, .quick-panel { background: #111a27; border: 1px solid #27384a; border-radius: 10px; padding: 14px; min-width: 0; }
+.small-panel-title { font-size: 10px; letter-spacing: 1.1px; color: #a7bed2; font-weight: 850; margin-bottom: 12px; }
+.small-panel-title > span { color: #c2ff81; margin-right: 6px; font-size: 16px; }
+.geometry-line { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.geometry-measure { min-width: 0; border-right: 1px solid #2d3d4e; display: flex; flex-direction: column; }
+.geometry-measure:last-child { border-right: none; }
+.geometry-measure span { font-size: 9px; color: #7f93a8; font-weight: 750; letter-spacing: .7px; }
+.geometry-measure strong { font: 850 21px/1.45 monospace; color: #d5e5f8; }
+.geometry-measure strong.measure-primary { color: #b6ff72; }
+.geometry-panel p { font-size: 11px; color: #91a2bb; line-height: 1.45; margin: 9px 0 0; }
+.toggle-line { display: flex; justify-content: space-between; align-items: center; gap: 7px; color: #c6d4e5; font-size: 11px; cursor: pointer; }
+.toggle-line input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch-slider { flex: none; width: 35px; height: 19px; background: #36445a; border-radius: 100px; position: relative; }
+.switch-slider:after { content: ""; position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%; background: white; transition: transform .2s; }
+.toggle-line input:checked + .switch-slider { background: #70ab36; }.toggle-line input:checked + .switch-slider:after { transform: translateX(16px); }
+.outline-action { background: #1d2a3d; border: 1px solid #35455c; border-radius: 6px; color: #d8e7f5; padding: 9px; width: 100%; margin-top: 18px; font-size: 11px; font-weight: 750; }
+.outline-action:hover { background: #2b3a52; }
+.howto-note { display: flex; align-items: start; gap: 10px; margin-top: 13px; padding: 10px 12px; border: 1px solid #2b3a52; border-radius: 9px; background: #152031; }
+.howto-note p { color: #a9b9ce; font-size: 11px; margin: 0; line-height: 1.65; }
+.howto-note strong { color: #cedbec; }.howto-note code { background: #263549; border-radius: 4px; color: #b8ff78; padding: 2px 4px; }
+.note-symbol { border: 1px solid #6489ae; color: #abcaf0; border-radius: 50%; font: 900 10px/16px sans-serif; width: 17px; height: 17px; text-align: center; flex: none; }
+.panel-header-editor { padding: 18px 16px; }
+.edit-pill { font-weight: 850; letter-spacing: .8px; color: #d8f8ab; font-size: 9px; white-space: nowrap; background: #2f412c; border-radius: 4px; padding: 4px 6px; }
+.editor-scroll { padding: 3px 16px 0; }
+.edit-section { padding: 14px 0 17px; border-bottom: 1px solid #283447; }
+.edit-section:last-child { border-bottom: none; }
+.section-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.section-top h3 { font-size: 12px; font-weight: 850; margin: 0; letter-spacing: -.1px; }
+.section-top span { color: #62768d; font: 800 11px/1 monospace; }
+.edit-section label:not(.slider-label) { color: #98a9be; display: block; font-size: 10px; font-weight: 750; margin: 12px 0 5px; }
+.edit-section input:not([type="range"]), .edit-section textarea { background: #0c1420; border: 1px solid #334258; color: #e4eef7; border-radius: 6px; padding: 9px 10px; width: 100%; outline: none; font-size: 11px; }
+.edit-section input:focus:not([type="range"]), .edit-section textarea:focus { border-color: #8be19d; box-shadow: 0 0 0 2px #70e89515; }
+.edit-section textarea { resize: vertical; min-height: 65px; line-height: 1.6; }
+.edit-section #stocksInput { font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; min-height: 128px; }
+.slider-label { display: flex; justify-content: space-between; color: #9aabc3; font-size: 11px; margin: 14px 0 8px; }
+.slider-label output { font-weight: 850; color: #c7f591; }
+.edit-section input[type="range"] { accent-color: #b2f36b; width: 100%; cursor: pointer; }
+.theme-buttons { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; }
+.theme-button { padding: 8px 3px; border: 1px solid #3a4757; color: #cad8e8; background: #1c2a3a; border-radius: 6px; font-size: 9px; font-weight: 800; }
+.theme-button.selected { border-color: #aaf179; box-shadow: inset 0 0 0 1px #aaf179; }
+.swatch { display: block; margin: 0 auto 4px; width: 12px; height: 12px; border-radius: 50%; }
+.swatch-electric { background: #b5f65b; }.swatch-ocean { background: #4ac7ff; }.swatch-crimson { background: #ff5476; }
+.editor-footnote { font-size: 10px; color: #9babbe; padding: 12px 15px; background: #172337; border-top: 1px solid #293951; }
+.app-bottom { border-top: 1px solid #202b3a; display: flex; justify-content: space-between; gap: 15px; padding: 14px 32px 25px; color: #62768a; font-size: 9px; letter-spacing: .7px; }
+body[data-mode="output"] { margin: 0; background: transparent !important; overflow: hidden; width: 100vw; height: 100vh; }
+body[data-mode="output"] #stageMount { width: 100vw; height: 100vh; }
+body[data-mode="output"] .cg-stage { width: 100%; height: 100%; aspect-ratio: auto; background: transparent !important; }
+body[data-mode="output"] .stage-guides, body[data-mode="output"] .preview-only { display: none !important; }
+:fullscreen .cg-stage { height: 100%; width: 100%; }
+#stageMount:fullscreen { background: #0c1624; display: grid; place-items: center; }
+#stageMount:fullscreen .cg-stage { width: 100%; height: auto; max-height: 100vh; aspect-ratio: 16/9; }
+@media (max-width: 1430px) { .workspace { grid-template-columns: minmax(250px, 280px) minmax(0,1fr); }.editor-panel { grid-column: 1/-1; }.editor-scroll { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 16px; }.edit-section { border: none; }.panel-header-editor { padding: 13px 16px; }.edit-section label:not(.slider-label) { margin-top: 8px; }.theme-buttons { grid-template-columns: 1fr; }.edit-section #stocksInput { min-height: 104px; }.layer-list { gap: 8px; } }
+@media (max-width: 900px) { .workspace { grid-template-columns: 1fr; }.preview-panel { grid-row: 1; }.control-panel { grid-row: 2; }.editor-panel { grid-row: 3; grid-column: 1; }.layer-list { grid-template-columns: repeat(2,minmax(0,1fr)); }.editor-scroll { grid-template-columns: repeat(2,minmax(0,1fr)); }.theme-buttons { grid-template-columns: repeat(3,1fr); }.below-preview { grid-template-columns: minmax(0,1fr) 220px; } }
+@media (max-width: 600px) { .app-header { padding: 13px 14px; }.app-name strong { font-size: 16px; }.app-name small { font-size: 6.9px; letter-spacing: .7px; }.app-symbol { width: 29px; height: 30px; padding: 7px; }.app-symbol span { width: 5px; }.app-symbol span:nth-child(1) { height: 6px; }.app-symbol span:nth-child(2) { height: 11px; }.app-symbol span:nth-child(3) { height: 16px; }.header-version, .header-tag, .header-btn { display: none; }.primary-header-btn { padding: 8px 10px; font-size: 10px; }.workspace { padding: 14px 12px; gap: 14px; }.preview-heading h1 { font-size: 17px; }.preview-status { font-size: 9px; }.resolution-tag { font-size: 8px; padding: 3px 5px; }.monitor-toolbar, .monitor-footer { font-size: 7px; letter-spacing: .5px; }.monitor-frame { padding: 6px; }.below-preview { grid-template-columns: 1fr; }.geometry-panel, .quick-panel { padding: 12px; }.quick-panel { display: grid; gap: 9px; grid-template-columns: 1fr 1fr; align-items: center; }.quick-panel .small-panel-title { grid-column: 1/-1; margin-bottom: 0; }.outline-action { margin: 0; }.layer-list { grid-template-columns: 1fr; }.editor-scroll { grid-template-columns: 1fr; }.edit-section { border-bottom: 1px solid #293649; }.theme-buttons { grid-template-columns: repeat(3,1fr); }.app-bottom { padding: 10px 14px 20px; flex-direction: column; gap: 3px; font-size: 8px; } }
+@media (prefers-reduced-motion: reduce) { .bottom-stack .layer, .market-ident, .live-cluster, .lowerthird-shell, .headline-anim, .marquee-track, .breaking-badge::after { transition-duration: 0s !important; animation-duration: 0s !important; } }
+
+/* v1.2 single-file performance refinements */
+.marquee-track { backface-visibility: hidden; transform: translate3d(0,0,0); }
+.bottom-stack .layer { backface-visibility: hidden; }
+body[data-mode="output"] .app-shell { display: none; }
+
+</style>
+</head>
+<body data-mode="controller">
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand-area">
+        <div class="app-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="app-name"><strong>MARKET<span>CG</span></strong><small>BROADCAST GRAPHICS STUDIO</small></div>
+        <span class="header-version">v1.2 ONE FILE</span>
+      </div>
+      <div class="header-right">
+        <span class="header-tag"><span class="pulse-dot"></span> LOCAL PLAYOUT</span>
+        <button class="header-btn" id="resetButton" title="Restore default demo values">↻ <span>Reset demo</span></button>
+        <a class="primary-header-btn" id="outputLink" href="?output=1" target="_blank" rel="noopener">↗ <span>Open clean output</span></a>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel control-panel" aria-label="Layer controller">
+        <div class="panel-header">
+          <div><span class="micro-label">RUNDOWN 01 / BROADCAST</span><h2>Layer controller</h2></div>
+          <span class="onair-label"><span></span> CONTROL</span>
+        </div>
+        <div class="control-summary">
+          <div><span class="summary-label">ACTIVE LAYERS</span><strong id="activeCount">0<span> / 5</span></strong></div>
+          <div><span class="summary-label">FRAME OUTPUT</span><strong>16:9 <span>HD</span></strong></div>
+        </div>
+        <div class="layer-list" id="layerList">
+          <article class="layer-control" data-control="logo">
+            <div class="layer-control-meta"><span class="layer-icon">◈</span><div><strong>Channel logo</strong><small>Upper-left brand bug</small></div><span class="layer-state" data-state-for="logo">READY</span></div>
+            <div class="layer-control-buttons"><button class="play-button" data-action="play" data-layer="logo">▶ PLAY</button><button class="stop-button" data-action="stop" data-layer="logo">■ STOP</button></div>
+          </article>
+          <article class="layer-control" data-control="live">
+            <div class="layer-control-meta"><span class="layer-icon">●</span><div><strong>Live tag + clock</strong><small>Upper-right fixed position</small></div><span class="layer-state" data-state-for="live">READY</span></div>
+            <div class="layer-control-buttons"><button class="play-button" data-action="play" data-layer="live">▶ PLAY</button><button class="stop-button" data-action="stop" data-layer="live">■ STOP</button></div>
+          </article>
+          <article class="layer-control" data-control="lowerthird">
+            <div class="layer-control-meta"><span class="layer-icon">▤</span><div><strong>Lower third</strong><small>Headline and market caption</small></div><span class="layer-state" data-state-for="lowerthird">READY</span></div>
+            <div class="layer-control-buttons"><button class="play-button" data-action="play" data-layer="lowerthird">▶ PLAY</button><button class="stop-button" data-action="stop" data-layer="lowerthird">■ STOP</button></div>
+          </article>
+          <article class="layer-control" data-control="ticker">
+            <div class="layer-control-meta"><span class="layer-icon">⇄</span><div><strong>Stock ticker</strong><small>Above the crawl • fixed slot</small></div><span class="layer-state" data-state-for="ticker">READY</span></div>
+            <div class="layer-control-buttons"><button class="play-button" data-action="play" data-layer="ticker">▶ PLAY</button><button class="stop-button" data-action="stop" data-layer="ticker">■ STOP</button></div>
+          </article>
+          <article class="layer-control" data-control="crawl">
+            <div class="layer-control-meta"><span class="layer-icon">≋</span><div><strong>News crawl</strong><small>Auto-resizes with smooth transitions</small></div><span class="layer-state" data-state-for="crawl">READY</span></div>
+            <div class="layer-control-buttons"><button class="play-button" data-action="play" data-layer="crawl">▶ PLAY</button><button class="stop-button" data-action="stop" data-layer="crawl">■ STOP</button></div>
+          </article>
+        </div>
+        <div class="bulk-control"><button class="bulk-play" id="playAll">▶ &nbsp;PLAY ALL</button><button class="bulk-stop" id="stopAll">■ &nbsp;STOP ALL</button></div>
+        <div class="control-hint"><span>↳</span> Each layer has its own slot. Lower layers reflow automatically without overlap.</div>
+      </section>
+
+      <section class="preview-panel" aria-label="Broadcast preview">
+        <div class="preview-heading">
+          <div><span class="micro-label">OUTPUT MONITOR / PROGRAM</span><h1>Live composition <span class="resolution-tag">1920 × 1080</span></h1></div>
+          <div class="preview-status"><span class="preview-led"></span><span>PREVIEW</span></div>
+        </div>
+        <div class="monitor-frame">
+          <div class="monitor-toolbar"><span><i></i> PREVIEW 01</span><span>16:9 &nbsp;·&nbsp; ALPHA GRID &nbsp;·&nbsp; HTML5</span></div>
+          <div class="stage-holder" id="stageMount"></div>
+          <div class="monitor-footer"><span><span class="green-square"></span> DYNAMIC LAYER ENGINE <span class="footer-divider">/</span> NO OVERLAPS</span><span id="clockFooter">00:00:00</span></div>
+        </div>
+        <div class="below-preview">
+          <div class="geometry-panel">
+            <div class="small-panel-title"><span>↕</span> AUTOMATIC SPACE MANAGEMENT</div>
+            <div class="geometry-line">
+              <div class="geometry-measure"><span>LOWER THIRD</span><strong id="lowerMeasure">—</strong></div>
+              <div class="geometry-measure"><span>TICKER</span><strong id="tickerMeasure">—</strong></div>
+              <div class="geometry-measure"><span>CRAWL HEIGHT</span><strong id="crawlMeasure" class="measure-primary">—</strong></div>
+            </div>
+            <p id="geometryExplanation">The crawl expands when the ticker is off and compresses automatically when ticker plays.</p>
+          </div>
+          <div class="quick-panel">
+            <div class="small-panel-title">PREVIEW TOOLS</div>
+            <label class="toggle-line"><span>Show safe-zone guides</span><input id="guidesToggle" type="checkbox" checked><i class="switch-slider"></i></label>
+            <button class="outline-action" id="fullscreenPreview">⛶ &nbsp; Fullscreen preview</button>
+          </div>
+        </div>
+        <div class="howto-note"><span class="note-symbol">i</span><p><strong>Production tip:</strong> The checkerboard represents transparency, not a video background. <code>output.html</code> renders the graphics with a transparent background for OBS/vMix. Sample stock figures are <strong>not live market data.</strong></p></div>
+      </section>
+
+      <aside class="panel editor-panel" aria-label="Graphic settings">
+        <div class="panel-header panel-header-editor"><div><span class="micro-label">DATA + APPEARANCE</span><h2>Graphics editor</h2></div><span class="edit-pill">EDIT LIVE</span></div>
+        <div class="editor-scroll">
+          <div class="edit-section"><div class="section-top"><h3>Channel identity</h3><span>01</span></div>
+            <label for="channelName">Channel name</label><input id="channelName" data-content="channelName" maxlength="24" placeholder="MARKET 24" value="MARKET 24">
+            <label for="marketLabel">Market / index name</label><input id="marketLabel" data-content="marketLabel" maxlength="30" value="NEPSE MARKET">
+          </div>
+          <div class="edit-section"><div class="section-top"><h3>Lower-third caption</h3><span>02</span></div>
+            <label for="headlineInput">Headline</label><input id="headlineInput" data-content="headline" maxlength="66" value="Market momentum remains positive">
+            <label for="subheadlineInput">Subheading</label><input id="subheadlineInput" data-content="subheadline" maxlength="100" value="Today's market pulse • Market opening bulletin">
+          </div>
+          <div class="edit-section"><div class="section-top"><h3>Breaking news crawl</h3><span>03</span></div>
+            <label for="crawlInput">Scrolling message</label><textarea id="crawlInput" data-content="crawlText" rows="3" maxlength="450">NEPSE MARKET UPDATE  •  Banking and hydropower sectors lead trading activity  •  Investors monitor market breadth and volume  •  Stay tuned for more market news</textarea>
+            <label class="slider-label" for="crawlSpeed">Crawl cycle <output id="crawlSpeedValue">34s</output></label><input id="crawlSpeed" type="range" data-speed="crawl" min="12" max="80" value="34">
+          </div>
+          <div class="edit-section"><div class="section-top"><h3>Stock ticker</h3><span>04</span></div>
+            <label for="stocksInput">One stock per line: Symbol | Price | Change</label>
+            <textarea id="stocksInput" rows="6" spellcheck="false">NABIL | 540.20 | +1.84%
+NICA | 432.10 | +0.65%
+SHIVM | 494.30 | -0.72%
+HDL | 1,688.00 | +2.12%
+NTC | 810.00 | +0.39%</textarea>
+            <label class="slider-label" for="tickerSpeed">Ticker cycle <output id="tickerSpeedValue">25s</output></label><input id="tickerSpeed" type="range" data-speed="ticker" min="10" max="70" value="25">
+          </div>
+          <div class="edit-section theme-section"><div class="section-top"><h3>Visual theme</h3><span>05</span></div>
+            <div class="theme-buttons" role="group" aria-label="Graphic theme">
+              <button class="theme-button selected" data-theme-value="electric"><span class="swatch swatch-electric"></span>Electric</button>
+              <button class="theme-button" data-theme-value="ocean"><span class="swatch swatch-ocean"></span>Ocean</button>
+              <button class="theme-button" data-theme-value="crimson"><span class="swatch swatch-crimson"></span>Crimson</button>
+            </div>
+          </div>
+        </div>
+        <div class="editor-footnote">↺ &nbsp; Edits update the preview and clean output immediately.</div>
+      </aside>
+    </main>
+    <footer class="app-bottom"><span>MARKETCG STUDIO / HTML · CSS · JAVASCRIPT</span><span>Inspired by broadcast graphics workflows • Independent demo, not affiliated with SPX Graphics</span></footer>
+  </div>
+  <script>
+/*
+ * MarketCG Studio — all-in-one HTML / CSS / JavaScript.
+ * Normal URL: controller with checkerboard preview.
+ * Same file with ?output=1 : transparent 16:9 clean output (OBS/vMix).
+ * Open both tabs via a local HTTP server for reliable cross-tab sync.
+ */
+if (new URLSearchParams(location.search).get('output') === '1' || location.hash === '#output') {
+  document.body.dataset.mode = 'output';
+  document.body.replaceChildren(Object.assign(document.createElement('div'), {id:'stageMount'}));
+}
+</script>
+<script>
+/*
+ * MarketCG Studio — independent broadcast graphics demo.
+ * No framework, no external dependencies. 100% HTML / CSS / JS.
+ * IMPORTANT: Data below are illustrative; no real-time exchange feed is connected.
+ *
+ * The adaptive bottom stack is intentional:
+ *   lower third (fixed row) -> ticker (fixed row) -> crawl (variable row).
+ *   When ticker switches ON, crawl shrinks. When OFF, crawl expands.
+ *   Flex column stacking reserves space so active layers NEVER overlap.
+ */
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'marketcg-studio-v1';
+  const CHANNEL_NAME = 'marketcg-broadcast-channel-v1';
+  const isOutput = document.body.dataset.mode === 'output';
+  const layerNames = ['logo', 'live', 'lowerthird', 'ticker', 'crawl'];
+  const layerExitDuration = { lowerthird: 820 };
+  const layerTimers = Object.create(null);
+  const demoStocks = [
+    {symbol:'NABIL', price:'540.20', change:'+1.84%'},
+    {symbol:'NICA', price:'432.10', change:'+0.65%'},
+    {symbol:'SHIVM', price:'494.30', change:'-0.72%'},
+    {symbol:'HDL', price:'1,688.00', change:'+2.12%'},
+    {symbol:'NTC', price:'810.00', change:'+0.39%'}
+  ];
+  const defaults = {
+    layers: {logo: true, live: true, lowerthird: true, ticker: true, crawl: true},
+    content: {
+      channelName: 'MARKET 24',
+      marketLabel: 'NEPSE MARKET',
+      headline: 'Market momentum remains positive',
+      subheadline: "Today's market pulse • Market opening bulletin",
+      crawlText: 'NEPSE MARKET UPDATE  •  Banking and hydropower sectors lead trading activity  •  Investors monitor market breadth and volume  •  Stay tuned for more market news'
+    },
+    speeds: {crawl: 34, ticker: 25},
+    stocks: demoStocks,
+    theme: 'electric',
+    showGuides: true
+  };
+
+  const copy = obj => JSON.parse(JSON.stringify(obj));
+  function cleanState(data) {
+    const result = copy(defaults);
+    if (!data || typeof data !== 'object') return result;
+    for (const key of layerNames) {
+      if (typeof data.layers?.[key] === 'boolean') result.layers[key] = data.layers[key];
+    }
+    for (const key of Object.keys(result.content)) {
+      if (typeof data.content?.[key] === 'string') result.content[key] = data.content[key].slice(0, 500);
+    }
+    for (const key of ['crawl','ticker']) {
+      const value = Number(data.speeds?.[key]);
+      if (Number.isFinite(value) && value >= 8 && value <= 120) result.speeds[key] = value;
+    }
+    if (Array.isArray(data.stocks)) {
+      result.stocks = data.stocks.slice(0, 25).filter(s => s && typeof s.symbol === 'string')
+        .map(s => ({symbol: String(s.symbol).slice(0, 16), price: String(s.price || '').slice(0, 20), change: String(s.change || '').slice(0, 15)}));
+    }
+    if (['electric','ocean','crimson'].includes(data.theme)) result.theme = data.theme;
+    if (typeof data.showGuides === 'boolean') result.showGuides = data.showGuides;
+    return result;
+  }
+  function getSavedState() {
+    try { return cleanState(JSON.parse(localStorage.getItem(STORAGE_KEY))); }
+    catch (_) { return copy(defaults); }
+  }
+  let state = getSavedState();
+  let messageChannel = null;
+  try { if ('BroadcastChannel' in window) messageChannel = new BroadcastChannel(CHANNEL_NAME); }
+  catch (_) { messageChannel = null; }
+
+  function stageHTML() {
+    return `
+      <div class="cg-stage show-guides" id="cgStage" data-theme="electric" data-crawl-mode="compact" aria-label="16:9 broadcast overlay">
+        <div class="stage-guides" aria-hidden="true"></div>
+        <div class="preview-only" aria-hidden="true">ALPHA / TRANSPARENT</div>
+        <div class="market-ident is-on" data-overlay="logo">
+          <div class="channel-emblem" aria-hidden="true">
+            <svg viewBox="0 0 64 64"><path d="M7 47V23l10 11 12-18 10 18 18-21v16L38 51 28 34 17 52z"/></svg>
+          </div>
+          <div class="ident-type"><strong data-text="brandMain">MARKET</strong><b data-text="brandNumber">24</b></div>
+        </div>
+        <div class="index-chip"><span data-text="marketLabel">NEPSE MARKET</span><strong>• DEMO DATA</strong></div>
+        <div class="live-cluster is-on" data-overlay="live"><span class="live-sign"><i></i>LIVE</span><span class="clock-sign" data-clock>00:00:00</span></div>
+        <div class="bottom-stack">
+          <div class="lowerthird layer is-on" data-overlay="lowerthird">
+            <div class="lowerthird-shell">
+              <div class="lowerthird-main">
+                <div class="lower-third-label breaking-badge"><small>BREAKING</small><b>NEWS</b></div>
+                <div class="lowerthird-copy">
+                  <div class="headline-anim">
+                    <span class="lt-kicker">LATEST SHARE MARKET ALERT</span>
+                    <span class="lt-headline" data-text="headline">Market momentum remains positive</span>
+                    <span class="lt-subline" data-text="subheadline">Today's market pulse • Market opening bulletin</span>
+                  </div>
+                </div>
+              </div>
+              <div class="lowerthird-side"><b>NEPSE</b><span>MARKET</span></div>
+              <div class="lower-third-accent"></div>
+            </div>
+          </div>
+          <div class="ticker layer is-on" data-overlay="ticker">
+            <div class="ticker-label"><b>↗</b> STOCK TICKER</div>
+            <div class="ticker-window">
+              <div class="marquee-track" id="tickerTrack"><div class="marquee-copy" data-ticker-copy="1"></div><div class="marquee-copy" data-ticker-copy="2"></div></div>
+            </div>
+          </div>
+          <div class="crawl layer is-on" data-overlay="crawl">
+            <div class="crawl-label"><i></i> BREAKING NEWS</div>
+            <div class="crawl-window"><div class="marquee-track" id="crawlTrack"><div class="marquee-copy" data-crawl-copy="1"></div><div class="marquee-copy" data-crawl-copy="2"></div></div></div>
+            <div class="crawl-time" data-clock-short>00:00</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const mount = document.getElementById('stageMount');
+  if (!mount) return;
+  mount.innerHTML = stageHTML();
+  const stage = document.getElementById('cgStage');
+  const elements = {};
+  for (const name of layerNames) elements[name] = stage.querySelector(`[data-overlay="${name}"]`);
+
+  function setText(name, value) {
+    for (const target of stage.querySelectorAll(`[data-text="${name}"]`)) target.textContent = value;
+  }
+  function appendStock(copyNode, stock) {
+    const el = document.createElement('span');
+    el.className = 'stock ' + (stock.change.startsWith('-') ? 'stock-down' : 'stock-up');
+    for (const [cls, txt] of [['stock-symbol', stock.symbol], ['stock-price', stock.price], ['stock-change', stock.change]]) {
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = txt;
+      el.append(span);
+    }
+    const dot = document.createElement('span');
+    dot.className = 'stock-separator';
+    dot.textContent = '◆';
+    copyNode.append(el, dot);
+  }
+  let lastTickerContent = null;
+  let lastCrawlContent = null;
+  function renderTicker() {
+    const stocks = state.stocks.length ? state.stocks : [{symbol:'ADD STOCKS', price:'—', change:'—'}];
+    const fingerprint = JSON.stringify(stocks);
+    if (lastTickerContent !== fingerprint) {
+      // Do not restart the GPU marquee on unrelated UI changes.
+      const repeatCount = Math.max(3, Math.ceil(11 / stocks.length));
+      for (const copyNode of stage.querySelectorAll('[data-ticker-copy]')) {
+        copyNode.replaceChildren();
+        for (let i=0; i<repeatCount; i++) stocks.forEach(stock => appendStock(copyNode, stock));
+      }
+      lastTickerContent = fingerprint;
+    }
+    document.getElementById('tickerTrack').style.setProperty('--duration', `${state.speeds.ticker}s`);
+  }
+  function renderCrawl() {
+    const message = state.content.crawlText.trim() || 'MARKET NEWS UPDATE';
+    if (lastCrawlContent !== message) {
+      const repeatCount = Math.max(2, Math.ceil(240 / message.length));
+      for (const copyNode of stage.querySelectorAll('[data-crawl-copy]')) {
+        copyNode.replaceChildren();
+        for (let i=0; i<repeatCount; i++) {
+          const span = document.createElement('span');
+          span.className = 'crawl-text';
+          span.textContent = message;
+          const divider = document.createElement('span');
+          divider.className = 'crawl-divider';
+          divider.textContent = '◆';
+          copyNode.append(span, divider);
+        }
+      }
+      lastCrawlContent = message;
+    }
+    document.getElementById('crawlTrack').style.setProperty('--duration', `${state.speeds.crawl}s`);
+  }
+  function syncLayerState(name, active) {
+    const el = elements[name];
+    if (!el) return;
+    if (name !== 'lowerthird') {
+      el.classList.toggle('is-on', !!active);
+      return;
+    }
+
+    // Stateful transitions: editing ticker/crawl/labels never retriggers the
+    // breaking-news enter animation, and STOP never hides the exit mid-flight.
+    if (active) {
+      if (el.classList.contains('is-on') && !el.classList.contains('is-leaving')) return;
+      clearTimeout(layerTimers[name]);
+      el.classList.remove('is-leaving');
+      el.classList.add('is-mounted');
+      requestAnimationFrame(() => {
+        if (state.layers[name]) el.classList.add('is-on');
+      });
+    } else {
+      if (el.classList.contains('is-leaving') ||
+          (!el.classList.contains('is-mounted') && !el.classList.contains('is-on'))) return;
+      clearTimeout(layerTimers[name]);
+      el.classList.add('is-leaving');
+      el.classList.remove('is-on');
+      layerTimers[name] = setTimeout(() => {
+        if (!state.layers[name]) el.classList.remove('is-mounted', 'is-leaving');
+      }, layerExitDuration[name] || 620);
+    }
+  }
+
+  function renderStage() {
+    stage.dataset.theme = state.theme;
+    stage.classList.toggle('show-guides', !!state.showGuides && !isOutput);
+    for (const name of layerNames) syncLayerState(name, state.layers[name]);
+
+    // Layer policy: ticker always sits above crawl; crawl shrinks to make room.
+    // Lower-third occupies an independent top row and can also reduce crawl
+    // from full height to medium height when the ticker is absent.
+    const crawlMode = state.layers.ticker ? 'compact' : state.layers.lowerthird ? 'medium' : 'full';
+    const crawlUnit = crawlMode === 'compact' ? 3.25 : crawlMode === 'medium' ? 4.25 : 5.85;
+    stage.dataset.crawlMode = crawlMode;
+    stage.style.setProperty('--crawl-size', `${crawlUnit}cqw`);
+
+    const channelWords = state.content.channelName.trim().split(/\s+/);
+    setText('brandMain', channelWords[0] || 'MARKET');
+    setText('brandNumber', channelWords.slice(1).join(' ') || '24');
+    setText('marketLabel', state.content.marketLabel || 'MARKET');
+    setText('headline', state.content.headline || 'MARKET UPDATE');
+    setText('subheadline', state.content.subheadline || 'Latest share-market news');
+    renderTicker();
+    renderCrawl();
+
+    if (!isOutput) {
+      const count = layerNames.filter(name => state.layers[name]).length;
+      const active = document.getElementById('activeCount');
+      if (active) active.innerHTML = `${count}<span> / 5</span>`;
+      for (const name of layerNames) {
+        const row = document.querySelector(`[data-control="${name}"]`);
+        if (!row) continue;
+        row.classList.toggle('playing', state.layers[name]);
+        row.querySelector('[data-state-for]').textContent = state.layers[name] ? 'ON AIR' : 'READY';
+        row.querySelector('[data-action="play"]').disabled = state.layers[name];
+        row.querySelector('[data-action="stop"]').disabled = !state.layers[name];
+      }
+      document.getElementById('lowerMeasure').textContent = state.layers.lowerthird ? '128px' : 'OFF';
+      document.getElementById('tickerMeasure').textContent = state.layers.ticker ? '84px' : 'OFF';
+      document.getElementById('crawlMeasure').textContent = state.layers.crawl ? `${Math.round(crawlUnit * 19.2)}px` : 'OFF';
+      document.getElementById('geometryExplanation').textContent = !state.layers.crawl
+        ? 'Crawl is stopped. The active rows remain in their own positions.'
+        : state.layers.ticker
+          ? 'Ticker is ON: the crawl automatically compresses and stays directly below the ticker.'
+          : state.layers.lowerthird
+            ? 'Ticker is OFF: crawl grows to medium height, leaving space for the lower-third.'
+            : 'Ticker and lower-third are OFF: the crawl expands to full height automatically.';
+    }
+  }
+
+  function tickClock() {
+    const time = new Date().toLocaleTimeString('en-GB', {hour12:false});
+    for (const el of stage.querySelectorAll('[data-clock]')) el.textContent = time;
+    for (const el of stage.querySelectorAll('[data-clock-short]')) el.textContent = time.slice(0,5);
+    const footer = document.getElementById('clockFooter');
+    if (footer) footer.textContent = time;
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  function persistAndBroadcast() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) { /* local demo still works */ }
+    if (messageChannel) messageChannel.postMessage({type:'state', value:state});
+  }
+  function applyState(newState, persist) {
+    state = cleanState(newState);
+    renderStage();
+    if (!isOutput) renderInputs();
+    if (persist) persistAndBroadcast();
+  }
+  if (messageChannel) {
+    messageChannel.addEventListener('message', event => {
+      if (event.data?.type === 'state') applyState(event.data.value, false);
+    });
+  }
+  window.addEventListener('storage', event => {
+    if (event.key === STORAGE_KEY && event.newValue) {
+      try { applyState(JSON.parse(event.newValue), false); } catch (_) { /* ignore */ }
+    }
+  });
+
+  function parseStockLines(value) {
+    return value.split(/\r?\n/).map(line => line.split('|').map(cell => cell.trim()))
+      .filter(parts => parts[0]).slice(0,25)
+      .map(parts => ({symbol: parts[0].slice(0,16), price: (parts[1] || '—').slice(0,20), change: (parts[2] || '—').slice(0,15)}));
+  }
+  function stocksToInput(stocks) {
+    return stocks.map(s => `${s.symbol} | ${s.price} | ${s.change}`).join('\n');
+  }
+  function renderInputs() {
+    for (const input of document.querySelectorAll('[data-content]')) {
+      if (document.activeElement !== input) input.value = state.content[input.dataset.content];
+    }
+    for (const slider of document.querySelectorAll('[data-speed]')) {
+      slider.value = state.speeds[slider.dataset.speed];
+      document.getElementById(`${slider.dataset.speed}SpeedValue`).textContent = `${slider.value}s`;
+    }
+    const stocksInput = document.getElementById('stocksInput');
+    if (document.activeElement !== stocksInput) stocksInput.value = stocksToInput(state.stocks);
+    const guide = document.getElementById('guidesToggle');
+    if (guide) guide.checked = state.showGuides;
+    for (const button of document.querySelectorAll('[data-theme-value]')) {
+      button.classList.toggle('selected', button.dataset.themeValue === state.theme);
+      button.setAttribute('aria-pressed', String(button.dataset.themeValue === state.theme));
+    }
+  }
+
+  if (!isOutput) {
+    document.getElementById('layerList').addEventListener('click', event => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      state.layers[button.dataset.layer] = button.dataset.action === 'play';
+      renderStage();
+      persistAndBroadcast();
+    });
+    document.getElementById('playAll').addEventListener('click', () => {
+      layerNames.forEach(k => { state.layers[k] = true; }); renderStage(); persistAndBroadcast();
+    });
+    document.getElementById('stopAll').addEventListener('click', () => {
+      layerNames.forEach(k => { state.layers[k] = false; }); renderStage(); persistAndBroadcast();
+    });
+    document.getElementById('resetButton').addEventListener('click', () => applyState(defaults, true));
+    for (const field of document.querySelectorAll('[data-content]')) {
+      field.addEventListener('input', () => { state.content[field.dataset.content] = field.value; renderStage(); persistAndBroadcast(); });
+    }
+    document.getElementById('stocksInput').addEventListener('input', event => {
+      state.stocks = parseStockLines(event.target.value); renderStage(); persistAndBroadcast();
+    });
+    for (const slider of document.querySelectorAll('[data-speed]')) {
+      slider.addEventListener('input', () => {
+        state.speeds[slider.dataset.speed] = Number(slider.value);
+        document.getElementById(`${slider.dataset.speed}SpeedValue`).textContent = `${slider.value}s`;
+        stage.querySelector(`#${slider.dataset.speed}Track`).style.setProperty('--duration', `${slider.value}s`);
+        persistAndBroadcast();
+      });
+    }
+    for (const themeButton of document.querySelectorAll('[data-theme-value]')) {
+      themeButton.addEventListener('click', () => { state.theme = themeButton.dataset.themeValue; renderStage(); renderInputs(); persistAndBroadcast(); });
+    }
+    document.getElementById('guidesToggle').addEventListener('change', event => {
+      state.showGuides = event.target.checked; renderStage(); persistAndBroadcast();
+    });
+    document.getElementById('fullscreenPreview').addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen?.();
+      else mount.requestFullscreen?.();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.altKey || event.ctrlKey || event.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+      const idx = Number(event.key) - 1;
+      if (idx >= 0 && idx < layerNames.length) {
+        event.preventDefault(); const key = layerNames[idx]; state.layers[key] = !state.layers[key]; renderStage(); persistAndBroadcast();
+      }
+    });
+  }
+  renderStage();
+  if (!isOutput) renderInputs();
+})();
+
+</script>
+</body>
+</html>

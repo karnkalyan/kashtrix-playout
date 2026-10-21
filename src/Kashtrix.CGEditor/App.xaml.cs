@@ -19,8 +19,8 @@ public partial class App : System.Windows.Application
             try { BroadcastPlayout.Ffmpeg.FfmpegRuntime.Initialize(System.IO.Path.Combine(AppContext.BaseDirectory, "native", "ffmpeg")); } catch { }
             try { BroadcastPlayout.Services.ChromiumCgRuntime.Initialize(); } catch { }
             _vm = new BroadcastPlayout.ViewModels.MainViewModel(enableAutomation: false);
-            _vm.EnsureCgDemos();
-            var window = new BroadcastPlayout.Views.CgEditorWindow(_vm);
+            // Do not pre-load default CG demos into active session on startup; only load when user chooses from DEMOS menu
+            var window = new BroadcastPlayout.Views.CgEditorWindow(_vm, startBlank: true);
             MainWindow = window;
             window.Show();
             StandaloneAppDiagnostics.Ready(AppName);

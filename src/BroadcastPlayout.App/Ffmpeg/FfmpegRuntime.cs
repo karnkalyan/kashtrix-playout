@@ -15,10 +15,38 @@ public static unsafe class FfmpegRuntime
     {
         if (_initialized) return;
         var required = new[] { "avcodec-63.dll", "avformat-63.dll", "avutil-61.dll", "avdevice-63.dll", "swscale-10.dll", "swresample-7.dll" };
-        if (!Directory.Exists(rootPath)) throw new DirectoryNotFoundException($"Media runtime directory not found: {rootPath}");
-        var missing = required.Where(x => !File.Exists(Path.Combine(rootPath, x))).ToArray();
-        if (missing.Length > 0) throw new FileNotFoundException("Required media runtime component(s) are missing: " + string.Join(", ", missing));
-        DynamicallyLoadedBindings.LibrariesPath = rootPath;
+
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(rootPath)) candidates.Add(rootPath);
+        try
+        {
+            candidates.Add(Path.Combine(AppContext.BaseDirectory, "native", "ffmpeg"));
+            candidates.Add(Path.Combine(AppContext.BaseDirectory, "..", "native", "ffmpeg"));
+            candidates.Add(Path.Combine(AppContext.BaseDirectory, "..", "BroadcastPlayout.App", "native", "ffmpeg"));
+            candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KashtrixPlayout", "native", "ffmpeg"));
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            for (var i = 0; i < 4 && dir != null; i++, dir = dir.Parent)
+            {
+                candidates.Add(Path.Combine(dir.FullName, "native", "ffmpeg"));
+                candidates.Add(Path.Combine(dir.FullName, "src", "BroadcastPlayout.App", "native", "ffmpeg"));
+            }
+        }
+        catch { }
+
+        string? validPath = null;
+        foreach (var c in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (Directory.Exists(c) && required.All(dll => File.Exists(Path.Combine(c, dll))))
+            {
+                validPath = c;
+                break;
+            }
+        }
+
+        if (validPath == null)
+            throw new FileNotFoundException("Broadcast media decoding engine standby. Native media runtime components are not configured.");
+
+        DynamicallyLoadedBindings.LibrariesPath = validPath;
         DynamicallyLoadedBindings.Initialize();
         // Device demuxers (Windows capture cards/webcams and desktop capture) are
         // registered explicitly. This is required by some shared Windows builds.

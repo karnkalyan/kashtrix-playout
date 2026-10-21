@@ -104,10 +104,21 @@
 
                     <TabItem Header="KASHTRIX STUDIO">
                         <StackPanel Margin="16">
-                            <TextBlock Text="KASHTRIX STUDIO LIVE PROGRAM FEED" FontWeight="Bold" FontSize="14" Foreground="{StaticResource AccentBrush}"/>
-                            <TextBlock Text="Direct zero-copy inter-process shared memory connection to Kashtrix Studio (K-Mix). No streaming protocols, no network latency, uncompressed broadcast quality." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,14"/>
+                            <TextBlock Text="KASHTRIX STUDIO (K-MIX) PROGRAM FEED" FontWeight="Bold" FontSize="14" Foreground="{StaticResource AccentBrush}"/>
+                            <TextBlock Text="Connect to Kashtrix Studio running on this workstation (zero-copy shared memory) or on a remote network system via IP streaming / NDI." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,12"/>
 
-                            <Border Background="#141124" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,16">
+                            <!-- CONNECTION MODE SELECTOR -->
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <RadioButton x:Name="StudioModeLocalRadio" Content="Local System Shared Memory (127.0.0.1)" IsChecked="True" Foreground="#E2E8F0" FontWeight="SemiBold" Checked="StudioMode_Changed"/>
+                                <RadioButton x:Name="StudioModeRemoteRadio" Grid.Column="1" Content="Remote Network Studio (IP / Stream)" Foreground="#E2E8F0" FontWeight="SemiBold" Checked="StudioMode_Changed"/>
+                            </Grid>
+
+                            <!-- LOCAL IPC BOX -->
+                            <Border x:Name="StudioLocalPanel" Background="#141124" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,12">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -116,11 +127,48 @@
                                     </Grid.RowDefinitions>
                                     <StackPanel Orientation="Horizontal">
                                         <Ellipse Width="10" Height="10" Fill="{StaticResource GoodBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                        <TextBlock Text="SHARED MEMORY BUS CONNECTORS" FontWeight="Bold" FontSize="11" Foreground="{StaticResource GoodBrush}"/>
+                                        <TextBlock Text="LOCAL SHARED MEMORY BUS (ZERO-COPY IPC)" FontWeight="Bold" FontSize="11" Foreground="{StaticResource GoodBrush}"/>
                                     </StackPanel>
                                     <TextBlock Grid.Row="1" Text="Video Map: KashtrixStudio.Program.Video.v1" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextBrush}" Margin="0,6,0,2"/>
                                     <TextBlock Grid.Row="2" Text="Audio Map: KashtrixStudio.Program.Audio.v1" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextBrush}"/>
                                 </Grid>
+                            </Border>
+
+                            <!-- REMOTE NETWORK IP BOX -->
+                            <Border x:Name="StudioRemotePanel" Visibility="Collapsed" Background="#0C1420" BorderBrush="#2563EB" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <Ellipse Width="10" Height="10" Fill="#38BDF8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="REMOTE STUDIO NETWORK ENDPOINT" FontWeight="Bold" FontSize="11" Foreground="#38BDF8"/>
+                                    </StackPanel>
+                                    <Grid Margin="0,4,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="110"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="180"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="STUDIO HOST / IP ADDRESS" Style="{StaticResource SectionCaption}"/>
+                                            <TextBox x:Name="StudioHostBox" Text="127.0.0.1" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="PORT" Style="{StaticResource SectionCaption}"/>
+                                            <TextBox x:Name="StudioPortBox" Text="8088" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="4">
+                                            <TextBlock Text="TRANSMISSION PROTOCOL" Style="{StaticResource SectionCaption}"/>
+                                            <ComboBox x:Name="StudioProtocolCombo" SelectedIndex="0" Margin="0,3,0,0">
+                                                <ComboBoxItem Content="NDI Network Stream"/>
+                                                <ComboBoxItem Content="SRT Caller (Low Latency)"/>
+                                                <ComboBoxItem Content="UDP DVB-TS Stream"/>
+                                                <ComboBoxItem Content="RTMP Ingest Feed"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="Tip: If Kashtrix Studio is running on another machine, enter that workstation's LAN IP." Foreground="{StaticResource MutedBrush}" FontSize="9.5" Margin="0,4,0,0"/>
+                                </StackPanel>
                             </Border>
 
                             <Grid Margin="0,0,0,14">

@@ -62,15 +62,33 @@ public sealed unsafe class VideoDecoder : IDisposable
 
         FfmpegRuntime.EnsureReady();
 
-        if (YtDlpResolver.LooksLikeWebVideoPage(item.FilePath))
+        if (!string.IsNullOrWhiteSpace(item.ResolvedMediaUrl))
+        {
+            var resolvedItem = item.Clone();
+            resolvedItem.FilePath = item.ResolvedMediaUrl;
+            item = resolvedItem;
+        }
+        else if (YtDlpResolver.LooksLikeWebVideoPage(item.FilePath))
         {
             try
             {
-                var resolved = YtDlpResolver.ResolveAsync(item.FilePath).GetAwaiter().GetResult();
-                var resolvedItem = item.Clone();
-                resolvedItem.FilePath = resolved.MediaUrl;
-                if (!string.IsNullOrWhiteSpace(resolved.AudioUrl)) resolvedItem.AlternateAudioUrl = resolved.AudioUrl;
-                item = resolvedItem;
+                if (YtDlpResolver.TryGetCached(item.FilePath, out var cached) && cached is not null)
+                {
+                    item.ResolvedMediaUrl = cached.MediaUrl;
+                    if (!string.IsNullOrWhiteSpace(cached.AudioUrl)) item.AlternateAudioUrl = cached.AudioUrl;
+                    var resolvedItem = item.Clone();
+                    resolvedItem.FilePath = cached.MediaUrl;
+                    item = resolvedItem;
+                }
+                else
+                {
+                    var resolved = YtDlpResolver.ResolveAsync(item.FilePath).GetAwaiter().GetResult();
+                    item.ResolvedMediaUrl = resolved.MediaUrl;
+                    if (!string.IsNullOrWhiteSpace(resolved.AudioUrl)) item.AlternateAudioUrl = resolved.AudioUrl;
+                    var resolvedItem = item.Clone();
+                    resolvedItem.FilePath = resolved.MediaUrl;
+                    item = resolvedItem;
+                }
             }
             catch { }
         }

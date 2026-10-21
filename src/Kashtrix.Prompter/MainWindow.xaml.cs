@@ -688,8 +688,28 @@ public partial class MainWindow : Window
 
     private void Window_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        SpeedSlider.Value = Math.Clamp(SpeedSlider.Value + (e.Delta > 0 ? 0.15 : -0.15), SpeedSlider.Minimum, SpeedSlider.Maximum);
-        e.Handled = true;
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            SpeedSlider.Value = Math.Clamp(SpeedSlider.Value + (e.Delta > 0 ? 0.15 : -0.15), SpeedSlider.Minimum, SpeedSlider.Maximum);
+            e.Handled = true;
+            return;
+        }
+
+        if (PreviewHost != null && PreviewHost.IsMouseOver)
+        {
+            if (IsCardMode)
+            {
+                if (e.Delta < 0) NextCard_Click(sender, new RoutedEventArgs());
+                else PreviousCard_Click(sender, new RoutedEventArgs());
+            }
+            else
+            {
+                _scrollOffset = Math.Max(0, _scrollOffset - (e.Delta * 0.75));
+                RenderOutputs();
+            }
+            e.Handled = true;
+            return;
+        }
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)

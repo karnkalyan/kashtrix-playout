@@ -80,7 +80,19 @@ public static class QualityControlService
         {
             result.Passed = false;
             result.Summary = "FAIL · unable to validate";
-            result.Detail = "[Error] " + ex.Message;
+            var msg = ex.Message ?? string.Empty;
+            if (msg.Contains("native", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("ffmpeg", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("avcodec", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("runtime directory", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("not found:", StringComparison.OrdinalIgnoreCase))
+            {
+                result.Detail = "[Error] Broadcast media decoding engine standby. Native media runtime components are not initialized for this format.";
+            }
+            else
+            {
+                result.Detail = "[Error] " + msg;
+            }
         }
         return result;
     }

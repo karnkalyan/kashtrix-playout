@@ -58,6 +58,7 @@ public sealed class ProfessionalBroadcastSettings
     public bool ScteAutoAdBreak { get; set; } = true;
     public string ScteOnBreakPlayMode { get; set; } = "Current File in Playlist"; // Current File in Playlist | Black Image | Custom Image | Custom Video
     public string ScteOnBreakMediaFile { get; set; } = string.Empty;
+    public string ScteOnBreakPlaylistFile { get; set; } = string.Empty;
     public double ScteDefaultBreakDuration { get; set; } = 60.0;
     public bool ScteUseSameEventIdForCueOut { get; set; } = true;
     public double ScteScheduleSpliceInSeconds { get; set; } = 4.0;

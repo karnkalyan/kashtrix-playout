@@ -25,6 +25,7 @@ public partial class KeyframeCurveEditorWindow : Window
     public KeyframeCurveEditorWindow(CgKeyframe? keyframe)
     {
         InitializeComponent();
+        WindowChromeActions.ApplyCleanBorder(this);
         _keyframe = keyframe;
 
         if (_keyframe != null)

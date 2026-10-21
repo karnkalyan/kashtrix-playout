@@ -123,13 +123,13 @@ public partial class MediaAssetManagementWindow : Window, INotifyPropertyChanged
 
     private void AddRoot_Click(object sender, RoutedEventArgs e)
     {
-        using var d = new Forms.FolderBrowserDialog { Description = "Add MAM media root", UseDescriptionForTitle = true };
-        if (d.ShowDialog() != Forms.DialogResult.OK) return;
-        AddRoot(d.SelectedPath);
+        var d = new KashtrixFileDialog { IsFolderPicker = true, Title = "Add MAM Media Root Folder" };
+        if (d.ShowDialog() != true) return;
+        AddRoot(d.FileName);
         var settings = SettingsStore.Load();
-        if (!settings.MediaFolders.Any(x => x.Equals(d.SelectedPath, StringComparison.OrdinalIgnoreCase))) settings.MediaFolders.Add(d.SelectedPath);
+        if (!settings.MediaFolders.Any(x => x.Equals(d.FileName, StringComparison.OrdinalIgnoreCase))) settings.MediaFolders.Add(d.FileName);
         SettingsStore.Save(settings);
-        SelectedRoot = d.SelectedPath; RootList.SelectedItem = d.SelectedPath;
+        SelectedRoot = d.FileName; RootList.SelectedItem = d.FileName;
     }
 
     private async void AssetGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -144,7 +144,11 @@ public partial class MediaAssetManagementWindow : Window, INotifyPropertyChanged
 
     private void SaveMetadata_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedAsset is null) return;
+        if (SelectedAsset is null)
+        {
+            MessageBox.Show("Please select an asset first.", "Kashtrix MAM", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         try
         {
             SelectedAsset.Metadata.LastUsedUtc = DateTime.UtcNow;
@@ -156,8 +160,13 @@ public partial class MediaAssetManagementWindow : Window, INotifyPropertyChanged
             SelectedAsset.RaiseAll();
             AssetsView.Refresh();
             StatusText.Text = "Metadata + workflow saved · " + SelectedAsset.DisplayTitle;
+            MessageBox.Show($"Metadata and workflow saved for '{SelectedAsset.DisplayTitle}'.", "Kashtrix MAM", MessageBoxButton.OK, MessageBoxImage.Information);
         }
-        catch (Exception ex) { StatusText.Text = "Save failed · " + ex.GetBaseException().Message; }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Save failed · " + ex.GetBaseException().Message;
+            MessageBox.Show($"Save failed:\n\n{ex.GetBaseException().Message}", "Kashtrix MAM", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async void VerifyChecksum_Click(object sender, RoutedEventArgs e)

@@ -30,6 +30,8 @@ public sealed class PlaylistItem : INotifyPropertyChanged
     private string _videoDevice = string.Empty;
     private string _audioDevice = string.Empty;
     private string _alternateAudioUrl = string.Empty;
+    private string _resolvedMediaUrl = string.Empty;
+    private bool _isMissingFile;
     private int _audioGainPercent = 100;
     private bool _audioMuted;
     private string _audioChannelMode = "Auto Stereo";
@@ -191,7 +193,7 @@ public sealed class PlaylistItem : INotifyPropertyChanged
                category.Contains("Filler", StringComparison.OrdinalIgnoreCase) ? "#141A1E" : "#0F1418";
     }
 
-    public string CategoryColor => !string.IsNullOrWhiteSpace(RowColor) ? RowColor :
+    public string CategoryColor => _isMissingFile ? "#4A1218" : (!string.IsNullOrWhiteSpace(RowColor) ? RowColor :
         IsCgEvent ? "#382052" : IsLiveSource ? "#3B1B20" :
         EventType.Equals("STOP", StringComparison.OrdinalIgnoreCase) ? "#4A1717" :
         EventType.Equals("PLAY", StringComparison.OrdinalIgnoreCase) || EventType.Equals("RESUME", StringComparison.OrdinalIgnoreCase) ? "#173823" :
@@ -199,7 +201,7 @@ public sealed class PlaylistItem : INotifyPropertyChanged
         EventType is "SCTE35" or "SCTE104" or "CAPTION608" or "CAPTION708" or "DVBSUB" or "CUETONE" or "DIALTONE" or "DTMF" ? "#3D2A0B" :
         EventType is "CGSHOW" or "CGHIDE" or "LOGOON" or "LOGOOFF" ? "#382052" :
         EventType is "TCP" or "MOS" or "GPO" or "RS422" or "VDCP" or "SNMP" ? "#123040" :
-        ResolveCategoryColor(Category);
+        ResolveCategoryColor(Category));
     public string ParsedTitle => BroadcastPlayout.Services.MediaNameParser.Parse(FilePath, Title).Title;
     public string ParsedArtist => BroadcastPlayout.Services.MediaNameParser.Parse(FilePath, Title).Artist;
     public string ParsedExtra => BroadcastPlayout.Services.MediaNameParser.Parse(FilePath, Title).Extra;
@@ -207,7 +209,7 @@ public sealed class PlaylistItem : INotifyPropertyChanged
     public string Artist => !string.IsNullOrWhiteSpace(ParsedArtist) ? ParsedArtist : (!string.IsNullOrWhiteSpace(_leadActors) ? _leadActors : _director);
     public int Sequence { get => _sequence; set => Set(ref _sequence, value); }
     public string EventType { get => _eventType; set { if (Set(ref _eventType, string.IsNullOrWhiteSpace(value) ? "CLIP" : value.Trim().ToUpperInvariant())) { Raise(nameof(IsCgEvent)); Raise(nameof(IsControlEvent)); Raise(nameof(IsEditorialItem)); Raise(nameof(IsDtmfEvent)); Raise(nameof(IsDialToneEvent)); Raise(nameof(IsTcpEvent)); Raise(nameof(IsMosEvent)); Raise(nameof(IsProfessionalControlEvent)); Raise(nameof(CategoryColor)); } } }
-    public string Title { get => _title; set => Set(ref _title, string.IsNullOrWhiteSpace(value) ? "Untitled" : value.Trim()); }
+    public string Title { get => _title; set { if (Set(ref _title, string.IsNullOrWhiteSpace(value) ? "Untitled" : value.Trim())) { Raise(nameof(DisplayTitle)); } } }
     public string FilePath { get => _filePath; set { if (Set(ref _filePath, value ?? string.Empty)) { Raise(nameof(SourceDescription)); Raise(nameof(MediaDetails)); Raise(nameof(ParsedTitle)); Raise(nameof(ParsedArtist)); Raise(nameof(ParsedExtra)); } } }
     public string SourceKind { get => _sourceKind; set { if (Set(ref _sourceKind, string.IsNullOrWhiteSpace(value) ? "File" : value.Trim())) { Raise(nameof(SourceDescription)); Raise(nameof(MediaDetails)); Raise(nameof(IsCgEvent)); } } }
     public string InputFormat { get => _inputFormat; set => Set(ref _inputFormat, value ?? string.Empty); }
@@ -216,6 +218,16 @@ public sealed class PlaylistItem : INotifyPropertyChanged
     public string AudioDevice { get => _audioDevice; set => Set(ref _audioDevice, value ?? string.Empty); }
     /// <summary>Optional separate audio stream URL returned by web resolvers such as yt-dlp.</summary>
     public string AlternateAudioUrl { get => _alternateAudioUrl; set => Set(ref _alternateAudioUrl, value ?? string.Empty); }
+    /// <summary>Cached direct video stream URL returned by web resolvers such as yt-dlp.</summary>
+    public string ResolvedMediaUrl { get => _resolvedMediaUrl; set => Set(ref _resolvedMediaUrl, value ?? string.Empty); }
+    public bool IsMissingFile { get => _isMissingFile; set { if (Set(ref _isMissingFile, value)) { Raise(nameof(CategoryColor)); Raise(nameof(MissingFileBadge)); Raise(nameof(QcBadgeText)); Raise(nameof(DisplayTitle)); } } }
+    public string MissingFileBadge => _isMissingFile ? "[FILE NOT FOUND]" : "";
+    public string DisplayTitle => _isMissingFile ? $"[FILE NOT FOUND] {Title}" : Title;
+    public string QcBadgeText => _isMissingFile ? "[FILE NOT FOUND]" :
+        _qcStatus.StartsWith("PASS", StringComparison.OrdinalIgnoreCase) ? "[QC PASS]" :
+        _qcStatus.StartsWith("FAIL", StringComparison.OrdinalIgnoreCase) ? "[QC FAIL]" :
+        _qcStatus.StartsWith("Queue", StringComparison.OrdinalIgnoreCase) || _qcStatus.StartsWith("Run", StringComparison.OrdinalIgnoreCase) ? "[QC RUNNING]" :
+        string.Equals(_qcStatus, "Not checked", StringComparison.OrdinalIgnoreCase) ? "[QC PENDING]" : $"[QC {_qcStatus}]";
     public int AudioGainPercent { get => _audioGainPercent; set { if (Set(ref _audioGainPercent, Math.Clamp(value, 0, 200))) Raise(nameof(MediaPropertiesSummary)); } }
     public bool AudioMuted { get => _audioMuted; set { if (Set(ref _audioMuted, value)) Raise(nameof(MediaPropertiesSummary)); } }
     /// <summary>Per-item channel routing. Auto Stereo preserves stereo and folds multichannel safely; mono sources are duplicated L/R.</summary>
@@ -363,7 +375,7 @@ public sealed class PlaylistItem : INotifyPropertyChanged
     public int CaptureHeight { get => _captureHeight; set => Set(ref _captureHeight, Math.Max(0, value)); }
     public double SourceFrameRate { get => _sourceFrameRate; set { if (Set(ref _sourceFrameRate, value < 0 ? 0 : value)) Raise(nameof(MediaDetails)); } }
     public string ThumbnailPath { get => _thumbnailPath; set => Set(ref _thumbnailPath, value ?? string.Empty); }
-    public string QcStatus { get => _qcStatus; set => Set(ref _qcStatus, value ?? "Not checked"); }
+    public string QcStatus { get => _qcStatus; set { if (Set(ref _qcStatus, value ?? "Not checked")) Raise(nameof(QcBadgeText)); } }
     public string QcSummary { get => _qcSummary; set => Set(ref _qcSummary, value ?? string.Empty); }
     public Guid CgProjectId { get => _cgProjectId; set { if (Set(ref _cgProjectId, value)) Raise(nameof(IsCgEvent)); } }
     public bool IsCgEvent => SourceKind.Equals("CG", StringComparison.OrdinalIgnoreCase) || EventType.Equals("CG", StringComparison.OrdinalIgnoreCase);

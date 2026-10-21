@@ -33,9 +33,12 @@ public static class CgPathData
         {
             var j = i == 0 ? polygon.Count - 1 : i - 1;
             var a = polygon[i]; var b = polygon[j];
-            if ((a.Y > y) != (b.Y > y) &&
-                x < (b.X - a.X) * (y - a.Y) / Math.Max(1e-12, b.Y - a.Y) + a.X)
-                inside = !inside;
+            if ((a.Y > y) != (b.Y > y))
+            {
+                var dy = b.Y - a.Y;
+                if (Math.Abs(dy) > 1e-12 && x < (b.X - a.X) * (y - a.Y) / dy + a.X)
+                    inside = !inside;
+            }
         }
         return inside;
     }

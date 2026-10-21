@@ -23,7 +23,7 @@ public partial class QcControllerWindow : Window, INotifyPropertyChanged
     public MediaQcResult? SelectedResult { get=>_selectedResult; set{_selectedResult=value;Raise();} }
     public QcControllerWindow(MainViewModel vm){InitializeComponent();_vm=vm;DataContext=this;_clock.Tick+=(_,_)=>ClockText.Text=DateTime.Now.ToString("HH:mm:ss");_clock.Start();ClockText.Text=DateTime.Now.ToString("HH:mm:ss");Closed+=(_,_)=>{_clock.Stop();_scanCts?.Cancel();};}
     private void AddFiles_Click(object s,RoutedEventArgs e){var d=new OpenFileDialog{Multiselect=true,Filter="Media|*.mp4;*.mov;*.mxf;*.mkv;*.avi;*.ts;*.m2ts;*.mpg;*.mpeg;*.webm;*.wmv|All files|*.*"};if(d.ShowDialog()!=true)return;foreach(var f in d.FileNames)AddPlaceholder(f);}
-    private void AddFolder_Click(object s,RoutedEventArgs e){using var d=new Forms.FolderBrowserDialog{Description="Add media folder to QC queue",UseDescriptionForTitle=true};if(d.ShowDialog()!=Forms.DialogResult.OK)return;foreach(var f in MediaLibraryService.ScanFolder(d.SelectedPath).Select(x=>x.FilePath))AddPlaceholder(f);}
+    private void AddFolder_Click(object s,RoutedEventArgs e){var d=new OpenFileDialog{IsFolderPicker=true,Title="Select Folder for QC"};if(d.ShowDialog()!=true)return;foreach(var f in MediaLibraryService.ScanFolder(d.FileName).Select(x=>x.FilePath))AddPlaceholder(f);}
     private void AddPlaceholder(string f){if(Results.Any(x=>string.Equals(x.FilePath,f,StringComparison.OrdinalIgnoreCase)))return;Results.Add(new MediaQcResult{FilePath=f,Passed=false,Summary="Queued",Detail="Not checked yet"});Raise(nameof(Results));}
     private async void FastQc_Click(object s,RoutedEventArgs e)=>await RunAsync(false);
     private async void DeepQc_Click(object s,RoutedEventArgs e)=>await RunAsync(true);

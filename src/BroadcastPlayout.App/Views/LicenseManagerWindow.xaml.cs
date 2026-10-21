@@ -1,42 +1,319 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
+using BroadcastPlayout.Services;
 
 namespace BroadcastPlayout.Views;
 
-public sealed record LicenseFeature(string Name, string Code);
+public sealed class ModuleGateItem : INotifyPropertyChanged
+{
+    private bool _isActive;
+    public string AppKey { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public string Capabilities { get; init; } = string.Empty;
+
+    public bool IsActive
+    {
+        get => _isActive;
+        set
+        {
+            if (_isActive != value)
+            {
+                _isActive = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(StatusBadgeText));
+                OnPropertyChanged(nameof(StatusBadgeBg));
+                OnPropertyChanged(nameof(StatusBadgeFg));
+                OnPropertyChanged(nameof(StatusBorderBrush));
+            }
+        }
+    }
+
+    public string StatusBadgeText => IsActive ? "ACTIVE · LICENSED" : "DEACTIVATED";
+    public Brush StatusBadgeBg => IsActive ? new SolidColorBrush(Color.FromRgb(16, 42, 24)) : new SolidColorBrush(Color.FromRgb(38, 22, 18));
+    public Brush StatusBadgeFg => IsActive ? new SolidColorBrush(Color.FromRgb(85, 200, 120)) : new SolidColorBrush(Color.FromRgb(240, 140, 90));
+    public Brush StatusBorderBrush => IsActive ? new SolidColorBrush(Color.FromRgb(36, 92, 54)) : new SolidColorBrush(Color.FromRgb(110, 40, 30));
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
 
 public partial class LicenseManagerWindow : Window
 {
-    private readonly List<LicenseFeature> _features =
-    [
-        new("4K UHD 60p & 12G-SDI Broadcast Output Engine", "FEAT-4K-UHD"),
-        new("Multi-Channel DirectShow & Native Ingest Engine", "FEAT-INGEST-DSHOW"),
-        new("Kashtrix-Mix 16-Bus Live Production Switcher", "FEAT-KMIX-SWITCHER"),
-        new("Dual-Channel 3D/HTML5 Real-Time CG Compositor", "FEAT-CG-COMPOSITOR"),
-        new("Master Matrix Output Engine (NDI / SDI / SRT / DVB-TS)", "FEAT-OUTPUT-MATRIX"),
-        new("MOS Protocol & Newsroom Automation Gateway", "FEAT-MOS-GATEWAY"),
-        new("Enterprise MAM & High-Availability 1+1 Redundancy", "FEAT-HA-REDUNDANCY"),
-        new("Integrated SCTE-35 / SCTE-104 Digital Program Insertion", "FEAT-SCTE-DPI")
-    ];
+    private readonly ObservableCollection<ModuleGateItem> _modules = [];
 
     public LicenseManagerWindow()
     {
         InitializeComponent();
         WindowChromeActions.ApplyCleanBorder(this);
-        FeaturesList.ItemsSource = _features;
+        ModuleGatesControl.ItemsSource = _modules;
+        LoadLicenseDetails();
     }
 
-    private void UpdateKey_Click(object sender, RoutedEventArgs e)
+    private void LoadLicenseDetails()
+    {
+        try
+        {
+            var p = KashtrixLicenseAuthority.Current;
+            LicensedToBox.Text = string.IsNullOrWhiteSpace(p.CustomerName) ? "Chief Transmission Engineer" : p.CustomerName;
+            OrgBox.Text = string.IsNullOrWhiteSpace(p.LicensedCompany) ? "Kashtrix Broadcast Systems Ltd." : p.LicensedCompany;
+            LicenseKeyBox.Text = p.SerialNumber;
+            LicenseIdBox.Text = string.IsNullOrWhiteSpace(p.LicenseId) ? "UNREGISTERED-TRIAL" : p.LicenseId;
+            NodeIdBox.Text = KashtrixLicenseAuthority.HardwareId;
+            KtxTokenBox.Text = KashtrixLicenseAuthority.ProvisioningKtxCode;
+
+            LicenseServerHostBox.Text = string.IsNullOrWhiteSpace(p.LicenseServerHost) ? KashtrixLicenseAuthority.DefaultProductionHost : p.LicenseServerHost;
+            LicenseServerPortBox.Text = p.LicenseServerPort > 0 ? p.LicenseServerPort.ToString() : KashtrixLicenseAuthority.DefaultProductionPort.ToString();
+            TenantIdBox.Text = string.IsNullOrWhiteSpace(p.TenantId) ? KashtrixLicenseAuthority.ProductTenantId : p.TenantId;
+            AppIdBox.Text = string.IsNullOrWhiteSpace(p.ApplicationId) ? KashtrixLicenseAuthority.ProductApplicationId : p.ApplicationId;
+
+            ActivationStatusText.Text = string.IsNullOrWhiteSpace(p.ActivationStatus) ? "Unlicensed · Activation Required" : p.ActivationStatus;
+            ExpirationText.Text = string.IsNullOrWhiteSpace(p.ExpirationDate) ? "Requires License Key Activation" : p.ExpirationDate;
+            MaxResText.Text = $"{p.PlayoutMaxResolution} UHD (SD/HD/FHD/4K/8K)";
+            SupportContractText.Text = string.IsNullOrWhiteSpace(p.SupportContract) ? "Evaluation Support · Unlicensed" : p.SupportContract;
+
+            if (p.IsActivated)
+            {
+                TierBannerText.Text = "BROADCAST ENTERPRISE MASTER · LICENSED";
+                TierBannerSubtext.Text = "Centralized Omni License Protocol v2 · Authoritative per-module execution gating · 16 Channels & 8K UHD transmission";
+                BannerIconText.Text = "🛡";
+                BannerIconBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(56, 189, 248));
+                BannerIconBorder.Background = new SolidColorBrush(Color.FromRgb(29, 42, 58));
+                TopBannerBorder.Background = new SolidColorBrush(Color.FromRgb(16, 24, 36));
+                TopBannerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(42, 61, 84));
+
+                BannerBadgeText.Text = "ACTIVE & AUTHORITATIVE";
+                BannerBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(133, 222, 128));
+                BannerBadgeDot.Fill = new SolidColorBrush(Color.FromRgb(85, 200, 120));
+                BannerBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(22, 48, 32));
+                BannerBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(85, 200, 120));
+                ActivationStatusText.Foreground = new SolidColorBrush(Color.FromRgb(133, 222, 128));
+            }
+            else
+            {
+                TierBannerText.Text = "KASHTRIX SUITE · UNLICENSED EVALUATION";
+                TierBannerSubtext.Text = "Centralized Omni License Protocol v2 · Activation key required to unlock broadcast transmission engines.";
+                BannerIconText.Text = "🔒";
+                BannerIconBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+                BannerIconBorder.Background = new SolidColorBrush(Color.FromRgb(38, 26, 20));
+                TopBannerBorder.Background = new SolidColorBrush(Color.FromRgb(24, 19, 16));
+                TopBannerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(92, 43, 20));
+
+                BannerBadgeText.Text = "UNLICENSED · ACTIVATION REQUIRED";
+                BannerBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+                BannerBadgeDot.Fill = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+                BannerBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(45, 28, 18));
+                BannerBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(163, 78, 36));
+                ActivationStatusText.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+            }
+
+            PopulateModuleGates(p);
+
+            var activePlayouts = p.AuthorizedNodes.Count(n => n.IsAuthorized && n.ApplicationType.Contains("Playout", StringComparison.OrdinalIgnoreCase));
+            PlayoutQuotaSummaryText.Text = $"Playout Quota: {activePlayouts} / {p.PlayoutMaxChannels} Channels Authorized · Max Res: {p.PlayoutMaxResolution}";
+            AuthorizedNodesControl.ItemsSource = null;
+            AuthorizedNodesControl.ItemsSource = p.AuthorizedNodes.ToList();
+        }
+        catch { }
+    }
+
+    private void PopulateModuleGates(LicensePolicy p)
+    {
+        _modules.Clear();
+
+        var definitions = new List<(string Key, string Name, string Desc, string Caps, bool Active)>
+        {
+            ("Playout", "Kashtrix Playout Master Engine", "Multi-format broadcast transmission automation (SD, HD, FHD, 4K, 8K hierarchical)", "Features: EPG · SCTE-35/104 · MOS · 16 Channels · 7.1 Audio", p.PlayoutActive),
+            ("OutputEngine", "Kashtrix Output Engine Master", "Hardware SDI output, IP network streaming & virtual broadcast output hub", "Interfaces: Matrox · DeckLink · AJA · NDI · RTMP · UDP · SRT · Virtual Out", p.OutputEngineActive),
+            ("InputEngine", "Kashtrix Input Engine", "Live baseband video ingestion, frame synchronizer & remote camera hub", "Feeds: SDI DeckLink · DirectShow · NDI · RTMP/UDP Streams · YouTube", p.InputEngineActive),
+            ("HAController", "Kashtrix High-Availability Redundancy", "1+1 hot mirror redundancy controller with automatic heartbeat failover", "Modes: Mirror Sync · Automated IP Failover · Active Tally Telemetry", p.HaControllerActive),
+            ("NRCS", "Kashtrix NRCS Newsroom Computer System", "Newsroom rundown management, story authoring & MOS teleprompter sync", "Tools: Dual Calendar (AD / Bikram Sambat BS) · Story Rundown · MOS Protocol", p.NrcsActive),
+            ("ApiGateway", "Kashtrix API Gateway & Web MCR", "REST / WebSocket automation hub and remote web browser control room", "Protocols: HTTP REST · WebSocket Telemetry · TCP Remote Control", p.ApiGatewayActive),
+            ("CGController", "Kashtrix CG Controller", "On-air graphic playout, external DeckLink/NDI outputs, tickers & DVE layers", "Capabilities: External SDI/NDI Output · Tickers · Clocks · Layer Stacking", p.CgControllerActive),
+            ("CGEditor", "Kashtrix CG Designer", "Multi-layer vector graphic template designer with 8K/4K resolution presets", "Features: 8K/4K Presets · Quick Edit · Light Sweep FX · 3D Box Projection", p.CgEditorActive),
+            ("ChannelController", "Kashtrix Channel Controller", "Multi-channel supervision, emergency bypass switcher & CG play control", "Supervision: Multi-Channel Monitoring · Emergency Cutover · CG Take Bus", p.ChannelControllerActive),
+            ("IngestServer", "Kashtrix Ingest Server", "Automated multi-channel scheduled recording for baseband and live streams", "Recording: Scheduled Ingest · SDI Capture · NDI Stream Ingest · 16-Channel Quota", p.IngestActive),
+            ("MAM", "Kashtrix Media Asset Management", "Enterprise broadcast media database, metadata indexing & fast proxy player", "Features: Media Indexing · Fast Scrubbing · Proxy Generation · Tagging", p.MamActive),
+            ("Multiview", "Kashtrix Multiviewer Monitor", "Multi-input confidence monitoring wall with tally borders and live audio VU meters", "Monitoring: 16 Input Feeds · Realtime Audio VU · Red/Green Tally", p.MultiviewerActive),
+            ("PlaylistEditor", "Kashtrix Playlist Editor", "Broadcast playlist sequencer, sub-clip event trimming and metadata editor", "Tools: Multi-Channel Rundowns · Secondary Events · Direct Push to Playout", p.PlaylistEditorActive),
+            ("Scheduler", "Kashtrix Broadcast Scheduler", "24/7 automated daypart scheduling, program clocks and traffic reconciliation", "Automation: 24/7 Grid · Daypart Clocks · Fixed Time Events · EPG Export", p.PlaylistSchedulerActive),
+            ("Prompter", "Kashtrix Studio Teleprompter", "Studio newsroom teleprompter with talent confidence screen and NDI feed", "Output: Multi-Display · NDI Talent Stream · Speed Scroll · Story Cues", p.PrompterActive),
+            ("QCController", "Kashtrix QC Controller", "Technical broadcast validation, freeze frame, black frame & silence detection", "Validation: Audio Silence · Video Freeze · Black Detection · Format Compliance", p.QcControllerActive),
+            ("FileManager", "Kashtrix File Manager", "Broadcast media preparation, format validation & workstation staging tool", "Staging: Storage Health · Media Move/Copy · Video Header Validation", p.FileManagerActive)
+        };
+
+        foreach (var def in definitions)
+        {
+            _modules.Add(new ModuleGateItem
+            {
+                AppKey = def.Key,
+                Name = def.Name,
+                Description = def.Desc,
+                Capabilities = def.Caps,
+                IsActive = def.Active
+            });
+        }
+    }
+
+    private void ActivateLicense_Click(object sender, RoutedEventArgs e)
     {
         var key = LicenseKeyBox.Text.Trim();
+        var name = LicensedToBox.Text.Trim();
+        var company = OrgBox.Text.Trim();
+
         if (string.IsNullOrWhiteSpace(key))
         {
-            MessageBox.Show("Please enter a valid license key string.", "License Manager", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Please enter a valid Kashtrix license serial key to activate.", "Activate License", MessageBoxButton.OK, MessageBoxImage.Warning);
+            LicenseKeyBox.Focus();
             return;
         }
 
-        StatusMessageText.Text = $"License key updated successfully: {key}. All 8 broadcast features active.";
-        MessageBox.Show("License key validated and saved successfully. All broadcast modules and engine capabilities are active and unlocked.", "Kashtrix License Manager", MessageBoxButton.OK, MessageBoxImage.Information);
+        if (KashtrixLicenseAuthority.ActivateLicense(key, name, company, out var message))
+        {
+            LoadLicenseDetails();
+            StatusMessageText.Text = message;
+            MessageBox.Show(message, "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        else
+        {
+            MessageBox.Show(message, "License Activation Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void ResetToUnlicensed_Click(object sender, RoutedEventArgs e)
+    {
+        var res = MessageBox.Show(
+            "Are you sure you want to reset this workstation to UNLICENSED evaluation state?\n\nAll broadcast modules and transmission engines will be locked until activated with a valid serial key.",
+            "Reset License to Unlicensed",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (res == MessageBoxResult.Yes)
+        {
+            KashtrixLicenseAuthority.ResetToUnlicensed();
+            LoadLicenseDetails();
+            StatusMessageText.Text = "Kashtrix Broadcast Suite reset to UNLICENSED evaluation mode.";
+            MessageBox.Show("Software reset to UNLICENSED state.\n\nAll modular application gates are now locked.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void ActivateAll_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var m in _modules) m.IsActive = true;
+        StatusMessageText.Text = "All 17 suite modules marked active. Click 'SAVE LICENSE PROFILE' to apply.";
+    }
+
+    private void DeactivateAll_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var m in _modules) m.IsActive = false;
+        StatusMessageText.Text = "All module gates deactivated. Click 'SAVE LICENSE PROFILE' to enforce offline gates.";
+    }
+
+    private void SavePolicy_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var p = KashtrixLicenseAuthority.Current;
+            p.CustomerName = LicensedToBox.Text.Trim();
+            p.LicensedCompany = OrgBox.Text.Trim();
+            p.RegisteredOrg = OrgBox.Text.Trim();
+            p.SerialNumber = LicenseKeyBox.Text.Trim();
+
+            p.LicenseServerHost = LicenseServerHostBox.Text.Trim();
+            if (int.TryParse(LicenseServerPortBox.Text.Trim(), out var port) && port > 0)
+            {
+                p.LicenseServerPort = port;
+            }
+            p.TenantId = TenantIdBox.Text.Trim();
+            p.ApplicationId = AppIdBox.Text.Trim();
+
+            // Apply module states directly to policy
+            foreach (var m in _modules)
+            {
+                switch (m.AppKey)
+                {
+                    case "Playout": p.PlayoutActive = m.IsActive; break;
+                    case "OutputEngine": p.OutputEngineActive = m.IsActive; break;
+                    case "InputEngine": p.InputEngineActive = m.IsActive; break;
+                    case "HAController": p.HaControllerActive = m.IsActive; break;
+                    case "NRCS": p.NrcsActive = m.IsActive; break;
+                    case "ApiGateway": p.ApiGatewayActive = m.IsActive; break;
+                    case "CGController": p.CgControllerActive = m.IsActive; break;
+                    case "CGEditor": p.CgEditorActive = m.IsActive; break;
+                    case "ChannelController": p.ChannelControllerActive = m.IsActive; break;
+                    case "IngestServer": p.IngestActive = m.IsActive; break;
+                    case "MAM": p.MamActive = m.IsActive; break;
+                    case "Multiview": p.MultiviewerActive = m.IsActive; break;
+                    case "PlaylistEditor": p.PlaylistEditorActive = m.IsActive; break;
+                    case "Scheduler": p.PlaylistSchedulerActive = m.IsActive; break;
+                    case "Prompter": p.PrompterActive = m.IsActive; break;
+                    case "QCController": p.QcControllerActive = m.IsActive; break;
+                    case "FileManager": p.FileManagerActive = m.IsActive; break;
+                }
+            }
+
+            KashtrixLicenseAuthority.SavePolicy(p);
+
+            var activeCount = _modules.Count(m => m.IsActive);
+            StatusMessageText.Text = $"License policy saved successfully. {activeCount} of {_modules.Count} modules active.";
+            MessageBox.Show($"License policy successfully applied!\n\n{activeCount} of {_modules.Count} modules active.\nApplications will strictly run according to these activation gates.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error saving license policy: {ex.Message}", "Save Policy Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void TestServer_Click(object sender, RoutedEventArgs e)
+    {
+        var host = LicenseServerHostBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(host)) host = KashtrixLicenseAuthority.DefaultProductionHost;
+        if (!int.TryParse(LicenseServerPortBox.Text.Trim(), out var port) || port <= 0)
+        {
+            port = KashtrixLicenseAuthority.DefaultProductionPort;
+        }
+
+        StatusMessageText.Text = $"Testing connectivity to {host}:{port}...";
+        var (ok, msg) = await KashtrixLicenseAuthority.TestServerConnectivityAsync(host, port);
+        StatusMessageText.Text = msg;
+        MessageBox.Show(msg, "License Server Connection Test", MessageBoxButton.OK, ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
+    }
+
+    private void ResetServerDefaults_Click(object sender, RoutedEventArgs e)
+    {
+        LicenseServerHostBox.Text = KashtrixLicenseAuthority.DefaultProductionHost;
+        LicenseServerPortBox.Text = KashtrixLicenseAuthority.DefaultProductionPort.ToString();
+        TenantIdBox.Text = KashtrixLicenseAuthority.ProductTenantId;
+        AppIdBox.Text = KashtrixLicenseAuthority.ProductApplicationId;
+        StatusMessageText.Text = "Production license server defaults restored (Omni License Protocol v2).";
+    }
+
+    private void CopyKtx_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var ktx = KtxTokenBox.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(ktx))
+            {
+                Clipboard.SetText(ktx);
+                StatusMessageText.Text = "KTX Device Provisioning Token copied to clipboard.";
+                MessageBox.Show("KTX Device Provisioning Token copied to clipboard!\n\nYou can register or assign this token in the central Kashtrix License Server.", "KTX Token Copied", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not copy KTX code: {ex.Message}", "Clipboard Notice", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void ExportCertificate_Click(object sender, RoutedEventArgs e)
@@ -54,18 +331,25 @@ public partial class LicenseManagerWindow : Window
         {
             try
             {
-                var content = System.Text.Json.JsonSerializer.Serialize(new
+                var content = JsonSerializer.Serialize(new
                 {
+                    LicensedTo = LicensedToBox.Text,
+                    Company = OrgBox.Text,
                     NodeId = NodeIdBox.Text,
+                    KtxToken = KtxTokenBox.Text,
                     LicenseKey = LicenseKeyBox.Text,
+                    LicenseId = LicenseIdBox.Text,
                     Tier = "Broadcast Enterprise Master",
-                    Status = "Active",
-                    Channels = 16,
+                    Status = "Active · Perpetual",
+                    ServerEndpoint = $"{LicenseServerHostBox.Text}:{LicenseServerPortBox.Text}",
+                    TenantId = TenantIdBox.Text,
+                    ApplicationId = AppIdBox.Text,
                     IssuedAt = DateTime.UtcNow,
-                    Features = _features.Select(f => f.Code).ToArray()
-                }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                    ActiveModules = _modules.Where(m => m.IsActive).Select(m => m.AppKey).ToArray(),
+                    DeactivatedModules = _modules.Where(m => !m.IsActive).Select(m => m.AppKey).ToArray()
+                }, new JsonSerializerOptions { WriteIndented = true });
 
-                System.IO.File.WriteAllText(dialog.FileName, content);
+                File.WriteAllText(dialog.FileName, content);
                 MessageBox.Show($"License certificate exported to:\n{dialog.FileName}", "License Export", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
@@ -77,20 +361,50 @@ public partial class LicenseManagerWindow : Window
 
     private void Refresh_Click(object sender, RoutedEventArgs e)
     {
-        StatusMessageText.Text = $"Status refreshed at {DateTime.Now:HH:mm:ss}. Workstation hardware lock verified.";
+        LoadLicenseDetails();
+        StatusMessageText.Text = $"Details refreshed at {DateTime.Now:HH:mm:ss}.";
     }
 
-    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void AddWorkstationNode_Click(object sender, RoutedEventArgs e)
     {
-        if (e.ClickCount >= 2) Maximize_Click(sender, e);
-        else try { DragMove(); } catch { }
+        var dlg = new AuthorizeWorkstationDialog
+        {
+            Owner = this
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            LoadLicenseDetails();
+            StatusMessageText.Text = $"Workstation node '{dlg.CreatedNode?.ChannelName}' authorized successfully.";
+        }
     }
 
-    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-    private void Maximize_Click(object sender, RoutedEventArgs e)
+    private void RevokeNode_Click(object sender, RoutedEventArgs e)
     {
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        if (MaxGlyph != null) MaxGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        if (sender is FrameworkElement elem && elem.Tag is string nodeId)
+        {
+            var confirm = MessageBox.Show(
+                "Are you sure you want to revoke authorization for this workstation/channel node?",
+                "Revoke Authorization",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirm == MessageBoxResult.Yes)
+            {
+                if (KashtrixLicenseAuthority.RevokeWorkstationNode(nodeId, out var msg))
+                {
+                    LoadLicenseDetails();
+                    StatusMessageText.Text = msg;
+                    MessageBox.Show(msg, "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show(msg, "Revocation Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+        }
     }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => WindowChromeActions.Drag(this, e);
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.Minimize(this);
+    private void Maximize_Click(object sender, RoutedEventArgs e) => WindowChromeActions.ToggleMaximize(this);
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

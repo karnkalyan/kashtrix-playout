@@ -75,18 +75,18 @@ public sealed class CgCompositor : IDisposable
                 if (cycleTime < pausePoint)
                 {
                     t = cycleTime;
-                    tickerTimelineSeconds = cycleTime;
+                    tickerTimelineSeconds = Math.Max(0, categoryIntroLead - (pausePoint - cycleTime));
                 }
                 else if (cycleTime < pausePoint + tickerHoldDuration)
                 {
                     t = pausePoint;
-                    tickerTimelineSeconds = cycleTime;
+                    tickerTimelineSeconds = categoryIntroLead + (cycleTime - pausePoint);
                 }
                 else
                 {
                     var outElapsed = cycleTime - (pausePoint + tickerHoldDuration);
                     t = Math.Min(project.DurationSeconds, (project.DurationSeconds - maxOutDuration) + outElapsed);
-                    tickerTimelineSeconds = cycleTime;
+                    tickerTimelineSeconds = dynamicTickerDuration;
                 }
             }
             else
@@ -94,12 +94,12 @@ public sealed class CgCompositor : IDisposable
                 if (timelineSeconds < pausePoint)
                 {
                     t = timelineSeconds;
-                    tickerTimelineSeconds = timelineSeconds;
+                    tickerTimelineSeconds = Math.Max(0, categoryIntroLead - (pausePoint - timelineSeconds));
                 }
                 else if (timelineSeconds < pausePoint + tickerHoldDuration)
                 {
                     t = pausePoint;
-                    tickerTimelineSeconds = timelineSeconds;
+                    tickerTimelineSeconds = categoryIntroLead + (timelineSeconds - pausePoint);
                 }
                 else
                 {
@@ -110,7 +110,7 @@ public sealed class CgCompositor : IDisposable
                         return source;
                     }
                     t = Math.Min(project.DurationSeconds, (project.DurationSeconds - maxOutDuration) + outElapsed);
-                    tickerTimelineSeconds = timelineSeconds;
+                    tickerTimelineSeconds = dynamicTickerDuration;
                 }
             }
         }
@@ -184,6 +184,8 @@ public sealed class CgCompositor : IDisposable
                        n.Contains("Background", StringComparison.OrdinalIgnoreCase) ||
                        n.Contains("Bar", StringComparison.OrdinalIgnoreCase);
             }
+
+            CgSmartLayerManager.UpdateLayout(project, 0.04, t);
 
             foreach (var layer in project.Layers.Where(x => x.Visible && (
                 (hasAnyTicker && IsTickerStripLayer(x))
@@ -425,10 +427,22 @@ public sealed class CgCompositor : IDisposable
             }
         }
 
+        var (smartY, smartH) = CgSmartLayerManager.GetEffectiveYAndHeight(layer, motion.Y, motion.Height);
         var x = motion.X * sx;
-        var y = motion.Y * sy;
+        var y = smartY * sy;
         var w = Math.Max(2, motion.Width * sx);
-        var h = Math.Max(2, motion.Height * sy);
+        var h = Math.Max(2, smartH * sy);
+
+        if ((layer.Role.Equals("BreakingNews", StringComparison.OrdinalIgnoreCase) ||
+            (layer.LayerAnimationPreset != null && !layer.LayerAnimationPreset.Equals("None", StringComparison.OrdinalIgnoreCase) && layer.LayerAnimationPreset.Contains("Breaking", StringComparison.OrdinalIgnoreCase))))
+        {
+            var retrigger = CgSmartLayerManager.GetRetriggerElapsed(layer);
+            var bnElapsed = retrigger >= 0 ? retrigger : Math.Max(0, continuousSeconds - layer.StartSeconds);
+            CgSmartLayerManager.EvaluateBreakingNews(layer, bnElapsed, layer.DurationSeconds, out var bnPushX, out var bnScale, out _, out _, out _, out _);
+            x += bnPushX * sx;
+            w *= bnScale;
+            h *= bnScale;
+        }
         var opacity = Math.Clamp(motion.Opacity * AnimationOpacity(project, visualLayer, t, continuousSeconds), 0, 1);
         if (opacity <= .0001) return;
         ApplyMotion(project, visualLayer, motionTime, ref x, ref y, ref w, ref h, sx, sy, continuousSeconds);
@@ -623,7 +637,7 @@ public sealed class CgCompositor : IDisposable
         var feather = Math.Max(0.0, layer.MaskFeather * Math.Min(sx, sy));
         var radius = Math.Clamp(layer.MaskCornerRadius * Math.Min(sx, sy), 0.0, Math.Min(mw, mh) / 2.0);
         var shape = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant();
-        var customMask = shape is "CUSTOM PATH" or "PEN PATH"
+        var customMask = shape is "CUSTOM PATH" or "PEN PATH" or "CUSTOM" or "PEN" or "PEN MASK" or "CUSTOM MASK"
             ? CgPathData.Parse(layer.MaskPathData)
                 .Select(p => new CgPathData.Point(mx + p.X * mw, my + p.Y * mh)).ToArray()
             : [];
@@ -949,8 +963,9 @@ public sealed class CgCompositor : IDisposable
         }
         else
         {
+            var endSec = layer.EndSeconds > layer.StartSeconds ? layer.EndSeconds : (project?.DurationSeconds ?? 10.0);
             inProgress = Math.Clamp((t - layer.StartSeconds - delay) / Math.Max(.05, layer.AnimationInSeconds), 0, 1);
-            outProgress = Math.Clamp((layer.EndSeconds - t) / Math.Max(.05, layer.AnimationOutSeconds), 0, 1);
+            outProgress = Math.Clamp((endSec - t) / Math.Max(.05, layer.AnimationOutSeconds), 0, 1);
         }
         var p = Math.Min(inProgress, outProgress);
         var animation = inProgress < outProgress ? layer.AnimationIn : layer.AnimationOut;
@@ -1077,9 +1092,19 @@ public sealed class CgCompositor : IDisposable
             if (isStrip)
             {
                 if (timeToEval < layer.StartSeconds + delay) return 0;
-                if (layer.AnimationInSeconds > 0.01)
-                    return Math.Clamp((timeToEval - layer.StartSeconds - delay) / Math.Max(0.05, layer.AnimationInSeconds), 0, 1);
-                return 1.0;
+                var inP = layer.AnimationInSeconds > 0.01
+                    ? Math.Clamp((timeToEval - layer.StartSeconds - delay) / Math.Max(0.05, layer.AnimationInSeconds), 0, 1)
+                    : 1.0;
+                var outP = 1.0;
+                if (layer.AnimationOutSeconds > 0.01 && layer.EndSeconds > layer.StartSeconds)
+                {
+                    outP = Math.Clamp((layer.EndSeconds - timeToEval) / Math.Max(0.05, layer.AnimationOutSeconds), 0, 1);
+                }
+                var stripFadeIn = (string.Equals(layer.AnimationIn, "Fade", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(layer.AnimationIn, "Blur", StringComparison.OrdinalIgnoreCase)) ? inP : 1.0;
+                var stripFadeOut = (string.Equals(layer.AnimationOut, "Fade", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(layer.AnimationOut, "Blur", StringComparison.OrdinalIgnoreCase)) ? outP : 1.0;
+                return Math.Min(stripFadeIn, stripFadeOut);
             }
         }
 
@@ -1598,9 +1623,92 @@ public sealed class CgCompositor : IDisposable
             }
         }
 
+        var hasImageRuns = parsedMarkup.Runs.Any(r => !string.IsNullOrEmpty(r.ImagePath));
         if (isLetterScaleDown && textVisual.HasValue && Math.Abs(textVisual.Value.Scale - 1.0) > 0.001 && value.Length > 0)
         {
             DrawTextLetterScaleDown(g, rect, value, font, style, layer, opacity, (float)textVisual.Value.Scale);
+        }
+        else if (hasImageRuns)
+        {
+            var lines = (text ?? "").Split('\n');
+            var fontH = font.GetHeight(g);
+            var totalLinesH = lines.Length * fontH * 1.15f;
+            var vertAlign = (layer.VerticalTextAlignment ?? "Center").Trim().ToUpperInvariant();
+            var lineY = vertAlign switch
+            {
+                "TOP" => rect.Top,
+                "BOTTOM" => rect.Bottom - totalLinesH,
+                _ => rect.Top + Math.Max(0, (rect.Height - totalLinesH) / 2f)
+            };
+
+            foreach (var line in lines)
+            {
+                var parsedLine = KashtrixMarkupParser.Parse(line, layer);
+                if (parsedLine.Runs.Any(r => !string.IsNullOrEmpty(r.ImagePath)))
+                {
+                    float lineRunsWidth = 0;
+                    var lineItems = new List<(KashtrixMarkupParser.MarkupRun run, float w, CachedCgImage? img)>();
+                    foreach (var r in parsedLine.Runs)
+                    {
+                        if (!string.IsNullOrEmpty(r.ImagePath))
+                        {
+                            var cachedImg = GetCachedCgImage(r.ImagePath);
+                            if (cachedImg != null)
+                            {
+                                var iconH = fontH * 0.85f;
+                                var iconW = iconH * (cachedImg.Width / (float)Math.Max(1, cachedImg.Height));
+                                lineItems.Add((r, iconW + 4f, cachedImg));
+                                lineRunsWidth += iconW + 4f;
+                                continue;
+                            }
+                        }
+                        var rText = !string.IsNullOrEmpty(r.FallbackText) ? r.FallbackText : r.Text;
+                        if (!string.IsNullOrEmpty(rText))
+                        {
+                            var sz = g.MeasureString(rText, font, PointF.Empty, StringFormat.GenericTypographic);
+                            lineItems.Add((r, sz.Width, null));
+                            lineRunsWidth += sz.Width;
+                        }
+                    }
+
+                    var horizAlign = (layer.HorizontalTextAlignment ?? "Left").Trim().ToUpperInvariant();
+                    var curX = horizAlign switch
+                    {
+                        "CENTER" => rect.Left + Math.Max(0, (rect.Width - lineRunsWidth) / 2f),
+                        "RIGHT" => rect.Right - lineRunsWidth,
+                        _ => rect.Left
+                    };
+
+                    foreach (var item in lineItems)
+                    {
+                        if (item.img != null)
+                        {
+                            var iconH = fontH * 0.85f;
+                            var iconW = item.w - 4f;
+                            var iconY = lineY + (fontH - iconH) / 2f;
+                            item.img.Draw(g, curX + 2f, iconY, iconW, iconH);
+                        }
+                        else
+                        {
+                            var rText = !string.IsNullOrEmpty(item.run.FallbackText) ? item.run.FallbackText : item.run.Text;
+                            var runCol = !string.IsNullOrWhiteSpace(item.run.TextColor) ? item.run.TextColor : effectiveFill;
+                            using var rBrush = new SolidBrush(ParseColor(runCol, opacity));
+                            g.DrawString(rText, font, rBrush, curX, lineY, StringFormat.GenericTypographic);
+                        }
+                        curX += item.w;
+                    }
+                }
+                else
+                {
+                    var lineRect = new RectangleF(rect.Left, lineY, rect.Width, fontH * 1.15f);
+                    using Brush brush = layer.UseGradient
+                        ? CreateGradientBrush(rect, layer, effectiveFill, layer.GradientColor2, opacity)
+                        : new SolidBrush(ParseColor(effectiveFill, opacity));
+                    using var lineFormat = new StringFormat { Alignment = format.Alignment, LineAlignment = StringAlignment.Center };
+                    g.DrawString(parsedLine.CleanText, font, brush, lineRect, lineFormat);
+                }
+                lineY += fontH * 1.15f;
+            }
         }
         else if (layer.UseOutline && layer.OutlineWidth > 0)
         {
@@ -1740,49 +1848,44 @@ public sealed class CgCompositor : IDisposable
     }
 
     private static readonly object _staticImageSync = new();
-    private static readonly Dictionary<string, Image> _staticImages = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, CachedCgImage> _staticImages = new(StringComparer.OrdinalIgnoreCase);
 
-    public static Image? GetCachedImage(string? path)
+    public static CachedCgImage? GetCachedCgImage(string? path)
     {
         var resolved = ResolveImagePath(path);
         if (string.IsNullOrWhiteSpace(resolved) || !File.Exists(resolved)) return null;
         lock (_staticImageSync)
         {
-            if (!_staticImages.TryGetValue(resolved, out var img))
+            if (!_staticImages.TryGetValue(resolved, out var cached))
             {
                 try
                 {
                     using var temp = Image.FromFile(resolved);
-                    img = new Bitmap(temp);
-                    _staticImages[resolved] = img;
+                    var bmp = new Bitmap(temp);
+                    cached = new CachedCgImage(bmp, bmp.Width, bmp.Height);
+                    _staticImages[resolved] = cached;
                 }
                 catch
                 {
                     return null;
                 }
             }
-            return img;
+            return cached;
         }
     }
+
+    public static Image? GetCachedImage(string? path) => GetCachedCgImage(path)?.Image;
 
     private void DrawImage(Graphics g, RectangleF rect, string? path, double opacity)
     {
         var resolved = ResolveImagePath(path);
         if (string.IsNullOrWhiteSpace(resolved) || !File.Exists(resolved)) return;
-        Image? image;
-        lock (_imageSync)
-        {
-            if (!_images.TryGetValue(resolved, out image))
-            {
-                using var temp = Image.FromFile(resolved);
-                image = new Bitmap(temp);
-                _images[resolved] = image;
-            }
-        }
+        var cached = GetCachedCgImage(resolved);
+        if (cached is null) return;
         var matrix = new ColorMatrix { Matrix33 = (float)Math.Clamp(opacity, 0.0, 1.0) };
         using var attrs = new ImageAttributes();
         attrs.SetColorMatrix(matrix);
-        g.DrawImage(image, Rectangle.Round(rect), 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, attrs);
+        cached.Draw(g, Rectangle.Round(rect), 0, 0, cached.Width, cached.Height, GraphicsUnit.Pixel, attrs);
     }
 
     private readonly record struct TickerSegment(string Category, string Text, bool IsCategoryBadge);
@@ -2077,11 +2180,11 @@ public sealed class CgCompositor : IDisposable
                         {
                             if (!string.IsNullOrEmpty(run.ImagePath))
                             {
-                                var img = GetCachedImage(run.ImagePath);
-                                if (img is not null)
+                                var cachedImg = GetCachedCgImage(run.ImagePath);
+                                if (cachedImg is not null)
                                 {
                                     var iconH = fontH * 0.82f;
-                                    var iconW = iconH * (img.Width / (float)Math.Max(1, img.Height));
+                                    var iconW = iconH * (cachedImg.Width / (float)Math.Max(1, cachedImg.Height));
                                     totalRunW += iconW + 6f;
                                     continue;
                                 }
@@ -2144,11 +2247,11 @@ public sealed class CgCompositor : IDisposable
                     {
                         if (!string.IsNullOrEmpty(run.ImagePath))
                         {
-                            var img = GetCachedImage(run.ImagePath);
-                            if (img is not null)
+                            var cachedImg = GetCachedCgImage(run.ImagePath);
+                            if (cachedImg is not null)
                             {
                                 var iconH = fontH * 0.82f;
-                                var iconW = iconH * (img.Width / (float)Math.Max(1, img.Height));
+                                var iconW = iconH * (cachedImg.Width / (float)Math.Max(1, cachedImg.Height));
                                 totalRunW += iconW + 6f;
                                 continue;
                             }
@@ -2175,34 +2278,46 @@ public sealed class CgCompositor : IDisposable
             }
             else
             {
-                // The first item must originate completely outside the clipping window.
-                // Previously the repeat copy was drawn inside at t=0, making Prime and
-                // other crawls appear fully populated instead of entering from off-screen.
+                // Ultra-smooth continuous broadcast crawl: runs cleanly on any FPS without jitter, jumps or flicker
                 var distance = (float)(elapsed * speed);
-                var repeatSpan = Math.Max(1f, totalContentWidth);
-                var repeating = layer.TickerRepeat && distance >= repeatSpan;
-                var phase = repeating ? (distance - repeatSpan) % repeatSpan : distance;
-                var startX = isRight
-                    ? (repeating ? rect.Left + phase : rect.Left - totalContentWidth + distance)
-                    : (repeating ? rect.Right - totalContentWidth - phase : rect.Right - distance);
+                var repeatSpan = Math.Max(20f, totalContentWidth);
 
-                DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, startX, isRight);
-
-                if (repeating)
+                if (isRight)
                 {
-                    if (isRight)
+                    if (!layer.TickerRepeat)
                     {
-                        if (startX + totalContentWidth < rect.Right)
-                            DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, startX + totalContentWidth, isRight);
-                        if (startX > rect.Left)
-                            DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, startX - totalContentWidth, isRight);
+                        var startX = rect.Left - repeatSpan + distance;
+                        DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, startX, isRight);
                     }
                     else
                     {
-                        if (startX > rect.Left)
-                            DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, startX - totalContentWidth, isRight);
-                        if (startX + totalContentWidth < rect.Right)
-                            DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, startX + totalContentWidth, isRight);
+                        var shift = distance % repeatSpan;
+                        var startX = rect.Left - repeatSpan + shift;
+                        while (startX > rect.Left) startX -= repeatSpan;
+
+                        for (var x = startX; x < rect.Right + repeatSpan; x += repeatSpan)
+                        {
+                            DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, x, isRight);
+                        }
+                    }
+                }
+                else
+                {
+                    if (!layer.TickerRepeat)
+                    {
+                        var startX = rect.Right - distance;
+                        DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, startX, isRight);
+                    }
+                    else
+                    {
+                        var shift = distance % repeatSpan;
+                        var startX = rect.Right - shift;
+                        while (startX < rect.Right) startX += repeatSpan;
+
+                        for (var x = startX; x > rect.Left - repeatSpan; x -= repeatSpan)
+                        {
+                            DrawTickerStream(g, rect, font, badgeFont, brush, badgeTextBrush, badgeBgBrush, sepLogo, measured, hasSepLogo, logoSize, logoPad, separatorText, sepTextSize, gap, x, isRight);
+                        }
                     }
                 }
             }
@@ -2287,12 +2402,12 @@ public sealed class CgCompositor : IDisposable
                     {
                         if (!string.IsNullOrEmpty(run.ImagePath))
                         {
-                            var img = GetCachedImage(run.ImagePath);
-                            if (img is not null)
+                            var cachedImg = GetCachedCgImage(run.ImagePath);
+                            if (cachedImg is not null)
                             {
                                 var iconH = fontH * 0.82f;
-                                var iconW = iconH * (img.Width / (float)Math.Max(1, img.Height));
-                                g.DrawImage(img, runX + 2f, centerY - iconH / 2f, iconW, iconH);
+                                var iconW = iconH * (cachedImg.Width / (float)Math.Max(1, cachedImg.Height));
+                                cachedImg.Draw(g, runX + 2f, centerY - iconH / 2f, iconW, iconH);
                                 runX += iconW + 6f;
                                 continue;
                             }
@@ -2391,7 +2506,7 @@ public sealed class CgCompositor : IDisposable
 
     private static void DrawTickerStream(Graphics g, RectangleF rect, Font font, Font badgeFont, Brush textBrush, Brush badgeTextBrush, Brush badgeBgBrush, Image? sepLogo, List<(TickerSegment Seg, float Width)> measured, bool hasSepLogo, float logoSize, float logoPad, string separatorText, SizeF sepTextSize, float gap, float startX, bool isRight)
     {
-        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.Half;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
@@ -2437,12 +2552,12 @@ public sealed class CgCompositor : IDisposable
                         {
                             if (!string.IsNullOrEmpty(run.ImagePath))
                             {
-                                var img = GetCachedImage(run.ImagePath);
-                                if (img is not null)
+                                var cachedImg = GetCachedCgImage(run.ImagePath);
+                                if (cachedImg is not null)
                                 {
                                     var iconH = fontH * 0.82f;
-                                    var iconW = iconH * (img.Width / (float)Math.Max(1, img.Height));
-                                    g.DrawImage(img, runX + 2f, centerY - iconH / 2f, iconW, iconH);
+                                    var iconW = iconH * (cachedImg.Width / (float)Math.Max(1, cachedImg.Height));
+                                    cachedImg.Draw(g, runX + 2f, centerY - iconH / 2f, iconW, iconH);
                                     runX += iconW + 6f;
                                     continue;
                                 }
@@ -3015,5 +3130,36 @@ public sealed class CgCompositor : IDisposable
         private readonly GraphicsState _state;
         public GraphicsStateScope(Graphics graphics) { _graphics = graphics; _state = graphics.Save(); }
         public void Dispose() => _graphics.Restore(_state);
+    }
+}
+
+public sealed class CachedCgImage
+{
+    public Image Image { get; }
+    public int Width { get; }
+    public int Height { get; }
+    public object SyncRoot { get; } = new();
+
+    public CachedCgImage(Image image, int width, int height)
+    {
+        Image = image;
+        Width = width;
+        Height = height;
+    }
+
+    public void Draw(Graphics g, float x, float y, float width, float height)
+    {
+        lock (SyncRoot)
+        {
+            g.DrawImage(Image, x, y, width, height);
+        }
+    }
+
+    public void Draw(Graphics g, Rectangle destRect, int srcX, int srcY, int srcW, int srcH, GraphicsUnit unit, ImageAttributes? attrs)
+    {
+        lock (SyncRoot)
+        {
+            g.DrawImage(Image, destRect, srcX, srcY, srcW, srcH, unit, attrs);
+        }
     }
 }

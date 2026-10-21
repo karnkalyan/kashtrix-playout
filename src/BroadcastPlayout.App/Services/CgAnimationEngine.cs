@@ -243,14 +243,16 @@ public static class CgAnimationEngine
         double RotationX, double RotationY, double Rotation, double Opacity,
         double ScaleX, double ScaleY, double ScaleZ,
         double AnchorX, double AnchorY, double AnchorZ,
-        double SkewX, double SkewY, double BlurRadius)
+        double SkewX, double SkewY, double BlurRadius,
+        double LightSweepProgress = double.NaN)
     {
         public static MotionState FromLayer(CgLayer layer) => new(
             layer.X, layer.Y, layer.Z, layer.Width, layer.Height,
             layer.RotationX, layer.RotationY, layer.Rotation, layer.Opacity,
             layer.ScaleX == 0 ? 1 : layer.ScaleX, layer.ScaleY == 0 ? 1 : layer.ScaleY, layer.ScaleZ == 0 ? 1 : layer.ScaleZ,
             Math.Clamp(layer.AnchorX, 0, 1), Math.Clamp(layer.AnchorY, 0, 1), layer.AnchorZ,
-            layer.SkewX, layer.SkewY, Math.Max(0, layer.BlurRadius));
+            layer.SkewX, layer.SkewY, Math.Max(0, layer.BlurRadius),
+            layer.LightSweepProgress);
     }
 
     /// <summary>
@@ -276,7 +278,7 @@ public static class CgAnimationEngine
         var scaleFrames = layer.Keyframes.Where(k => string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains("Scale", StringComparison.OrdinalIgnoreCase)).ToList();
         var rotFrames = layer.Keyframes.Where(k => string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains("Rotation", StringComparison.OrdinalIgnoreCase)).ToList();
         var opFrames = layer.Keyframes.Where(k => string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains("Opacity", StringComparison.OrdinalIgnoreCase)).ToList();
-        var fxFrames = layer.Keyframes.Where(k => string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains("Effects", StringComparison.OrdinalIgnoreCase)).ToList();
+        var fxFrames = layer.Keyframes.Where(k => string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains("Effects", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains("LightSweep", StringComparison.OrdinalIgnoreCase)).ToList();
 
         var posState = EvaluateKeyframes(fallback, posFrames, layerTime, layer.DefaultEase);
         var scaleState = EvaluateKeyframes(fallback, scaleFrames, layerTime, layer.DefaultEase);
@@ -292,7 +294,8 @@ public static class CgAnimationEngine
             Rotation = rotState.Rotation, RotationX = rotState.RotationX, RotationY = rotState.RotationY,
             SkewX = rotState.SkewX, SkewY = rotState.SkewY,
             Opacity = opState.Opacity,
-            BlurRadius = fxState.BlurRadius
+            BlurRadius = fxState.BlurRadius,
+            LightSweepProgress = double.IsNaN(fxState.LightSweepProgress) ? fallback.LightSweepProgress : fxState.LightSweepProgress
         };
     }
 
@@ -366,6 +369,55 @@ public static class CgAnimationEngine
             var unscaledW = Math.Max(1.0, state.Width * Math.Max(0.001, state.ScaleX));
             var unscaledH = Math.Max(1.0, state.Height * Math.Max(0.001, state.ScaleY));
             var boxRadius = isBoxFace ? (unscaledW / 2.0) : (isFlipCard ? 2.0 : 0.0);
+
+            // Handle Top/Bottom faces (primary rotation along X axis, e.g. ±90 deg)
+            var isTopBottom = Math.Abs(Math.Abs(state.RotationX) - 90.0) < 15.0;
+            if (isTopBottom)
+            {
+                var isTopFace = state.RotationX < 0 || Math.Abs(state.RotationX - (-90.0)) < 15.0 || Math.Abs(state.RotationX - 270.0) < 15.0;
+                var tbFaceCenterY = anchorY + (isTopFace ? -(unscaledH / 2.0) : (unscaledH / 2.0));
+                var tbFaceCenterZ = state.Z;
+
+                var zNear = state.Z - boxRadius;
+                var zFar = state.Z + boxRadius;
+                var scaleNear = perspective / Math.Max(80.0, perspective + zNear + state.AnchorZ);
+                var scaleFar = perspective / Math.Max(80.0, perspective + zFar + state.AnchorZ);
+
+                var projYNear = anchorY + (tbFaceCenterY - anchorY) * scaleNear;
+                var projYFar = anchorY + (tbFaceCenterY - anchorY) * scaleFar;
+                var tbProjH = Math.Max(2.0, Math.Abs(projYFar - projYNear));
+
+                var wNear = unscaledW * scaleNear;
+                var wFar = unscaledW * scaleFar;
+                var tbProjW = Math.Max(2.0, (wNear + wFar) / 2.0);
+
+                var dX = (wNear - wFar) * 0.5;
+                var skewXDeg = Math.Atan2(dX, Math.Max(1.0, tbProjH)) * 180.0 / Math.PI;
+                skewXDeg = Math.Clamp(skewXDeg, -65.0, 65.0);
+
+                double faceOpacityX = 1.0;
+                if (isBoxFace || isFlipCard)
+                {
+                    // Top cap is visible when viewed with eye-level perspective; bottom cap culled unless tilted
+                    faceOpacityX = isTopFace ? 0.95 : (tbFaceCenterY < anchorY ? 0.9 : 0.0);
+                }
+
+                var tbProjCenterX = anchorX;
+                var tbProjCenterY = (projYNear + projYFar) / 2.0;
+
+                return state with
+                {
+                    X = tbProjCenterX - tbProjW * ax,
+                    Y = tbProjCenterY - tbProjH * ay,
+                    Z = tbFaceCenterZ,
+                    Width = tbProjW,
+                    Height = tbProjH,
+                    ScaleX = 1.0,
+                    ScaleY = 1.0,
+                    SkewX = state.SkewX + skewXDeg,
+                    Opacity = state.Opacity * faceOpacityX
+                };
+            }
 
             var deltaX = boxRadius * Math.Sin(ry);
             var deltaZ = -boxRadius * Math.Cos(ry);
@@ -479,9 +531,39 @@ public static class CgAnimationEngine
 
         var span = Math.Max(.000001, right.TimeSeconds - left.TimeSeconds);
         var raw = Math.Clamp((timeSeconds - left.TimeSeconds) / span, 0, 1);
-        var easeName = !string.IsNullOrWhiteSpace(left.Ease) && !string.Equals(left.Ease, "linear", StringComparison.OrdinalIgnoreCase)
-            ? left.Ease
-            : (!string.IsNullOrWhiteSpace(right.Ease) ? right.Ease : defaultEase);
+        string easeName;
+        if (right.Ease?.StartsWith("cubic-bezier", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            easeName = right.Ease;
+        }
+        else if (left.Ease?.StartsWith("cubic-bezier", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            easeName = left.Ease;
+        }
+        else if (Math.Abs(right.Cp1X - 0.25) > 0.001 || Math.Abs(right.Cp1Y - 0.1) > 0.001 || Math.Abs(right.Cp2X - 0.25) > 0.001 || Math.Abs(right.Cp2Y - 1.0) > 0.001)
+        {
+            easeName = FormattableString.Invariant($"cubic-bezier({right.Cp1X:0.00},{right.Cp1Y:0.00},{right.Cp2X:0.00},{right.Cp2Y:0.00})");
+        }
+        else if (Math.Abs(left.Cp1X - 0.25) > 0.001 || Math.Abs(left.Cp1Y - 0.1) > 0.001 || Math.Abs(left.Cp2X - 0.25) > 0.001 || Math.Abs(left.Cp2Y - 1.0) > 0.001)
+        {
+            easeName = FormattableString.Invariant($"cubic-bezier({left.Cp1X:0.00},{left.Cp1Y:0.00},{left.Cp2X:0.00},{left.Cp2Y:0.00})");
+        }
+        else if (!string.IsNullOrWhiteSpace(right.Ease) && !string.Equals(right.Ease, "linear", StringComparison.OrdinalIgnoreCase) && !string.Equals(right.Ease, "power2.out", StringComparison.OrdinalIgnoreCase))
+        {
+            easeName = right.Ease;
+        }
+        else if (!string.IsNullOrWhiteSpace(left.Ease) && !string.Equals(left.Ease, "linear", StringComparison.OrdinalIgnoreCase))
+        {
+            easeName = left.Ease;
+        }
+        else if (!string.IsNullOrWhiteSpace(right.Ease) && !string.Equals(right.Ease, "linear", StringComparison.OrdinalIgnoreCase))
+        {
+            easeName = right.Ease;
+        }
+        else
+        {
+            easeName = defaultEase;
+        }
         var eased = Ease(easeName, raw);
         return Interpolate(FromFrame(left, fallback), FromFrame(right, fallback), eased);
     }
@@ -604,7 +686,8 @@ public static class CgAnimationEngine
         f.ScaleY == 0 ? (fallback.ScaleY == 0 ? 1 : fallback.ScaleY) : f.ScaleY,
         f.ScaleZ == 0 ? (fallback.ScaleZ == 0 ? 1 : fallback.ScaleZ) : f.ScaleZ,
         Math.Clamp(f.AnchorX, 0, 1), Math.Clamp(f.AnchorY, 0, 1), f.AnchorZ,
-        f.SkewX, f.SkewY, Math.Max(0, f.BlurRadius));
+        f.SkewX, f.SkewY, Math.Max(0, f.BlurRadius),
+        double.IsNaN(f.LightSweepProgress) ? fallback.LightSweepProgress : f.LightSweepProgress);
 
     private static MotionState Interpolate(MotionState a, MotionState b, double p) => new(
         Lerp(a.X,b.X,p), Lerp(a.Y,b.Y,p), Lerp(a.Z,b.Z,p),
@@ -612,7 +695,8 @@ public static class CgAnimationEngine
         Lerp(a.RotationX,b.RotationX,p), Lerp(a.RotationY,b.RotationY,p), Lerp(a.Rotation,b.Rotation,p),
         Lerp(a.Opacity,b.Opacity,p), Lerp(a.ScaleX,b.ScaleX,p), Lerp(a.ScaleY,b.ScaleY,p), Lerp(a.ScaleZ,b.ScaleZ,p),
         Lerp(a.AnchorX,b.AnchorX,p), Lerp(a.AnchorY,b.AnchorY,p), Lerp(a.AnchorZ,b.AnchorZ,p),
-        Lerp(a.SkewX,b.SkewX,p), Lerp(a.SkewY,b.SkewY,p), Lerp(a.BlurRadius,b.BlurRadius,p));
+        Lerp(a.SkewX,b.SkewX,p), Lerp(a.SkewY,b.SkewY,p), Lerp(a.BlurRadius,b.BlurRadius,p),
+        Lerp(a.LightSweepProgress,b.LightSweepProgress,p));
 
     private static double Lerp(double a, double b, double p) => a + (b - a) * p;
 

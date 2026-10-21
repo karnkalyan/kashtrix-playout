@@ -16,7 +16,7 @@
     </Window.Resources>
     <Grid Background="{StaticResource Bg0Brush}">
         <Grid.RowDefinitions><RowDefinition Height="64"/><RowDefinition Height="*"/><RowDefinition x:Name="TimelineRow" Height="280" MinHeight="160"/></Grid.RowDefinitions>
-        <Border Grid.Row="0" Background="#080D12" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Background="{StaticResource Bg0Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
             <Grid Margin="12,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -97,12 +97,12 @@
 
                 <!-- Professional Uniform Action Buttons -->
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                    <Button Content="SAVE" Click="Save_Click" Height="26" MinWidth="54" Margin="0,0,6,0" Background="#19232F" BorderBrush="#2C3B4E" Foreground="#E2E8F0" ToolTip="Save current composition changes"/>
-                    <Button Content="SAVE AS" Click="SaveAs_Click" Height="26" MinWidth="58" Margin="0,0,6,0" Background="#19232F" BorderBrush="#2C3B4E" Foreground="#E2E8F0" ToolTip="Save composition under a new file name"/>
-                    <Button Content="SAVE .KCG" Click="ExportCompositionFile_Click" Height="26" MinWidth="68" Margin="0,0,6,0" Background="#26163B" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" ToolTip="Save/Export composition directly as a .kcg file to chosen disk location"/>
-                    <Button Content="OPEN .KCG" Click="ImportCompositionFile_Click" Height="26" MinWidth="68" Margin="0,0,6,0" Background="#26163B" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" ToolTip="Open/Import composition directly from a .kcg file"/>
-                    <Button Content="CLEAR CANVAS" Click="ClearCanvas_Click" Height="26" MinWidth="70" Margin="0,0,6,0" Background="#281519" BorderBrush="#E45467" Foreground="#FF8A9B" ToolTip="Remove all native layers, groups and HTML sources from this project"/>
-                    <Button Content="TAKE ON AIR" Click="TakeOnAir_Click" Height="26" MinWidth="88" Background="#2A1B16" BorderBrush="#6B3A2C" Foreground="#FFA726" ToolTip="Broadcast current graphic directly to program output"/>
+                    <Button Content="SAVE" Click="Save_Click" Height="26" MinWidth="48" Margin="0,0,4,0" Background="Transparent" BorderThickness="0" Foreground="#E2E8F0" ToolTip="Save current composition changes"/>
+                    <Button Content="SAVE AS" Click="SaveAs_Click" Height="26" MinWidth="54" Margin="0,0,4,0" Background="Transparent" BorderThickness="0" Foreground="#E2E8F0" ToolTip="Save composition under a new file name"/>
+                    <Button Content="SAVE .KCG" Click="ExportCompositionFile_Click" Height="26" MinWidth="64" Margin="0,0,4,0" Background="Transparent" BorderThickness="0" Foreground="#C084FC" ToolTip="Save/Export composition directly as a .kcg file to chosen disk location"/>
+                    <Button Content="OPEN .KCG" Click="ImportCompositionFile_Click" Height="26" MinWidth="64" Margin="0,0,4,0" Background="Transparent" BorderThickness="0" Foreground="#C084FC" ToolTip="Open/Import composition directly from a .kcg file"/>
+                    <Button Content="CLEAR CANVAS" Click="ClearCanvas_Click" Height="26" MinWidth="66" Margin="0,0,4,0" Background="Transparent" BorderThickness="0" Foreground="#F87171" ToolTip="Remove all native layers, groups and HTML sources from this project"/>
+                    <Button Content="TAKE ON AIR" Click="TakeOnAir_Click" Height="26" MinWidth="76" Background="Transparent" BorderThickness="0" Foreground="#FB923C" FontWeight="Bold" ToolTip="Broadcast current graphic directly to program output"/>
                 </StackPanel>
 
                 <!-- Window Control Buttons -->
@@ -126,8 +126,9 @@
                         </Grid>
                     </Border>
                     <TabControl Grid.Row="1">
-                    <TabItem Header="CG LAYERS / NATIVE">
-                        <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="316"/></Grid.RowDefinitions>
+                    <TabItem Header="CG LAYERS">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                             <ListBox x:Name="LayerList" ItemsSource="{Binding Layers}" SelectedItem="{Binding SelectedLayer, Mode=TwoWay}" SelectionMode="Extended" PreviewMouseLeftButtonDown="LayerList_PreviewMouseLeftButtonDown" PreviewMouseRightButtonDown="LayerList_PreviewMouseRightButtonDown" MouseDoubleClick="LayerList_MouseDoubleClick" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
@@ -185,37 +186,51 @@
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                             </ListBox>
-                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                <StackPanel Margin="6">
-                                    <UniformGrid Columns="2">
-                                        <Button Content="TEXT" Click="AddText_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="SHAPE" Click="AddShape_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="PEN SHAPE" Click="AddPenShape_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Click points on the canvas; double-click or press Enter to close the native path"/>
-                                        <Button Content="PEN MASK" Click="AddPenMask_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Draw a freeform mask for the selected layer; double-click or press Enter to finish"/>
-                                        <Button Content="TICKER" Click="AddTicker_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="TIMER" Click="AddTimer_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Timer / Countdown / Countup / Commercial Back In"/>
-                                        <Button Content="WEATHER" Click="AddWeatherIcon_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="ROLL" Click="AddRoll_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="DATE TIME" Click="AddDigital_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Date and time with AD / BS calendar selection"/>
-                                        <Button Content="ANALOG" Click="AddAnalog_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="PROGRAM PIP" Click="AddProgramPip_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Movable &amp; resizable Program Video PIP squeeze box"/>
-                                        <Button Content="ELLIPSE" Click="AddEllipse_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="LINE" Click="AddLine_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="LOGO" Click="ImportLogo_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="IMAGE" Click="ImportImage_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="IMAGE SEQUENCE" Click="ImportSequence_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="AFTER EFFECTS" Click="ImportAfterEffects_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Render an installed Adobe After Effects .aep/.aepx/.aet composition to an alpha image sequence and place it on the native CG timeline"/>
-                                        <Button Content="VIDEO FILE" Click="ImportVideo_Click" Height="28" Margin="3" FontSize="9.5"/>
-                                        <Button Content="VIDEO SOURCE" Click="AddVideoSource_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Choose File / URL / NDI / card / webcam / screen / custom source, then drag its 16:9 or custom region on the canvas"/>
-                                        <Button Content="FLIP CARD" Click="AddFlipCard_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="3D Flip card with front and back text"/>
-                                        <Button Content="3D BOX TEXT" Click="Add3dRotatingBox_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Rotating 3D box with text on each layer/face"/>
-                                        <Button Content="MARKET TICKER" Click="AddMarketTicker_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Stock market ticker with live UP/DOWN indicators"/>
-                                    </UniformGrid>
-                                    <TextBlock Width="250" Margin="4,8,4,2" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="9"
-                                               Text="KEYS: Ctrl+C/X/V/D · Delete · arrows move · Shift+arrows 10 px · Ctrl+arrows resize · Alt+Up/Down layer step · Alt+Home/End front/back · Ctrl+G group · Ctrl+Z Undo · Ctrl+Y Redo"/>
+                            <Border Grid.Row="1" Background="#0C1219" BorderBrush="#1C2733" BorderThickness="0,1,0,0" Padding="6,8">
+                                <StackPanel>
+                                    <WrapPanel Margin="0,0,0,4">
+                                        <Button Content="DUPLICATE" Click="DuplicateSelectedLayers_Click" Height="24" Width="72" Margin="2" FontSize="9"/>
+                                        <Button Content="GROUP" Click="GroupSelectedLayers_Click" Height="24" Width="56" Margin="2" FontSize="9"/>
+                                        <Button Content="UNGROUP" Click="UngroupSelectedLayers_Click" Height="24" Width="64" Margin="2" FontSize="9"/>
+                                        <Button Content="▲ UP" Click="MoveLayerUp_Click" Height="24" Width="42" Margin="2" FontSize="9"/>
+                                        <Button Content="▼ DOWN" Click="MoveLayerDown_Click" Height="24" Width="52" Margin="2" FontSize="9"/>
+                                    </WrapPanel>
+                                    <TextBlock Margin="4,2" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="8.5"
+                                               Text="KEYS: Ctrl+C/X/V/D · Del · arrows · Shift+arrows 10px · Alt+Up/Down layer · Ctrl+G group · Ctrl+Z Undo"/>
                                 </StackPanel>
-                            </ScrollViewer>
+                            </Border>
                         </Grid>
+                    </TabItem>
+                    <TabItem Header="CG ITEM">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="CREATE CG ITEMS" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11" Margin="4,2,4,6"/>
+                                <UniformGrid Columns="2">
+                                    <Button Content="TEXT" Click="AddText_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="SHAPE" Click="AddShape_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="PEN SHAPE" Click="AddPenShape_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Click points on canvas; snap to start or double-click to close"/>
+                                    <Button Content="PEN MASK" Click="AddPenMask_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Draw freeform mask for selected layer; snap to start or double-click to finish"/>
+                                    <Button Content="TICKER" Click="AddTicker_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="TIMER" Click="AddTimer_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Timer / Countdown / Countup / Commercial Back In"/>
+                                    <Button Content="WEATHER" Click="AddWeatherIcon_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="ROLL" Click="AddRoll_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="DATE TIME" Click="AddDigital_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Date and time with AD / BS calendar selection"/>
+                                    <Button Content="ANALOG" Click="AddAnalog_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="PROGRAM PIP" Click="AddProgramPip_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Movable &amp; resizable Program Video PIP squeeze box"/>
+                                    <Button Content="ELLIPSE" Click="AddEllipse_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="LINE" Click="AddLine_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="LOGO" Click="ImportLogo_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="IMAGE" Click="ImportImage_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="IMAGE SEQUENCE" Click="ImportSequence_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="AFTER EFFECTS" Click="ImportAfterEffects_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Render an installed Adobe After Effects composition"/>
+                                    <Button Content="VIDEO FILE" Click="ImportVideo_Click" Height="28" Margin="3" FontSize="9.5"/>
+                                    <Button Content="VIDEO SOURCE" Click="AddVideoSource_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Choose File / URL / NDI / card / webcam / screen / custom source"/>
+                                    <Button Content="FLIP CARD" Click="AddFlipCard_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="3D Flip card with front and back text"/>
+                                    <Button Content="3D BOX TEXT" Click="Add3dRotatingBox_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Rotating 3D box with text on each layer/face"/>
+                                    <Button Content="MARKET TICKER" Click="AddMarketTicker_Click" Height="28" Margin="3" FontSize="9.5" ToolTip="Stock market ticker with live UP/DOWN indicators"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </ScrollViewer>
                     </TabItem>
                     <TabItem Header="HTML / WEB">
                         <Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="235"/></Grid.RowDefinitions>
@@ -255,46 +270,6 @@
                                     <StackPanel><TextBlock Text="Refresh sec" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedDataSource.RefreshSeconds, UpdateSourceTrigger=LostFocus}" LostFocus="DataInspector_LostFocus"/></StackPanel>
                                     <StackPanel Grid.Column="2"><TextBlock Text="Status" Style="{StaticResource SectionCaption}"/><TextBlock Text="{Binding SelectedDataSource.Status}" Foreground="{StaticResource GoodBrush}" TextWrapping="Wrap"/></StackPanel>
                                 </Grid>
-                                <Separator Margin="0,12"/>
-                                <TextBlock Text="LAYER GROUPS" Foreground="#B78BE7" FontWeight="SemiBold"/>
-                                <TextBlock Text="Groups carry parent transforms/keyframes like a motion-graphics precomp." Foreground="{StaticResource MutedBrush}" FontSize="9" TextWrapping="Wrap" Margin="0,2,0,6"/>
-                                <ListBox ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" Height="105" DisplayMemberPath="Name"/>
-                                <WrapPanel Margin="0,5,0,0"><Button Content="ADD GROUP" Click="AddGroup_Click" Width="90"/><Button Content="PRECOMPOSE" Click="PrecomposeSelectedLayers_Click" Width="96"/><Button Content="DELETE" Click="DeleteGroup_Click" Width="70"/><Button Content="ASSIGN LAYER" Click="AssignGroup_Click" Width="104"/><Button Content="GROUP KF" Click="AddGroupKeyframe_Click" Width="82"/><Button Content="DEL KF" Click="DeleteGroupKeyframe_Click" Width="68"/><Button Content="CLEAR KF" Click="ClearGroupKeyframes_Click" Width="82"/></WrapPanel>
-                                <TextBlock Text="GROUP KEYFRAMES" Style="{StaticResource SectionCaption}" Margin="0,8,0,2"/>
-                                <ListBox ItemsSource="{Binding GroupKeyframes}" SelectedItem="{Binding SelectedGroupKeyframe, Mode=TwoWay}" Height="82"/>
-                                <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Text="Time" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.TimeSeconds, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="2"><TextBlock Text="X" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.X, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="4"><TextBlock Text="Y" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.Y, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                </Grid>
-                                <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Text="Scale X" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.ScaleX, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="2"><TextBlock Text="Scale Y" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.ScaleY, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="4"><TextBlock Text="Scale Z" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.ScaleZ, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                </Grid>
-                                <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Text="Rotate X" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.RotationX, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="2"><TextBlock Text="Rotate Y" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.RotationY, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="4"><TextBlock Text="Rotate Z" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.Rotation, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                </Grid>
-                                <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Text="Anchor X" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.AnchorX, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="2"><TextBlock Text="Anchor Y" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.AnchorY, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="4"><TextBlock Text="Position Z" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.Z, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                </Grid>
-                                <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Text="Anchor Z" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.AnchorZ, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="2"><TextBlock Text="Opacity" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroupKeyframe.Opacity, UpdateSourceTrigger=LostFocus}" LostFocus="GroupKeyframeInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="4"><TextBlock Text="Ease" Style="{StaticResource SectionCaption}"/><ComboBox ItemsSource="{Binding Easings}" SelectedItem="{Binding SelectedGroupKeyframe.Ease}" SelectionChanged="GroupKeyframeInspector_SelectionChanged"/></StackPanel>
-                                </Grid>
-                                <CheckBox Content="HOLD GROUP KEYFRAME" IsChecked="{Binding SelectedGroupKeyframe.Hold}" Click="GroupKeyframeInspector_CheckChanged" Margin="0,5,0,0"/>
-                                <TextBlock Text="Group name" Style="{StaticResource SectionCaption}" Margin="0,7,0,2"/><TextBox Text="{Binding SelectedGroup.Name, UpdateSourceTrigger=LostFocus}" LostFocus="GroupInspector_LostFocus"/>
-                                <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Text="Stagger sec" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroup.StaggerSeconds, UpdateSourceTrigger=LostFocus}" LostFocus="GroupInspector_LostFocus"/></StackPanel>
-                                    <StackPanel Grid.Column="2"><TextBlock Text="Stagger from" Style="{StaticResource SectionCaption}"/><ComboBox ItemsSource="{Binding StaggerFromOptions}" SelectedItem="{Binding SelectedGroup.StaggerFrom}" SelectionChanged="GroupInspector_SelectionChanged"/></StackPanel>
-                                    <StackPanel Grid.Column="4"><TextBlock Text="Repeat (-1∞)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedGroup.KeyframeRepeat, UpdateSourceTrigger=LostFocus}" LostFocus="GroupInspector_LostFocus"/></StackPanel>
-                                </Grid>
-                                <StackPanel Orientation="Horizontal" Margin="0,7,0,0"><CheckBox Content="VISIBLE" IsChecked="{Binding SelectedGroup.Visible}" Click="GroupInspector_CheckChanged" Style="{StaticResource ToggleSwitch}"/><CheckBox Content="YOYO" IsChecked="{Binding SelectedGroup.KeyframeYoyo}" Click="GroupInspector_CheckChanged" Margin="12,0,0,0"/></StackPanel>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
@@ -312,16 +287,36 @@
                             <StackPanel VerticalAlignment="Center"><TextBlock Text="PROGRAM GRAPHICS PREVIEW" FontWeight="SemiBold"/><TextBlock Text="{Binding CompositionPathText}" Foreground="White" FontSize="8.5"/><TextBlock Text="{Binding CanvasInfoText}" Foreground="{StaticResource MutedBrush}" FontSize="8.5"/></StackPanel>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- Canvas Zoom In / Out Controls -->
+                            <Button Content="−" Click="CanvasZoomOut_Click" Height="22" Width="22" Padding="0" Margin="0,0,2,0" ToolTip="Canvas Zoom Out (or Ctrl + Wheel Down)"/>
+                            <ComboBox Width="68" Height="22" Margin="0,0,2,0" FontSize="9.5" ItemsSource="{Binding CanvasZoomPresets}" SelectedItem="{Binding CanvasZoomSelection, Mode=TwoWay}" ToolTip="Canvas Zoom preset"/>
+                            <Button Content="+" Click="CanvasZoomIn_Click" Height="22" Width="22" Padding="0" Margin="0,0,2,0" ToolTip="Canvas Zoom In (or Ctrl + Wheel Up)"/>
+                            <Button Content="FIT" Click="CanvasZoomFit_Click" Height="22" MinWidth="32" Padding="4,0" Margin="0,0,8,0" ToolTip="Fit preview canvas to workspace"/>
                             <CheckBox Content="GRID" IsChecked="{Binding ShowCanvasGrid, Mode=TwoWay}" VerticalAlignment="Center" ToolTip="Editor grid only; never rendered on-air." Margin="0,0,8,0"/>
                             <CheckBox Content="SAFE AREAS" IsChecked="{Binding ShowSafeAreas, Mode=TwoWay}" VerticalAlignment="Center" ToolTip="Show Action Safe and Title Safe guides. Editor only; never rendered on-air."/>
-                            <ComboBox Width="188" Margin="8,0,0,0" ItemsSource="{Binding SafeAreaPresets}" SelectedItem="{Binding SafeAreaPreset, Mode=TwoWay}" ToolTip="Safe-area inset preset"/>
-                            <CheckBox Content="CENTER" IsChecked="{Binding ShowCenterGuide, Mode=TwoWay}" Margin="8,0,0,0" VerticalAlignment="Center" ToolTip="Show horizontal and vertical center guides"/>
-                            <Button x:Name="CanvasDockBtn" Content="DOCK OUT" Click="CanvasDockOut_Click" Height="22" MinHeight="22" Margin="10,0,0,0" Padding="8,0" ToolTip="Detach / Dock in canvas preview window"/>
+                            <ComboBox Width="130" Margin="6,0,0,0" ItemsSource="{Binding SafeAreaPresets}" SelectedItem="{Binding SafeAreaPreset, Mode=TwoWay}" ToolTip="Safe-area inset preset"/>
+                            <CheckBox Content="CENTER" IsChecked="{Binding ShowCenterGuide, Mode=TwoWay}" Margin="6,0,0,0" VerticalAlignment="Center" ToolTip="Show horizontal and vertical center guides"/>
+                            <Button x:Name="CanvasDockBtn" Content="DOCK OUT" Click="CanvasDockOut_Click" Height="22" MinHeight="22" Margin="8,0,0,0" Padding="8,0" ToolTip="Detach / Dock in canvas preview window"/>
                         </StackPanel>
                     </Grid>
                 </Border>
-                <Grid Grid.Row="1" Background="#020304"><Viewbox Stretch="Uniform"><Border x:Name="PreviewCanvasBorder" Width="960" Height="540" Background="#081018" BorderBrush="#263744" BorderThickness="1"><Canvas x:Name="PreviewCanvas" Width="960" Height="540" ClipToBounds="True" Focusable="True" UseLayoutRounding="False" SnapsToDevicePixels="False" Background="{StaticResource CgCheckerBrush}" MouseLeftButtonDown="PreviewCanvas_MouseLeftButtonDown" PreviewMouseRightButtonDown="PreviewCanvas_PreviewMouseRightButtonDown" MouseMove="PreviewCanvas_MouseMove" MouseLeftButtonUp="PreviewCanvas_MouseLeftButtonUp">
+                <Grid Grid.Row="1" Background="#020304">
+                    <ScrollViewer x:Name="CanvasScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#020304" PreviewMouseWheel="CanvasScrollViewer_PreviewMouseWheel" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                        <Border x:Name="PreviewCanvasBorder" Width="960" Height="540" Background="#081018" BorderBrush="#263744" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border.LayoutTransform>
+                                <ScaleTransform x:Name="CanvasZoomTransform" ScaleX="{Binding CanvasZoomFactor}" ScaleY="{Binding CanvasZoomFactor}"/>
+                            </Border.LayoutTransform>
+                            <Canvas x:Name="PreviewCanvas" Width="960" Height="540" ClipToBounds="True" Focusable="True" UseLayoutRounding="False" SnapsToDevicePixels="False" Background="{StaticResource CgCheckerBrush}" MouseLeftButtonDown="PreviewCanvas_MouseLeftButtonDown" PreviewMouseRightButtonDown="PreviewCanvas_PreviewMouseRightButtonDown" MouseMove="PreviewCanvas_MouseMove" MouseLeftButtonUp="PreviewCanvas_MouseLeftButtonUp">
                             <Canvas.ContextMenu><ContextMenu>
+                                <MenuItem Header="COPY" InputGestureText="Ctrl+C" Click="CopyLayer_Click"/>
+                                <MenuItem Header="CUT" InputGestureText="Ctrl+X" Click="CutLayer_Click"/>
+                                <MenuItem Header="PASTE" InputGestureText="Ctrl+V" Click="PasteLayer_Click"/>
+                                <MenuItem Header="DUPLICATE" InputGestureText="Ctrl+D" Click="DuplicateSelectedLayers_Click"/>
+                                <Separator/>
+                                <MenuItem Header="GROUP SELECTED" InputGestureText="Ctrl+G" Click="GroupSelectedLayers_Click"/>
+                                <MenuItem Header="UNGROUP SELECTED" Click="UngroupSelectedLayers_Click"/>
+                                <MenuItem Header="PRECOMPOSE SELECTED" InputGestureText="Ctrl+Shift+G" Click="PrecomposeSelectedLayers_Click"/>
+                                <Separator/>
                                 <MenuItem Header="MOVE UP ONE LAYER" Click="MoveLayerUp_Click"/><MenuItem Header="MOVE DOWN ONE LAYER" Click="MoveLayerDown_Click"/>
                                 <MenuItem Header="BRING TO FRONT" Click="BringToFront_Click"/><MenuItem Header="SEND TO BACK" Click="SendToBack_Click"/>
                                 <Separator/><MenuItem Header="ALIGN TO CANVAS"><MenuItem Header="LEFT" Click="AlignLeft_Click"/><MenuItem Header="CENTER H" Click="AlignHorizontalCenter_Click"/><MenuItem Header="RIGHT" Click="AlignRight_Click"/><MenuItem Header="TOP" Click="AlignTop_Click"/><MenuItem Header="CENTER V" Click="AlignVerticalCenter_Click"/><MenuItem Header="BOTTOM" Click="AlignBottom_Click"/></MenuItem>
@@ -345,11 +340,15 @@
                                     <MenuItem Header="WARP: RESET ALL" Tag="Reset" Click="ApplyWarpPreset_Click"/>
                                 </MenuItem>
                                 <Separator/><MenuItem Header="MASK FROM ELEMENT" Click="MaskFromElement_Click"/><MenuItem Header="DRAW MASK" Click="DrawMask_Click"/><MenuItem Header="CLEAR MASK" Click="ClearMask_Click"/>
-                                <Separator/><MenuItem Header="PRECOMPOSE SELECTED" Click="PrecomposeSelectedLayers_Click"/><MenuItem Header="DELETE" Click="DeleteSelectedLayers_Click"/>
+                                <Separator/>
+                                <MenuItem Header="CLEAR IN / OUT ANIMATION" Click="ClearLayerAnimation_Click"/>
+                                <MenuItem Header="DELETE" InputGestureText="Delete" Click="DeleteSelectedLayers_Click"/>
                             </ContextMenu></Canvas.ContextMenu>
-                        </Canvas></Border></Viewbox></Grid>
+                        </Canvas></Border>
+                    </ScrollViewer>
+                </Grid>
                 <Grid Grid.Row="2" Margin="10,4"><Grid.ColumnDefinitions><ColumnDefinition Width="52"/><ColumnDefinition/><ColumnDefinition Width="80"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <Button Content="▶" Click="Play_Click" Width="46"/>
+                    <Button Content="{Binding PlayButtonText}" Click="Play_Click" Width="46" FontWeight="Bold" FontSize="13"/>
                     <Slider x:Name="PlayheadSlider" Grid.Column="1" Minimum="0" Maximum="{Binding ProjectDuration}" Value="{Binding Playhead, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SeekSlider}" Margin="8,0"/>
                     <TextBlock Grid.Column="2" Text="{Binding PlayheadText}" Style="{StaticResource TimecodeText}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                     <CheckBox Grid.Column="3" Content="LOOP" IsChecked="{Binding Loop}" VerticalAlignment="Center"/>
@@ -367,7 +366,7 @@
                             <Button x:Name="InspectorDockBtn" Content="DOCK OUT" Click="InspectorDockOut_Click" Height="22" MinHeight="22" Padding="8,0" HorizontalAlignment="Right" ToolTip="Detach / Dock in Inspector window"/>
                         </Grid>
                     </Border>
-                    <TabControl Grid.Row="1">
+                    <TabControl x:Name="InspectorTabs" Grid.Row="1">
                     <TabItem Header="LAYER">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="10">
                             <TextBlock Text="SELECTED ELEMENT" FontWeight="SemiBold" FontSize="14"/>
@@ -428,10 +427,10 @@
                             <Border Visibility="{Binding CardFillOutlineVisibility}" Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
                                 <StackPanel>
                                     <DockPanel Cursor="Hand" Background="Transparent" MouseLeftButtonUp="ToggleCardHeader_Click">
-                                        <TextBlock Text="▶" DockPanel.Dock="Right" Foreground="#B78BE7" FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock Text="▼" DockPanel.Dock="Right" Foreground="#B78BE7" FontSize="11" VerticalAlignment="Center"/>
                                         <TextBlock Text="FILL, MULTI-COLOR GRADIENT, OUTLINE &amp; APPEARANCE" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
                                     </DockPanel>
-                                    <StackPanel Visibility="Collapsed" Margin="0,8,0,0">
+                                    <StackPanel Visibility="Visible" Margin="0,8,0,0">
                                         <StackPanel Visibility="{Binding CardShapeKindVisibility}">
                                             <TextBlock Text="Shape kind" Style="{StaticResource SectionCaption}"/><ComboBox ItemsSource="{Binding ShapeKinds}" SelectedItem="{Binding SelectedLayer.ShapeKind}" SelectionChanged="Inspector_SelectionChanged"/>
                                         </StackPanel>
@@ -445,6 +444,7 @@
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,2">
                                             <TextBlock Text="Outline / Border" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
                                             <CheckBox Content="ENABLE OUTLINE / BORDER" IsChecked="{Binding SelectedLayer.UseBorder}" Click="Inspector_CheckChanged" Margin="14,0,0,0" ToolTip="Enable outline border stroke on this shape/container element"/>
+                                            <Button Content="REMOVE OUTLINE" Click="RemoveOutline_Click" Height="20" Padding="6,0" Margin="10,0,0,0" Background="#291216" BorderBrush="#FF4B4B" Foreground="#FF9E9E" FontSize="8.5" ToolTip="Remove outline / border completely"/>
                                         </StackPanel>
                                         <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition Width="78"/><ColumnDefinition Width="6"/><ColumnDefinition Width="96"/></Grid.ColumnDefinitions><Border Height="28" Background="{Binding SelectedLayer.BorderColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><TextBox Grid.Column="2" Text="{Binding SelectedLayer.BorderWidth, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus" ToolTip="Border stroke width"/><Button Grid.Column="4" Content="PICK COLOR" Tag="BorderColor" Click="ColorPicker_Click"/></Grid>
                                         
@@ -710,58 +710,45 @@
                                             </Grid>
                                         </StackPanel>
 
-                                        <!-- LIGHT SWEEP SHINE ANIMATION COMPONENT -->
-                                        <Border Background="#121820" BorderBrush="#FFD700" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,10,0,6">
+                                        <!-- CARD 6: APPLIED EFFECTS PALETTE -->
+                                        <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,10,0,6">
                                             <StackPanel>
                                                 <DockPanel>
-                                                    <TextBlock Text="⚡" DockPanel.Dock="Left" Foreground="#FFD700" FontSize="11" Margin="0,0,4,0"/>
-                                                    <TextBlock Text="LIGHT SWEEP SHINE ANIMATION" Foreground="#FFD700" FontWeight="SemiBold" FontSize="10.5"/>
+                                                    <TextBlock Text="✦" DockPanel.Dock="Left" Foreground="#B78BE7" FontSize="11" Margin="0,0,4,0"/>
+                                                    <TextBlock Text="LAYER EFFECTS PALETTE" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="10.5"/>
                                                 </DockPanel>
-                                                <CheckBox Content="ENABLE LIGHT SWEEP SHINE" IsChecked="{Binding SelectedLayer.LightSweepEnabled, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,6,0,6" Foreground="#FFD700" FontWeight="SemiBold"/>
-                                                
-                                                <!-- Manual Position / Progress Slider + Numeric Box -->
-                                                <TextBlock Text="Manual Sweep Position / Progress (-0.5 .. 1.5)" Style="{StaticResource SectionCaption}" Foreground="#E2E8F0"/>
+                                                <UniformGrid Rows="2" Columns="2" Margin="0,6,0,6">
+                                                    <CheckBox Content="LIGHT SWEEP" IsChecked="{Binding SelectedLayer.LightSweepEnabled, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,2,4,2"/>
+                                                    <CheckBox Content="DROP SHADOW" IsChecked="{Binding SelectedLayer.ShadowEnabled, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,2,0,2"/>
+                                                    <CheckBox Content="OUTER GLOW" IsChecked="{Binding SelectedLayer.UseGlow, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,2,4,2"/>
+                                                    <CheckBox Content="MOTION BLUR" IsChecked="{Binding SelectedLayer.UseMotionBlur, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,2,0,2"/>
+                                                </UniformGrid>
+
+                                                <!-- Quick Light Sweep Scrub Slider -->
                                                 <Grid Margin="0,2,0,4">
                                                     <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition/>
                                                         <ColumnDefinition Width="6"/>
-                                                        <ColumnDefinition Width="65"/>
+                                                        <ColumnDefinition Width="60"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <Slider Minimum="-0.5" Maximum="1.5" SmallChange="0.02" LargeChange="0.1" Value="{Binding SelectedLayer.LightSweepProgress, Mode=TwoWay}" ValueChanged="Inspector_SliderValueChanged" VerticalAlignment="Center" ToolTip="Scrub light sweep beam position live across the layer"/>
-                                                    <TextBox Grid.Column="2" Text="{Binding SelectedLayer.LightSweepProgress, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus" ToolTip="Light sweep progress position (0.0=start, 1.0=end)"/>
+                                                    <TextBlock Text="Sweep Pos" Style="{StaticResource SectionCaption}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <Slider Grid.Column="1" Minimum="-0.5" Maximum="1.5" SmallChange="0.02" LargeChange="0.1" Value="{Binding SelectedLayer.LightSweepProgress, Mode=TwoWay}" ValueChanged="Inspector_SliderValueChanged" VerticalAlignment="Center" ToolTip="Scrub light sweep beam position live across the layer"/>
+                                                    <TextBox Grid.Column="3" Text="{Binding SelectedLayer.LightSweepProgress, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus" ToolTip="Light sweep progress (-0.5..1.5)"/>
                                                 </Grid>
-
-                                                <Grid Margin="0,4,0,0">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="Beam Width (0.05 .. 1.0)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepWidth, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
-                                                    <StackPanel Grid.Column="2"><TextBlock Text="Intensity (0 .. 1)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepIntensity, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
-                                                </Grid>
-                                                <Grid Margin="0,6,0,0">
-                                                    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                                    <StackPanel><TextBlock Text="Angle (°)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepAngle, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
-                                                    <StackPanel Grid.Column="2">
-                                                        <TextBlock Text="Sweep Beam Color" Style="{StaticResource SectionCaption}"/>
-                                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions><Border Height="24" Background="{Binding SelectedLayer.LightSweepColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><Button Grid.Column="2" Content="COLOR" Tag="LightSweepColor" Click="ColorPicker_Click" Height="24"/></Grid>
-                                                    </StackPanel>
-                                                </Grid>
-                                                
-                                                <!-- Action Buttons: Manual Keyframe & Auto-Key -->
-                                                <WrapPanel Margin="0,8,0,0">
-                                                    <Button Content="📍 SET SWEEP KEY @ PLAYHEAD" Click="SetLightSweepKeyframe_Click" Margin="0,0,6,4" Background="#1C2E46" BorderBrush="#00E5FF" Foreground="#00E5FF" FontWeight="SemiBold" ToolTip="Record current light sweep position into a keyframe at current playhead"/>
-                                                    <Button Content="⚡ AUTO-KEY (START TO END)" Click="AutoKeyLightSweep_Click" Margin="0,0,0,4" Background="#26163B" BorderBrush="{StaticResource AccentBrush}" Foreground="#E2E8F0" ToolTip="Add keyframes to animate light sweep shine across this layer from start to end"/>
-                                                </WrapPanel>
+                                                <Button Content="⚙ OPEN FULL EFFECTS TAB" Click="OpenEffectsTab_Click" Margin="0,4,0,0" Style="{StaticResource SmallTool}" Height="24" HorizontalAlignment="Stretch" ToolTip="Switch to Effects tab for full properties of all layer effects"/>
                                             </StackPanel>
                                         </Border>
 
                                         <TextBlock Text="KEYFRAME TIMELINE" Foreground="#93A0A8" FontWeight="SemiBold" Margin="0,10,0,3"/>
                                         <ListBox ItemsSource="{Binding Keyframes}" SelectedItem="{Binding SelectedKeyframe, Mode=TwoWay}" Height="90"/>
-                                        <WrapPanel Margin="0,5,0,0"><Button Content="ADD @ PLAYHEAD" Click="AddKeyframe_Click" Width="120"/><Button Content="DELETE" Click="DeleteKeyframe_Click" Width="72"/><Button Content="CAPTURE" Click="CaptureKeyframe_Click" Width="82"/><Button Content="SPEED CURVE" Click="SpeedCurves_Click" Width="96" Margin="4,0,0,0" Background="#1C2E46" BorderBrush="#00E5FF" Foreground="#00E5FF" FontWeight="SemiBold" ToolTip="Open Bézier motion speed curves editor for selected keyframe"/></WrapPanel>
+                                        <WrapPanel Margin="0,5,0,0"><Button Content="ADD @ PLAYHEAD" Click="AddKeyframe_Click" Width="120"/><Button Content="DELETE" Click="DeleteKeyframe_Click" Width="72"/><Button Content="CAPTURE" Click="CaptureKeyframe_Click" Width="82"/><Button Content="SPEED CURVE" Click="SpeedCurves_Click" Width="96" Margin="4,0,0,0" ToolTip="Open Bézier motion speed curves editor for selected keyframe"/></WrapPanel>
                                         <Grid Margin="0,7,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Key time" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedKeyframe.TimeSeconds, UpdateSourceTrigger=LostFocus}" LostFocus="KeyframeInspector_LostFocus"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="Ease" Style="{StaticResource SectionCaption}"/><ComboBox ItemsSource="{Binding Easings}" SelectedItem="{Binding SelectedKeyframe.Ease, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" SelectionChanged="KeyframeInspector_SelectionChanged" LostFocus="KeyframeInspector_LostFocus"/></StackPanel></Grid>
                                         <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBox Text="{Binding SelectedKeyframe.X, UpdateSourceTrigger=LostFocus}" ToolTip="Key X" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="2" Text="{Binding SelectedKeyframe.Y, UpdateSourceTrigger=LostFocus}" ToolTip="Key Y" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="4" Text="{Binding SelectedKeyframe.Z, UpdateSourceTrigger=LostFocus}" ToolTip="Key Z" LostFocus="KeyframeInspector_LostFocus"/></Grid>
                                         <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBox Text="{Binding SelectedKeyframe.RotationX, UpdateSourceTrigger=LostFocus}" ToolTip="Rotate X" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="2" Text="{Binding SelectedKeyframe.RotationY, UpdateSourceTrigger=LostFocus}" ToolTip="Rotate Y" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="4" Text="{Binding SelectedKeyframe.Rotation, UpdateSourceTrigger=LostFocus}" ToolTip="Rotate Z" LostFocus="KeyframeInspector_LostFocus"/></Grid>
                                         <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBox Text="{Binding SelectedKeyframe.ScaleX, UpdateSourceTrigger=LostFocus}" ToolTip="Scale X" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="2" Text="{Binding SelectedKeyframe.ScaleY, UpdateSourceTrigger=LostFocus}" ToolTip="Scale Y" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="4" Text="{Binding SelectedKeyframe.ScaleZ, UpdateSourceTrigger=LostFocus}" ToolTip="Scale Z" LostFocus="KeyframeInspector_LostFocus"/></Grid>
                                         <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBox Text="{Binding SelectedKeyframe.AnchorX, UpdateSourceTrigger=LostFocus}" ToolTip="Anchor X 0-1" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="2" Text="{Binding SelectedKeyframe.AnchorY, UpdateSourceTrigger=LostFocus}" ToolTip="Anchor Y 0-1" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="4" Text="{Binding SelectedKeyframe.AnchorZ, UpdateSourceTrigger=LostFocus}" ToolTip="Anchor Z" LostFocus="KeyframeInspector_LostFocus"/></Grid>
-                                        <TextBox Margin="0,5,0,0" Text="{Binding SelectedKeyframe.Opacity, UpdateSourceTrigger=LostFocus}" ToolTip="Keyframe opacity 0-1" LostFocus="KeyframeInspector_LostFocus"/>
+                                        <Grid Margin="0,5,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBox Text="{Binding SelectedKeyframe.Opacity, UpdateSourceTrigger=LostFocus}" ToolTip="Keyframe opacity 0-1" LostFocus="KeyframeInspector_LostFocus"/><TextBox Grid.Column="2" Text="{Binding SelectedKeyframe.LightSweepProgress, UpdateSourceTrigger=LostFocus}" ToolTip="Light Sweep Progress (-0.5 .. 1.5)" LostFocus="KeyframeInspector_LostFocus"/></Grid>
                                         <CheckBox Content="HOLD / STEP KEYFRAME" IsChecked="{Binding SelectedKeyframe.Hold}" Click="KeyframeInspector_CheckChanged" Margin="0,5,0,0"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -883,19 +870,20 @@
                             </StackPanel>
 
                             <!-- CARD 10: ELEMENT MASK -->
-                            <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,4">
+                            <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
                                 <StackPanel>
                                     <DockPanel Cursor="Hand" Background="Transparent" MouseLeftButtonUp="ToggleCardHeader_Click">
-                                        <TextBlock Text="▶" DockPanel.Dock="Right" Foreground="#B78BE7" FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock Text="▼" DockPanel.Dock="Right" Foreground="#B78BE7" FontSize="11" VerticalAlignment="Center"/>
                                         <TextBlock Text="ELEMENT MASK · CANVAS VISIBILITY" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
                                     </DockPanel>
-                                    <StackPanel Visibility="Collapsed" Margin="0,8,0,0">
+                                    <StackPanel Visibility="Visible" Margin="0,8,0,0">
                                         <TextBlock Text="Animation continues normally outside the mask; only pixels inside the mask are visible." Foreground="{StaticResource MutedBrush}" FontSize="9" TextWrapping="Wrap" Margin="0,0,0,5"/>
-                                        <WrapPanel>
-                                            <CheckBox x:Name="MaskEnabledCheck" Content="ENABLE + DRAW MASK" IsChecked="{Binding SelectedLayer.MaskEnabled}" Click="MaskToggle_Click" Margin="0,0,10,0" ToolTip="Enable masking and immediately drag a fixed mask on the canvas"/>
+                                        <WrapPanel Margin="0,0,0,4">
+                                            <CheckBox x:Name="MaskEnabledCheck" Content="ENABLE MASK" IsChecked="{Binding SelectedLayer.MaskEnabled}" Click="MaskToggle_Click" Margin="0,0,10,0" ToolTip="Enable masking for this layer"/>
                                             <CheckBox Content="INVERT" IsChecked="{Binding SelectedLayer.MaskInvert}" Click="Inspector_CheckChanged"/>
                                         </WrapPanel>
-                                        <TextBlock Text="Mask shape" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/><ComboBox ItemsSource="{Binding MaskShapes}" SelectedItem="{Binding SelectedLayer.MaskShape}" SelectionChanged="Inspector_SelectionChanged"/>
+                                        <TextBlock Text="Mask shape" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
+                                        <ComboBox ItemsSource="{Binding MaskShapes}" SelectedItem="{Binding SelectedLayer.MaskShape}" SelectionChanged="Inspector_SelectionChanged"/>
                                         <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/></Grid.ColumnDefinitions>
                                             <StackPanel><TextBlock Text="Mask X" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MaskX, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus" TextChanged="MaskProperty_TextChanged"/></StackPanel>
                                             <StackPanel Grid.Column="2"><TextBlock Text="Mask Y" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MaskY, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus" TextChanged="MaskProperty_TextChanged"/></StackPanel>
@@ -906,12 +894,160 @@
                                             <StackPanel Grid.Column="2"><TextBlock Text="Mask height" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MaskHeight, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus" TextChanged="MaskProperty_TextChanged"/></StackPanel>
                                             <StackPanel Grid.Column="4"><TextBlock Text="Radius" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MaskCornerRadius, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus" TextChanged="MaskProperty_TextChanged"/></StackPanel>
                                         </Grid>
-                                        <WrapPanel Margin="0,6,0,0"><Button Content="MASK FROM ELEMENT" Click="MaskFromElement_Click" Width="132"/><Button Content="DRAW MASK" Click="DrawMask_Click" Width="90" ToolTip="Drag a fixed visibility mask on the canvas"/><Button Content="CLEAR MASK" Click="ClearMask_Click" Width="90"/></WrapPanel>
+                                        <WrapPanel Margin="0,8,0,0">
+                                            <Button Content="DRAW RECT MASK" Click="DrawMask_Click" Width="110" Height="24" Margin="0,0,4,4" ToolTip="Drag a rectangular visibility mask on the canvas"/>
+                                            <Button Content="DRAW PEN MASK" Click="AddPenMask_Click" Width="110" Height="24" Margin="0,0,4,4" ToolTip="Click points on preview to draw a custom freeform mask for this layer"/>
+                                            <Button Content="MASK FROM ELEMENT" Click="MaskFromElement_Click" Width="124" Height="24" Margin="0,0,4,4" ToolTip="Snap mask to the exact bounding box of this layer"/>
+                                            <Button Content="CLEAR MASK" Click="ClearMask_Click" Width="82" Height="24" Margin="0,0,4,4" ToolTip="Remove mask from this layer"/>
+                                        </WrapPanel>
+                                        <Button x:Name="BtnFocusMaskGizmo" Content="🎯 FOCUS MASK ON CANVAS (PREVENT TRANSFORM OVERLAP)" Click="ToggleMaskGizmo_Click" Height="26" Margin="0,4,0,0" Background="#122533" BorderBrush="#00E5FF" Foreground="#00E5FF" FontWeight="SemiBold" ToolTip="Focus mask gizmo on canvas to freely move and resize mask handles without interference from layer transform outline"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- CARD 11: SMART LAYER MANAGEMENT -->
+                            <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <DockPanel Cursor="Hand" Background="Transparent" MouseLeftButtonUp="ToggleCardHeader_Click">
+                                        <TextBlock Text="▼" DockPanel.Dock="Right" Foreground="#B78BE7" FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock Text="SMART LAYER MANAGEMENT · ADAPTIVE LAYOUT" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
+                                    </DockPanel>
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="Adaptive non-overlapping layout adjustment: automatically shifts and resizes flexible layers without disturbing active playback." Foreground="{StaticResource MutedBrush}" FontSize="9" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                        <WrapPanel Margin="0,0,0,6">
+                                            <CheckBox Content="AUTO ADJUST" IsChecked="{Binding SelectedLayer.IsFlexible}" Click="Inspector_CheckChanged" Margin="0,0,10,2" ToolTip="Enable adaptive height/position negotiation for this layer"/>
+                                            <CheckBox Content="AUTO SHIFT" IsChecked="{Binding SelectedLayer.AutoShift}" Click="Inspector_CheckChanged" Margin="0,0,10,2" ToolTip="Automatically shift Y position to make space"/>
+                                            <CheckBox Content="AUTO RESIZE" IsChecked="{Binding SelectedLayer.AutoResize}" Click="Inspector_CheckChanged" Margin="0,0,10,2" ToolTip="Automatically shrink height to prevent overlap"/>
+                                            <CheckBox Content="LOCK POSITION" IsChecked="{Binding SelectedLayer.LockPosition}" Click="Inspector_CheckChanged" Margin="0,0,10,2" ToolTip="Preserve exact assigned position"/>
+                                            <CheckBox Content="COLLISION PREVENT" IsChecked="{Binding SelectedLayer.CollisionPrevention}" Click="Inspector_CheckChanged" Margin="0,0,10,2" ToolTip="Prevent colliding with other broadcast graphics"/>
+                                        </WrapPanel>
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Layer Priority (1..10, higher protected)" Style="{StaticResource SectionCaption}"/>
+                                                <Slider Minimum="1" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedLayer.LayerPriority, Mode=TwoWay}" ValueChanged="Inspector_SliderValueChanged" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding SelectedLayer.LayerPriority, StringFormat='P{0}'}" Foreground="#B78BE7" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                        </Grid>
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock Text="Min Height (px)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MinHeight, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                            <StackPanel Grid.Column="2"><TextBlock Text="Max Height (px)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MaxHeight, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="Animation Preset" Style="{StaticResource SectionCaption}" Margin="0,6,0,2"/>
+                                        <ComboBox ItemsSource="{Binding SmartAnimationPresets}" SelectedItem="{Binding SelectedLayer.LayerAnimationPreset}" SelectionChanged="Inspector_SelectionChanged"/>
+                                        <WrapPanel Margin="0,8,0,0">
+                                            <Button Content="TOGGLE ON-AIR" Click="ToggleLayerOnAir_Click" Height="26" Width="98" Margin="0,0,4,0" ToolTip="PLAY / STOP this layer on air"/>
+                                            <Button Content="RETRIGGER" Click="RetriggerLayer_Click" Height="26" Width="82" Margin="0,0,4,0" ToolTip="Retrigger intro animation"/>
+                                            <Button Content="UPDATE ON AIR" Click="UpdateLayerOnAir_Click" Height="26" Width="96" ToolTip="Sync changes to on-air state"/>
+                                        </WrapPanel>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
 
                         </StackPanel></ScrollViewer>
+                    </TabItem>
+                    <TabItem Header="EFFECTS" x:Name="EffectsTab">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="12">
+                                <TextBlock Text="LAYER EFFECTS" FontWeight="SemiBold" FontSize="14" Foreground="#B78BE7"/>
+                                <TextBlock Text="Broadcast visual effects applied to the selected layer" Foreground="#98A2A9" FontSize="9" Margin="0,3,0,10"/>
+
+                                <!-- SECTION 1: LIGHT SWEEP & SHINE -->
+                                <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock Text="⚡" DockPanel.Dock="Left" Foreground="#B78BE7" FontSize="11" Margin="0,0,4,0"/>
+                                            <TextBlock Text="LIGHT SWEEP SHINE" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
+                                        </DockPanel>
+                                        <CheckBox Content="ENABLE LIGHT SWEEP SHINE" IsChecked="{Binding SelectedLayer.LightSweepEnabled, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,8,0,6" FontWeight="SemiBold"/>
+                                        
+                                        <TextBlock Text="Sweep Position / Progress (-0.5 .. 1.5)" Style="{StaticResource SectionCaption}"/>
+                                        <Grid Margin="0,2,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition/>
+                                                <ColumnDefinition Width="6"/>
+                                                <ColumnDefinition Width="65"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Minimum="-0.5" Maximum="1.5" SmallChange="0.02" LargeChange="0.1" Value="{Binding SelectedLayer.LightSweepProgress, Mode=TwoWay}" ValueChanged="Inspector_SliderValueChanged" VerticalAlignment="Center" ToolTip="Scrub light sweep beam position live across the layer"/>
+                                            <TextBox Grid.Column="2" Text="{Binding SelectedLayer.LightSweepProgress, UpdateSourceTrigger=PropertyChanged}" LostFocus="Inspector_LostFocus" ToolTip="Light sweep progress position (0.0=start, 1.0=end)"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock Text="Beam Width (0.05 .. 1.0)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepWidth, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                            <StackPanel Grid.Column="2"><TextBlock Text="Intensity (0 .. 1)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepIntensity, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                        </Grid>
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock Text="Angle (°)" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.LightSweepAngle, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Sweep Beam Color" Style="{StaticResource SectionCaption}"/>
+                                                <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions><Border Height="24" Background="{Binding SelectedLayer.LightSweepColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><Button Grid.Column="2" Content="COLOR" Tag="LightSweepColor" Click="ColorPicker_Click" Height="24"/></Grid>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- SECTION 2: DROP SHADOW -->
+                                <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock Text="✦" DockPanel.Dock="Left" Foreground="#B78BE7" FontSize="11" Margin="0,0,4,0"/>
+                                            <TextBlock Text="DROP SHADOW" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
+                                        </DockPanel>
+                                        <CheckBox Content="ENABLE DROP SHADOW" IsChecked="{Binding SelectedLayer.ShadowEnabled, Mode=TwoWay}" Click="Inspector_CheckChanged" Margin="0,8,0,6" FontWeight="SemiBold"/>
+                                        <Grid Margin="0,2,0,4">
+                                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock Text="Shadow Blur" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.ShadowBlur, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Shadow Color" Style="{StaticResource SectionCaption}"/>
+                                                <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions><Border Height="24" Background="{Binding SelectedLayer.ShadowColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><Button Grid.Column="2" Content="COLOR" Tag="ShadowColor" Click="ColorPicker_Click" Height="24"/></Grid>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock Text="Offset X" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.ShadowOffsetX, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                            <StackPanel Grid.Column="2"><TextBlock Text="Offset Y" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.ShadowOffsetY, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- SECTION 3: OUTER GLOW -->
+                                <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock Text="◉" DockPanel.Dock="Left" Foreground="#B78BE7" FontSize="11" Margin="0,0,4,0"/>
+                                            <TextBlock Text="OUTER GLOW" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
+                                        </DockPanel>
+                                        <Grid Margin="0,8,0,4">
+                                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="6"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock Text="Glow Radius" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.GlowRadius, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Glow Color" Style="{StaticResource SectionCaption}"/>
+                                                <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="4"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions><Border Height="24" Background="{Binding SelectedLayer.GlowColor}" BorderBrush="#59636F" BorderThickness="1" CornerRadius="3"/><Button Grid.Column="2" Content="COLOR" Tag="GlowColor" Click="ColorPicker_Click" Height="24"/></Grid>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- SECTION 4: MOTION BLUR -->
+                                <Border Background="#0C1219" BorderBrush="#202A36" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock Text="〰" DockPanel.Dock="Left" Foreground="#B78BE7" FontSize="11" Margin="0,0,4,0"/>
+                                            <TextBlock Text="MOTION BLUR" Foreground="#B78BE7" FontWeight="SemiBold" FontSize="11"/>
+                                        </DockPanel>
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/><ColumnDefinition Width="5"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock Text="Samples" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MotionBlurSamples, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                            <StackPanel Grid.Column="2"><TextBlock Text="Blur X" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MotionBlurX, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                            <StackPanel Grid.Column="4"><TextBlock Text="Blur Y" Style="{StaticResource SectionCaption}"/><TextBox Text="{Binding SelectedLayer.MotionBlurY, UpdateSourceTrigger=LostFocus}" LostFocus="Inspector_LostFocus"/></StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </TabItem>
                     <TabItem Header="WEB">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="12">

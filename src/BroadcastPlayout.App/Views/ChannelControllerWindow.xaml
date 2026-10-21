@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Kashtrix Channel Controller" Width="1680" Height="950" MinWidth="1320" MinHeight="780"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResizeWithGrip" ShowInTaskbar="True" Icon="pack://application:,,,/Kashtrix.Playout;component/Branding/kashtrix-channelcontroller.ico">
+    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0" Background="{StaticResource Bg0Brush}">
     <Grid Background="{StaticResource Bg0Brush}">
         <Grid.RowDefinitions><RowDefinition Height="66"/><RowDefinition Height="*"/><RowDefinition Height="40"/></Grid.RowDefinitions>
 
@@ -20,8 +21,7 @@
                     <TextBlock Text="{Binding ListenerStatus}" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="14,0,0,0"/>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="DEMO DATA" Click="LoadDemo_Click" Style="{StaticResource DemoActionButton}"/>
-                    <Button Content="MANAGE CHANNELS" Click="Manage_Click"/>
+                    <Button Content="MANAGE CHANNELS" Click="Manage_Click" Margin="0,0,8,0" Padding="12,2"/>
                     <TextBlock x:Name="ClockText" FontFamily="Digital-7, DSEG7 Classic, Consolas" FontSize="20" Margin="12,0" VerticalAlignment="Center"/>
                     <Button Click="Minimize_Click" Style="{StaticResource WindowControlButton}"><TextBlock Style="{StaticResource WindowMinimizeGlyph}"/></Button>
                     <Button Click="Maximize_Click" Style="{StaticResource WindowControlButton}"><TextBlock Style="{StaticResource WindowMaximizeGlyph}"/></Button>
@@ -85,4 +85,5 @@
 
         <Border Grid.Row="2" Background="#080C12" BorderBrush="#39204A" BorderThickness="0,1,0,0"><Grid Margin="12,0"><TextBlock Text="Each playout client reports a unique Channel ID. Configured offline channels remain visible and become ONLINE automatically when the matching client connects." Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/></Grid></Border>
     </Grid>
+    </Border>
 </Window>

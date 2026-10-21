@@ -9,7 +9,7 @@
         <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Border BorderBrush="{StaticResource LineStrongBrush}" BorderThickness="1" Background="{StaticResource Bg0Brush}">
+    <Border BorderBrush="{StaticResource LineStrongBrush}" BorderThickness="0" Background="{StaticResource Bg0Brush}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="46"/>
@@ -63,9 +63,11 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="▶ START ALL ENGINES" Style="{StaticResource DemoActionButton}" Click="StartAll_Click" Margin="0,0,8,0" Height="28"/>
-                        <Button Content="■ STOP ALL ENGINES" Style="{StaticResource WindowControlButton}" Click="StopAll_Click" Margin="0,0,8,0" Height="28"/>
-                        <Button Content="REFRESH" Style="{StaticResource WindowControlButton}" Click="Refresh_Click" Height="28"/>
+                        <Button Content="＋ AUTHORIZE REMOTE NODE" Style="{StaticResource SmallTool}" Click="AuthorizeWorkstationNode_Click" Margin="0,0,8,0" Height="28" Padding="12,2" ToolTip="Authorize and register an application node on another workstation"/>
+                        <Button Content="🛡 LICENSE MANAGER" Style="{StaticResource SmallTool}" Click="OpenLicenseManager_Click" Margin="0,0,8,0" Height="28" Padding="12,2" ToolTip="Open Centralized License Authority &amp; Module Gates"/>
+                        <Button Content="▶ START ALL ENGINES" Style="{StaticResource DemoActionButton}" Click="StartAll_Click" Margin="0,0,8,0" Height="28" Padding="12,2"/>
+                        <Button Content="■ STOP ALL ENGINES" Style="{StaticResource SmallTool}" Click="StopAll_Click" Margin="0,0,8,0" Height="28" Padding="12,2"/>
+                        <Button Content="REFRESH" Style="{StaticResource SmallTool}" Click="Refresh_Click" Height="28" Padding="12,2"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -79,9 +81,9 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="48"/>
-                                        <ColumnDefinition Width="220"/>
+                                        <ColumnDefinition Width="230"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="135"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
@@ -94,6 +96,7 @@
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,8,0">
                                         <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12.5" Foreground="#F0F4F8"/>
                                         <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource MutedBrush}" FontSize="9" Margin="0,2,0,0"/>
+                                        <TextBlock Text="{Binding HostEndpointText}" Foreground="{StaticResource AccentBrush}" FontSize="8.5" FontFamily="Consolas" Margin="0,3,0,0"/>
                                     </StackPanel>
 
                                     <!-- DETAILS / METRICS -->
@@ -112,9 +115,10 @@
 
                                     <!-- ACTION BUTTONS -->
                                     <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Button Content="START ENGINE" Click="CardStart_Click" Tag="{Binding}" Style="{StaticResource SmallTool}" Height="28" Margin="0,0,4,0" ToolTip="Run engine as a background service"/>
-                                        <Button Content="OPEN UI" Click="CardOpenUi_Click" Tag="{Binding}" Style="{StaticResource SmallTool}" Height="28" Margin="0,0,4,0" ToolTip="Open the application GUI"/>
-                                        <Button Content="STOP" Click="CardStop_Click" Tag="{Binding}" Style="{StaticResource WindowControlButton}" Height="28" ToolTip="Terminate running engine process"/>
+                                        <Button Content="IP / NODE" Click="CardConfigureIp_Click" Tag="{Binding}" Style="{StaticResource SmallTool}" Height="28" Margin="0,0,5,0" Padding="10,2" MinWidth="70" ToolTip="Configure IP address / network endpoint for this service"/>
+                                        <Button Content="START ENGINE" Click="CardStart_Click" Tag="{Binding}" Style="{StaticResource SmallTool}" Height="28" Margin="0,0,5,0" Padding="10,2" MinWidth="86" ToolTip="Run engine as a background service"/>
+                                        <Button Content="OPEN UI" Click="CardOpenUi_Click" Tag="{Binding}" Style="{StaticResource SmallTool}" Height="28" Margin="0,0,5,0" Padding="10,2" MinWidth="64" ToolTip="Open the application GUI"/>
+                                        <Button Content="STOP" Click="CardStop_Click" Tag="{Binding}" Style="{StaticResource SmallTool}" Height="28" Padding="10,2" MinWidth="52" ToolTip="Terminate running engine process"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -131,7 +135,7 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="FooterStatusText" Text="Continuous background monitoring active · auto-refreshes every 2 seconds" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" FontSize="9.5"/>
-                    <Button Grid.Column="1" Content="CLOSE" Width="80" Height="26" Click="Close_Click" Style="{StaticResource WindowControlButton}"/>
+                    <Button Grid.Column="1" Content="CLOSE" Width="80" Height="26" Click="Close_Click" Style="{StaticResource SmallTool}" Padding="12,2"/>
                 </Grid>
             </Border>
         </Grid>

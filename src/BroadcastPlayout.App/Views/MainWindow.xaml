@@ -23,8 +23,8 @@
             <Setter Property="MinHeight" Value="22"/><Setter Property="Height" Value="30"/><Setter Property="Padding" Value="8,2"/><Setter Property="FontSize" Value="10"/><Setter Property="Margin" Value="2"/>
         </Style>
         <Style x:Key="Transport" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Height" Value="40"/><Setter Property="MinHeight" Value="40"/><Setter Property="Padding" Value="4,2"/><Setter Property="FontSize" Value="9.5"/><Setter Property="Margin" Value="2"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Height" Value="44"/><Setter Property="MinHeight" Value="42"/><Setter Property="Padding" Value="2,1"/><Setter Property="FontSize" Value="9.5"/><Setter Property="Margin" Value="1.5,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style x:Key="QuickButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="MinWidth" Value="82"/><Setter Property="Width" Value="82"/><Setter Property="Height" Value="54"/><Setter Property="MinHeight" Value="54"/><Setter Property="Margin" Value="3"/><Setter Property="Padding" Value="4"/><Setter Property="FontSize" Value="9.5"/>
@@ -44,9 +44,19 @@
         <Style x:Key="RightCard" TargetType="Border">
             <Setter Property="Background" Value="#0F141A"/><Setter Property="BorderBrush" Value="#27303A"/><Setter Property="BorderThickness" Value="0,0,0,1"/><Setter Property="Padding" Value="9"/>
         </Style>
-        <Style TargetType="DataGridCell">
+        <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
             <Setter Property="FontSize" Value="{Binding DataContext.PlaylistFontSize, RelativeSource={RelativeSource AncestorType=Window}}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type DataGridCell}">
+                        <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                            <ContentPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="DataGridRow">
             <Setter Property="MinHeight" Value="22"/>
@@ -73,7 +83,7 @@
         <Grid x:Name="ShellGrid" ClipToBounds="True">
             <Grid.RowDefinitions>
                 <RowDefinition Height="38"/>
-                <RowDefinition x:Name="TopOperatorRow" Height="234" MinHeight="220" MaxHeight="480"/>
+                <RowDefinition x:Name="TopOperatorRow" Height="248" MinHeight="230" MaxHeight="480"/>
                 <RowDefinition x:Name="RundownRow" Height="0" MinHeight="0"/>
                 <RowDefinition x:Name="PlaylistRow" Height="*" MinHeight="140"/>
                 <RowDefinition x:Name="QuickControlsRow" Height="185" MinHeight="130"/>
@@ -320,71 +330,71 @@
                 </Border>
 
                 <!-- TIMERS / TRANSPORT · broadcast reference deck -->
-                <Border x:Name="TransportDeckPanel" Grid.Column="1" Style="{StaticResource PanelBorder}" Padding="5,4" VerticalAlignment="Stretch" MinHeight="185">
+                <Border x:Name="TransportDeckPanel" Grid.Column="1" Style="{StaticResource PanelBorder}" Padding="5,4" VerticalAlignment="Stretch" MinHeight="195">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="68"/>
-                            <RowDefinition Height="8"/>
-                            <RowDefinition Height="44"/>
-                            <RowDefinition Height="52" MinHeight="48"/>
+                            <RowDefinition Height="1.2*" MinHeight="66"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="1*" MinHeight="52"/>
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0">
+                        <Grid Grid.Row="0" Margin="0,0,0,2">
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                            <Border Margin="2" Background="#11161B" BorderBrush="#30383F" BorderThickness="1">
+                            <Border Margin="2" Background="#11161B" BorderBrush="#30383F" BorderThickness="1" CornerRadius="3">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="Current Played Time" Foreground="#D4D7DA" FontSize="11" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding CurrentElapsedText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" FontSize="32" Foreground="#4F9CE6" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Current Played Time" Foreground="#D4D7DA" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding CurrentElapsedText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" FontSize="46" Foreground="#4F9CE6" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="1" Margin="2" Background="#11161B" BorderBrush="#30383F" BorderThickness="1">
+                            <Border Grid.Column="1" Margin="2" Background="#11161B" BorderBrush="#30383F" BorderThickness="1" CornerRadius="3">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="Current Remaining Time" Foreground="#D4D7DA" FontSize="11" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding CurrentRemainingText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" FontSize="34" Foreground="#E45B61" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Current Remaining Time" Foreground="#D4D7DA" FontSize="11.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding CurrentRemainingText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" FontSize="46" Foreground="#E45B61" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
-                        <ProgressBar Grid.Row="1" Minimum="0" Maximum="100" Value="{Binding CurrentProgressPercent, Mode=OneWay}" Height="7" Margin="2,0" Foreground="#4F9CE6" Background="#1E2227" BorderThickness="0"/>
-                        <UniformGrid Grid.Row="2" Rows="1" Columns="8" Margin="2,2,2,2">
-                            <Button Style="{StaticResource Transport}" Click="ProgramStart_Click" ToolTip="GO TO IN" AutomationProperties.Name="Go to IN point"><StackPanel HorizontalAlignment="Center"><TextBlock Text="|◀" FontSize="13" HorizontalAlignment="Center"/><TextBlock Text="IN" FontSize="7.5" FontWeight="SemiBold" HorizontalAlignment="Center"/></StackPanel></Button>
-                            <Button Style="{StaticResource Transport}" Command="{Binding StopCommand}" ToolTip="STOP" AutomationProperties.Name="Stop program"><StackPanel HorizontalAlignment="Center"><TextBlock Text="■" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="STOP" FontSize="7.5" FontWeight="SemiBold" HorizontalAlignment="Center"/></StackPanel></Button>
-                            <Button Style="{StaticResource Transport}" Command="{Binding PauseCommand}" ToolTip="PAUSE / RESUME" AutomationProperties.Name="Pause or resume program"><StackPanel HorizontalAlignment="Center"><TextBlock Text="{Binding ProgramPlayPauseGlyph, Mode=OneWay}" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="{Binding PlayPauseStateText, Mode=OneWay}" FontSize="7.5" FontWeight="SemiBold" HorizontalAlignment="Center"/></StackPanel></Button>
-                            <Button Style="{StaticResource Transport}" Command="{Binding NextCommand}" ToolTip="NEXT" AutomationProperties.Name="Next event"><StackPanel HorizontalAlignment="Center"><TextBlock Text="▶|" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="NEXT" FontSize="7.5" FontWeight="SemiBold" HorizontalAlignment="Center"/></StackPanel></Button>
-                            <Button Style="{StaticResource Transport}" Click="ProgramBack_Click" ToolTip="BACK 5 SEC" AutomationProperties.Name="Back five seconds"><StackPanel HorizontalAlignment="Center"><TextBlock Text="↶" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="-5 SEC" FontSize="7.5" FontWeight="SemiBold" HorizontalAlignment="Center"/></StackPanel></Button>
-                            <Button Style="{StaticResource Transport}" Command="{Binding PlayCommand}" ToolTip="PLAY" AutomationProperties.Name="Play program"><StackPanel HorizontalAlignment="Center"><TextBlock Text="▶" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="PLAY" FontSize="7.5" FontWeight="SemiBold" HorizontalAlignment="Center"/></StackPanel></Button>
-                            <Button Style="{StaticResource Transport}" Click="ProgramForward_Click" ToolTip="FORWARD 5 SEC" AutomationProperties.Name="Forward five seconds"><StackPanel HorizontalAlignment="Center"><TextBlock Text="↷" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="+5 SEC" FontSize="7.5" FontWeight="SemiBold" HorizontalAlignment="Center"/></StackPanel></Button>
-                            <Button Style="{StaticResource Transport}" Command="{Binding TakeSelectedCommand}" ToolTip="TAKE SELECTED" AutomationProperties.Name="Take selected item"><StackPanel HorizontalAlignment="Center"><TextBlock Text="✦" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="TAKE" FontSize="7.5" FontWeight="SemiBold" HorizontalAlignment="Center"/></StackPanel></Button>
+                        <ProgressBar Grid.Row="1" Minimum="0" Maximum="100" Value="{Binding CurrentProgressPercent, Mode=OneWay}" Height="7" Margin="2,2,2,3" Foreground="#4F9CE6" Background="#1E2227" BorderThickness="0"/>
+                        <UniformGrid Grid.Row="2" Rows="1" Columns="8" Margin="2,2,2,3" Height="46" VerticalAlignment="Center">
+                            <Button Style="{StaticResource Transport}" Click="ProgramStart_Click" ToolTip="GO TO IN" AutomationProperties.Name="Go to IN point"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="|◀" FontSize="13" HorizontalAlignment="Center"/><TextBlock Text="IN" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
+                            <Button Style="{StaticResource Transport}" Command="{Binding StopCommand}" ToolTip="STOP" AutomationProperties.Name="Stop program"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="■" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="STOP" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
+                            <Button Style="{StaticResource Transport}" Command="{Binding PauseCommand}" ToolTip="PAUSE / RESUME" AutomationProperties.Name="Pause or resume program"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="{Binding ProgramPlayPauseGlyph, Mode=OneWay}" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="{Binding PlayPauseStateText, Mode=OneWay}" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
+                            <Button Style="{StaticResource Transport}" Command="{Binding NextCommand}" ToolTip="NEXT" AutomationProperties.Name="Next event"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="▶|" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="NEXT" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
+                            <Button Style="{StaticResource Transport}" Click="ProgramBack_Click" ToolTip="BACK 5 SEC" AutomationProperties.Name="Back five seconds"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="↶" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="-5 SEC" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
+                            <Button Style="{StaticResource Transport}" Command="{Binding PlayCommand}" ToolTip="PLAY" AutomationProperties.Name="Play program"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="▶" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="PLAY" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
+                            <Button Style="{StaticResource Transport}" Click="ProgramForward_Click" ToolTip="FORWARD 5 SEC" AutomationProperties.Name="Forward five seconds"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="↷" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="+5 SEC" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
+                            <Button Style="{StaticResource Transport}" Command="{Binding TakeSelectedCommand}" ToolTip="TAKE SELECTED" AutomationProperties.Name="Take selected item"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="✦" FontSize="12" HorizontalAlignment="Center"/><TextBlock Text="TAKE" FontSize="8" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
                         </UniformGrid>
                         <Grid Grid.Row="3" Margin="2,1,2,1">
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                            <Border Background="#0F1419" BorderBrush="#303840" BorderThickness="1" Padding="2,1" CornerRadius="2">
+                            <Border Background="#0F1419" BorderBrush="#303840" BorderThickness="1" Padding="2,2" CornerRadius="2" VerticalAlignment="Stretch">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="Station Time" Foreground="#98A2A9" FontSize="7.5" HorizontalAlignment="Center"/>
-                                    <TextBlock x:Name="LocalClockText" Text="00:00:00" Style="{StaticResource DigitalClockText}" Foreground="#E9C91E" FontSize="13.5" HorizontalAlignment="Center"/>
-                                    <TextBlock x:Name="LocalDateText" Text="DATE" Foreground="#6F7A82" FontSize="6.5" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Station Time" Foreground="#98A2A9" FontSize="8.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="LocalClockText" Text="00:00:00" Style="{StaticResource DigitalClockText}" Foreground="#E9C91E" FontSize="17" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="LocalDateText" Text="DATE" Foreground="#6F7A82" FontSize="7.5" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="1" Background="#0F1419" BorderBrush="#303840" BorderThickness="0,1,1,1" Padding="2,1" CornerRadius="0,2,2,0">
+                            <Border Grid.Column="1" Background="#0F1419" BorderBrush="#303840" BorderThickness="0,1,1,1" Padding="2,2" CornerRadius="0,2,2,0" VerticalAlignment="Stretch">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="Playlist Played" ToolTip="Playlist Played Time" Foreground="#98A2A9" FontSize="7.5" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding PlaylistPlayedTimeText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" Foreground="#97C63E" FontSize="14" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Playlist Played" ToolTip="Playlist Played Time" Foreground="#98A2A9" FontSize="8.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding PlaylistPlayedTimeText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" Foreground="#97C63E" FontSize="17" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="2" Background="#0F1419" BorderBrush="#303840" BorderThickness="0,1,1,1" Padding="2,1">
+                            <Border Grid.Column="2" Background="#0F1419" BorderBrush="#303840" BorderThickness="0,1,1,1" Padding="2,2" VerticalAlignment="Stretch">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="Playlist Remaining" ToolTip="Playlist Remaining Time" Foreground="#98A2A9" FontSize="7.5" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding PlaylistRemainingTimeText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" Foreground="#F06A3C" FontSize="14" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Playlist Remaining" ToolTip="Playlist Remaining Time" Foreground="#98A2A9" FontSize="8.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding PlaylistRemainingTimeText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" Foreground="#F06A3C" FontSize="17" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="3" Background="#0F1419" BorderBrush="#303840" BorderThickness="0,1,1,1" Padding="2,1">
+                            <Border Grid.Column="3" Background="#0F1419" BorderBrush="#303840" BorderThickness="0,1,1,1" Padding="2,2" VerticalAlignment="Stretch">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="Next Event" Foreground="#98A2A9" FontSize="7.5" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding NextDurationText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" Foreground="#D67CD9" FontSize="14" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Next Event" Foreground="#98A2A9" FontSize="8.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding NextDurationText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" Foreground="#D67CD9" FontSize="17" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="4" Background="#0F1419" BorderBrush="#303840" BorderThickness="0,1,1,1" Padding="2,1" CornerRadius="0,2,2,0">
+                            <Border Grid.Column="4" Background="#0F1419" BorderBrush="#303840" BorderThickness="0,1,1,1" Padding="2,2" CornerRadius="0,2,2,0" VerticalAlignment="Stretch">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="Selected Remaining" Foreground="#98A2A9" FontSize="7.5" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding SelectedRemainingTimeText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" Foreground="#E33A4E" FontSize="14" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Selected Remaining" Foreground="#98A2A9" FontSize="8.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding SelectedRemainingTimeText, Mode=OneWay}" Style="{StaticResource DigitalClockText}" Foreground="#E33A4E" FontSize="17" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -550,13 +560,58 @@
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="" Width="26" CanUserResize="False"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="▶" Foreground="#55C878" HorizontalAlignment="Center"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="" Width="26" CanUserResize="False">
+                                <DataGridTemplateColumn.CellStyle>
+                                    <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                                        <Setter Property="Padding" Value="0"/>
+                                    </Style>
+                                </DataGridTemplateColumn.CellStyle>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="▶" Foreground="#55C878" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="#" Binding="{Binding Sequence, Mode=OneWay}" Width="34" IsReadOnly="True" CanUserResize="True"/>
                             <DataGridTextColumn Header="START" Binding="{Binding StartTimeText, Mode=OneWay}" Width="95" IsReadOnly="True" CanUserResize="True"/>
                             <DataGridTextColumn Header="DURATION" Binding="{Binding RundownDurationText, Mode=OneWay}" Width="95" IsReadOnly="True" CanUserResize="True"/>
                             <DataGridTextColumn Header="TYPE" Binding="{Binding EventType, Mode=OneWay}" Width="66" IsReadOnly="True" CanUserResize="True"/>
                             <DataGridTextColumn Header="BLOCK" Binding="{Binding BlockName, Mode=OneWay}" Width="82" IsReadOnly="True" CanUserResize="True"/><DataGridTextColumn Header="CATEGORY" Binding="{Binding Category, Mode=OneWay}" Width="95" IsReadOnly="True" CanUserResize="True"/>
-                            <DataGridTemplateColumn Header="TITLE / DESCRIPTION" Width="2.1*" CanUserResize="True"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal"><Image Source="{Binding ThumbnailPath, Mode=OneWay}" Width="{Binding DataContext.PlaylistThumbnailWidth, RelativeSource={RelativeSource AncestorType=DataGrid}}" Height="{Binding DataContext.PlaylistThumbnailHeight, RelativeSource={RelativeSource AncestorType=DataGrid}}" Stretch="UniformToFill" Margin="0,0,6,0"><Image.Style><Style TargetType="Image"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding DataContext.ShowPlaylistThumbnails, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Image.Style></Image><StackPanel><TextBlock Text="{Binding Title}" FontWeight="SemiBold"/><TextBlock Text="{Binding MediaDetails, Mode=OneWay}" Foreground="#758089" FontSize="{Binding DataContext.PlaylistFontSize, RelativeSource={RelativeSource AncestorType=DataGrid}}" Opacity="0.78"/></StackPanel></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="TITLE / DESCRIPTION" Width="2.1*" CanUserResize="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="6,2,8,2" VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Margin="0,0,10,0" CornerRadius="3" ClipToBounds="True" Background="#0A0E13" VerticalAlignment="Center">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DataContext.ShowPlaylistThumbnails, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="False">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding ThumbnailPath}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding ThumbnailPath}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Image Source="{Binding ThumbnailPath, Mode=OneWay}" Width="{Binding DataContext.PlaylistThumbnailWidth, RelativeSource={RelativeSource AncestorType=DataGrid}}" Height="{Binding DataContext.PlaylistThumbnailHeight, RelativeSource={RelativeSource AncestorType=DataGrid}}" Stretch="UniformToFill"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="2,0,0,0">
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding MediaDetails, Mode=OneWay}" Foreground="#85929E" FontSize="{Binding DataContext.PlaylistFontSize, RelativeSource={RelativeSource AncestorType=DataGrid}}" Opacity="0.85" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="STATUS" Binding="{Binding Status, Mode=OneWay}" Width="75" IsReadOnly="True" CanUserResize="True"/>
                             <DataGridTextColumn Header="IN" Binding="{Binding InPointText, Mode=OneWay}" Width="88" IsReadOnly="True" CanUserResize="True"/>
                             <DataGridTextColumn Header="OUT" Binding="{Binding OutPointText, Mode=OneWay}" Width="88" IsReadOnly="True" CanUserResize="True"/>

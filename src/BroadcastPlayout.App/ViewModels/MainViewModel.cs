@@ -1701,20 +1701,35 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var catalogAsset = mam.RegisterFile(file, MediaAssetMetadataStore.Get(file), "Playout import");
         mam.AssertMayUse(file, DateTime.UtcNow);
         var info = await Task.Run(() => MediaProbe.Read(file));
-        MediaQcResult? qc = null;
-        if (EnableQcOnImport)
-        {
-            qc = await QualityControlService.CheckAsync(file, QcPreset, deepDecode: false);
-            mam.SetQc(catalogAsset.AssetId, qc.Status, qc.Summary, "Playout import QC");
-        }
         var item = new PlaylistItem
         {
             Sequence = Playlist.Count + 1, EventType = "CLIP", Title = Path.GetFileNameWithoutExtension(file), FilePath = file, Category = MediaCategoryStore.Get(file),
             SourceKind = "File", IsLiveSource = false, SourceDuration = info.Duration, SourceFrameRate = info.FramesPerSecond > 0 ? info.FramesPerSecond : 25.0,
             OutPoint = info.Duration, Codec = info.VideoCodec, VideoFormat = $"{info.Width}x{info.Height} {info.FramesPerSecond:0.###}p",
             DecoderPreference = DefaultDecoderPreference,
-            QcStatus = qc is null ? "Not checked" : qc.Status, QcSummary = qc?.Summary ?? string.Empty
+            QcStatus = EnableQcOnImport ? "QC Running..." : "Not checked", QcSummary = string.Empty
         };
+
+        if (EnableQcOnImport)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var qc = await QualityControlService.CheckAsync(file, QcPreset, deepDecode: false);
+                    mam.SetQc(catalogAsset.AssetId, qc.Status, qc.Summary, "Playout import QC");
+                    Ui(() =>
+                    {
+                        item.QcStatus = qc.Status;
+                        item.QcSummary = qc.Summary ?? string.Empty;
+                        if (!qc.Passed) AddRecentEvent($"QC FAIL · {item.Title} · {qc.Summary}");
+                        else AddRecentEvent($"QC PASS · {item.Title}");
+                    });
+                }
+                catch { }
+            });
+        }
+
         if (insertionIndex.HasValue)
         {
             ApplyGlobalPlaylistAppearance(item);
@@ -1725,9 +1740,52 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             AttachPlaylistItem(item);
         }
         try { item.ThumbnailPath = await MediaThumbnailService.EnsureThumbnailAsync(item); } catch { }
-        if (qc is { Passed: false }) AddRecentEvent($"QC FAIL · {item.Title} · {qc.Summary}");
         SelectedItem ??= item; RaisePlaylistSummary(); PersistPlaylist();
         return item;
+    }
+
+    public void VerifyPlaylistFiles()
+    {
+        foreach (var item in Playlist)
+        {
+            if (item.IsLiveSource || item.IsControlEvent || item.IsCgEvent) continue;
+            if (string.IsNullOrWhiteSpace(item.FilePath)) continue;
+
+            if (File.Exists(item.FilePath))
+            {
+                item.IsMissingFile = false;
+                continue;
+            }
+
+            // Check if file was renamed in the same directory
+            var dir = Path.GetDirectoryName(item.FilePath);
+            if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+            {
+                try
+                {
+                    var originalName = Path.GetFileNameWithoutExtension(item.FilePath);
+                    var originalExt = Path.GetExtension(item.FilePath);
+                    var candidates = Directory.GetFiles(dir, "*" + originalExt);
+                    var match = candidates.FirstOrDefault(c =>
+                    {
+                        var candName = Path.GetFileNameWithoutExtension(c);
+                        return candName.Contains(originalName, StringComparison.OrdinalIgnoreCase) ||
+                               originalName.Contains(candName, StringComparison.OrdinalIgnoreCase);
+                    });
+
+                    if (match != null)
+                    {
+                        item.FilePath = match;
+                        item.Title = Path.GetFileNameWithoutExtension(match);
+                        item.IsMissingFile = false;
+                        continue;
+                    }
+                }
+                catch { }
+            }
+
+            item.IsMissingFile = true;
+        }
     }
 
     public void AddInputSource(PlaylistItem item)
@@ -1860,6 +1918,36 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 break;
             case "Black Image":
                 _engine.Pause();
+                break;
+            case "Break Playlist":
+            case "Commercial Break Playlist":
+            case "Custom Playlist":
+                if (!string.IsNullOrWhiteSpace(_settings.ProfessionalBroadcast.ScteOnBreakPlaylistFile) &&
+                    File.Exists(_settings.ProfessionalBroadcast.ScteOnBreakPlaylistFile))
+                {
+                    try
+                    {
+                        var items = PlaylistDocumentService.Load(_settings.ProfessionalBroadcast.ScteOnBreakPlaylistFile).ToList();
+                        if (items.Count > 0)
+                        {
+                            var insertIdx = SelectedItem is not null ? Math.Max(0, Playlist.IndexOf(SelectedItem) + 1) : Playlist.Count;
+                            foreach (var it in items)
+                            {
+                                it.Category = "Commercial";
+                                it.BlockName = $"BREAK [{cue.EventId}]";
+                                Playlist.Insert(insertIdx++, it);
+                            }
+                            RenumberPlaylist();
+                            SelectedItem = items[0];
+                            TakeSelected();
+                            AddRecentEvent($"SCTE BREAK PLAYLIST LOADED · {items.Count} items queued");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AddRecentEvent($"SCTE PLAYLIST ERROR · {ex.Message}");
+                    }
+                }
                 break;
             case "Custom Video":
             case "Custom Image":
@@ -2116,10 +2204,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Playlist[i].Sequence = i + 1;
     }
 
-    private void PlayOrResume()
+    public void PlayOrResume()
     {
         if (_engine.IsPlaying)
         {
+            if (SelectedItem is not null && SelectedItem != CurrentItem)
+            {
+                TakeSelected();
+                return;
+            }
             if (_engine.IsPaused) _engine.Resume();
             Raise(nameof(IsPaused));
             Raise(nameof(PlayPauseStateText));
@@ -2129,13 +2222,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (SelectedItem is not null) TakeSelected();
     }
 
-    private void TakeSelected()
+    public void TakeSelected()
     {
+        if (SelectedItem is not null && !Playlist.Contains(SelectedItem))
+        {
+            var curIdx = CurrentItem is null ? -1 : Playlist.IndexOf(CurrentItem);
+            var insertPos = curIdx >= 0 && curIdx < Playlist.Count ? curIdx + 1 : Playlist.Count;
+            Playlist.Insert(insertPos, SelectedItem);
+            RenumberPlaylist();
+            RaisePlaylistSummary();
+            PersistPlaylist();
+        }
+
         if (Playlist.Count == 0) { BeginFillerIfIdle(); return; }
         var idx = SelectedItem is null ? 0 : Math.Max(0, Playlist.IndexOf(SelectedItem));
         var item = Playlist[idx];
-        var eventOffset = ReferenceEquals(item, SelectedItem)
-            ? TimeSpan.FromSeconds(Math.Clamp(PreviewSeekSeconds, 0, item.Duration.TotalSeconds))
+        var seekSec = Math.Max(0, PreviewSeekSeconds);
+        var maxSec = item.Duration.TotalSeconds > 0 ? item.Duration.TotalSeconds : double.MaxValue;
+        var eventOffset = ReferenceEquals(item, SelectedItem) || (SelectedItem is not null && item.Id == SelectedItem.Id)
+            ? TimeSpan.FromSeconds(Math.Min(seekSec, maxSec))
             : TimeSpan.Zero;
         _localAudio.Reset();
         _ = _engine.PlayAsync(Playlist.ToArray(), idx, eventOffset);
@@ -2192,7 +2297,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 while (!ct.IsCancellationRequested)
                 {
                     pausedSeconds += WaitPreviewWhilePaused(ct);
-                    if (ct.IsCancellationRequested || !liveDecoder.TryRead(out var frame)) break;
+                    if (ct.IsCancellationRequested) break;
+                    if (!liveDecoder.TryRead(out var frame))
+                    {
+                        Thread.Sleep(8);
+                        continue;
+                    }
                     if (double.IsNaN(firstPts)) firstPts = frame.PtsSeconds;
                     var due = Math.Max(0, frame.PtsSeconds - firstPts);
                     while (!ct.IsCancellationRequested && clock.Elapsed.TotalSeconds - pausedSeconds + .004 < due)
@@ -2468,9 +2578,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 using var decoder = new VideoDecoder(item);
                 if (!item.IsLiveSource) decoder.Seek(target);
 
-                while (!source.IsCancellationRequested && Volatile.Read(ref _disposed) == 0 && decoder.TryRead(out var candidate))
+                var maxAttempts = item.IsLiveSource ? 30 : 10;
+                while (!source.IsCancellationRequested && Volatile.Read(ref _disposed) == 0 && maxAttempts-- > 0)
                 {
-                    if (item.IsLiveSource || candidate.PtsSeconds + 0.050 >= target.TotalSeconds) return candidate;
+                    if (decoder.TryRead(out var candidate))
+                    {
+                        if (item.IsLiveSource || candidate.PtsSeconds + 0.050 >= target.TotalSeconds) return candidate;
+                    }
+                    if (item.IsLiveSource) Thread.Sleep(10);
                 }
 
                 return null;
@@ -4003,10 +4118,36 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                     }
                 }
                 if (Playlist.Count == 0) return;
-                SelectedItem = Playlist[0]; _localAudio.Reset();
-                // Hard Start deliberately interrupts current Program so the first scheduled event starts at the exact configured clock.
-                if (entry.IsHardStart) _engine.Stop();
-                _ = _engine.PlayAsync(Playlist.ToArray(), 0, Playlist[0].InPoint);
+                SelectedItem = Playlist[0];
+                _localAudio.Reset();
+
+                if (!entry.AutoTrigger)
+                {
+                    AddRecentEvent($"SCHEDULE DUE (MANUAL TRIGGER) · {entry.Name} · Ready to Take");
+                    EngineStatus = $"SCHEDULE READY: {entry.Name}";
+                    return;
+                }
+
+                // Force Play (Hard Start) deliberately interrupts current item at exact clock time
+                if (entry.IsHardStart)
+                {
+                    AddRecentEvent($"SCHEDULE HARD START (FORCE PLAY) · {entry.Name}");
+                    _engine.Stop();
+                    _ = _engine.PlayAsync(Playlist.ToArray(), 0, Playlist[0].InPoint);
+                }
+                else
+                {
+                    // Soft Start: If an item is already running on air, wait until it finishes
+                    if (_engine.IsPlaying && CurrentItem is not null)
+                    {
+                        AddRecentEvent($"SCHEDULE SOFT START QUEUED · {entry.Name} waiting for active item completion");
+                        EngineStatus = $"SCHEDULE QUEUED: {entry.Name}";
+                    }
+                    else
+                    {
+                        _ = _engine.PlayAsync(Playlist.ToArray(), 0, Playlist[0].InPoint);
+                    }
+                }
             }
             catch (Exception ex)
             {

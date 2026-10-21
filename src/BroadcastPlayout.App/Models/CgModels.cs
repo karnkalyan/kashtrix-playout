@@ -74,20 +74,76 @@ public sealed class CgLayer : INotifyPropertyChanged
     // Per-element fixed canvas mask. Motion/keyframes are evaluated normally, then the fully
     // rendered element is clipped in project/canvas coordinates. This means slide/push/zoom
     // animations can begin outside the mask while only pixels inside the mask become visible.
-    public bool MaskEnabled { get; set; }
-    public string MaskShape { get; set; } = "Rectangle"; // Rectangle, Rounded Rectangle, Ellipse
-    public double MaskX { get; set; }
-    public double MaskY { get; set; }
-    public double MaskWidth { get; set; }
-    public double MaskHeight { get; set; }
-    public double MaskCornerRadius { get; set; }
-    public double MaskFeather { get; set; }
-    public bool MaskInvert { get; set; }
+    private bool _maskEnabled;
+    public bool MaskEnabled { get => _maskEnabled; set => Set(ref _maskEnabled, value); }
+    private string _maskShape = "Rectangle";
+    public string MaskShape { get => _maskShape; set => Set(ref _maskShape, value ?? "Rectangle"); }
+    private double _maskX;
+    public double MaskX { get => _maskX; set => Set(ref _maskX, value); }
+    private double _maskY;
+    public double MaskY { get => _maskY; set => Set(ref _maskY, value); }
+    private double _maskWidth;
+    public double MaskWidth { get => _maskWidth; set => Set(ref _maskWidth, value); }
+    private double _maskHeight;
+    public double MaskHeight { get => _maskHeight; set => Set(ref _maskHeight, value); }
+    private double _maskCornerRadius;
+    public double MaskCornerRadius { get => _maskCornerRadius; set => Set(ref _maskCornerRadius, value); }
+    private double _maskFeather;
+    public double MaskFeather { get => _maskFeather; set => Set(ref _maskFeather, value); }
+    private bool _maskInvert;
+    public bool MaskInvert { get => _maskInvert; set => Set(ref _maskInvert, value); }
     // Semicolon-separated normalized points (x,y;x,y;...) authored by the pen tool.
     // ShapePathData is local to the layer bounds; MaskPathData is local to MaskX/Y/Width/Height.
-    public string ShapePathData { get; set; } = string.Empty;
-    public bool ShapePathClosed { get; set; } = true;
-    public string MaskPathData { get; set; } = string.Empty;
+    private string _shapePathData = string.Empty;
+    public string ShapePathData { get => _shapePathData; set => Set(ref _shapePathData, value ?? string.Empty); }
+    private bool _shapePathClosed = true;
+    public bool ShapePathClosed { get => _shapePathClosed; set => Set(ref _shapePathClosed, value); }
+    private string _maskPathData = string.Empty;
+    public string MaskPathData { get => _maskPathData; set => Set(ref _maskPathData, value ?? string.Empty); }
+
+    // Smart Layer Management and Automatic Layout Adjustment
+    private double _defaultHeight;
+    public double DefaultHeight { get => _defaultHeight > 0 ? _defaultHeight : _height; set => Set(ref _defaultHeight, value); }
+    private double _defaultWidth;
+    public double DefaultWidth { get => _defaultWidth > 0 ? _defaultWidth : _width; set => Set(ref _defaultWidth, value); }
+    private double _minHeight = 35.0;
+    public double MinHeight { get => _minHeight; set => Set(ref _minHeight, Math.Max(10.0, value)); }
+    private double _maxHeight = 400.0;
+    public double MaxHeight { get => _maxHeight; set => Set(ref _maxHeight, Math.Max(_minHeight, value)); }
+    private double _minWidth = 50.0;
+    public double MinWidth { get => _minWidth; set => Set(ref _minWidth, Math.Max(10.0, value)); }
+    private double _maxWidth = 1920.0;
+    public double MaxWidth { get => _maxWidth; set => Set(ref _maxWidth, Math.Max(_minWidth, value)); }
+    private bool _isFlexible;
+    public bool IsFlexible { get => _isFlexible; set => Set(ref _isFlexible, value); }
+    private string _reservedZone = "None"; // None, BottomZone, LowerThirdZone, TopZone, BreakingNewsZone, CornerLogo, FullScreen
+    public string ReservedZone { get => _reservedZone; set => Set(ref _reservedZone, value ?? "None"); }
+    private string _anchorPosition = "Bottom"; // Bottom, Top, Left, Right, Center
+    public string AnchorPosition { get => _anchorPosition; set => Set(ref _anchorPosition, value ?? "Bottom"); }
+    private bool _autoShift;
+    public bool AutoShift { get => _autoShift; set => Set(ref _autoShift, value); }
+    private bool _autoResize;
+    public bool AutoResize { get => _autoResize; set => Set(ref _autoResize, value); }
+    private bool _lockPosition;
+    public bool LockPosition { get => _lockPosition; set => Set(ref _lockPosition, value); }
+    private int _layerPriority = 50; // 1 (lowest) to 100 (highest: Breaking News = 90, Logo = 80, LowerThird = 70, Ticker = 60, Crawl = 50)
+    public int LayerPriority { get => _layerPriority; set => Set(ref _layerPriority, Math.Clamp(value, 1, 100)); }
+    private bool _collisionPrevention;
+    public bool CollisionPrevention { get => _collisionPrevention; set => Set(ref _collisionPrevention, value); }
+    private string _layerAnimationPreset = "None"; // None, Default, BreakingNewsPush, LowerThirdGlide, TextFlipScale, MotionBlurSweep, YellowGlowShine
+    public string LayerAnimationPreset { get => _layerAnimationPreset; set => Set(ref _layerAnimationPreset, value ?? "None"); }
+    private bool _isOnAirPlaying;
+    public bool IsOnAirPlaying { get => _isOnAirPlaying; set => Set(ref _isOnAirPlaying, value); }
+
+    // Dynamic runtime layout offsets calculated by CgSmartLayerManager
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double CurrentAdjustedY { get; set; } = double.NaN;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double CurrentAdjustedHeight { get; set; } = double.NaN;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double TargetAdjustedY { get; set; } = double.NaN;
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double TargetAdjustedHeight { get; set; } = double.NaN;
 
     // When an Adobe After Effects project is imported, Kashtrix keeps the source project and
     // composition metadata while playing the rendered alpha image sequence on the native timeline.
@@ -317,9 +373,24 @@ public sealed class CgLayer : INotifyPropertyChanged
     public double ShadowBlur { get; set; }
     public string GlowColor { get; set; } = "#80FFFFFF";
     public double GlowRadius { get; set; }
+    public bool UseGlow
+    {
+        get => GlowRadius > 0.01;
+        set { GlowRadius = value ? (GlowRadius > 0.01 ? GlowRadius : 8.0) : 0.0; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UseGlow))); PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GlowRadius))); }
+    }
     public double MotionBlurX { get; set; }
     public double MotionBlurY { get; set; }
     public int MotionBlurSamples { get; set; }
+    public bool UseMotionBlur
+    {
+        get => MotionBlurSamples > 0 || Math.Abs(MotionBlurX) > 0.01 || Math.Abs(MotionBlurY) > 0.01;
+        set
+        {
+            if (value) { if (MotionBlurSamples <= 0) MotionBlurSamples = 4; if (Math.Abs(MotionBlurX) < 0.01 && Math.Abs(MotionBlurY) < 0.01) MotionBlurX = 5.0; }
+            else { MotionBlurSamples = 0; MotionBlurX = 0; MotionBlurY = 0; }
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UseMotionBlur)));
+        }
+    }
     public double LetterSpacing { get; set; }
     public double LineSpacing { get; set; } = 1;
     public bool UseGradient { get; set; }
@@ -480,6 +551,8 @@ public sealed class CgKeyframe : INotifyPropertyChanged
     public double Cp2Y { get => _cp2Y; set => Set(ref _cp2Y, value); }
     public double SpeedOffset { get => _speedOffset; set => Set(ref _speedOffset, value); }
     private string _targetProperty = string.Empty;
+    private double _lightSweepProgress = double.NaN;
+    public double LightSweepProgress { get => _lightSweepProgress; set => Set(ref _lightSweepProgress, value); }
     /// <summary>
     /// Channel/property this keyframe specifically animates: Position, Scale, Rotation, Opacity, Effects, or empty/All.
     /// Moving a keyframe on a specific sub-track only moves keyframes targeting that property.

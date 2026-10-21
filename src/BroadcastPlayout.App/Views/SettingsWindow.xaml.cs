@@ -187,6 +187,14 @@ public partial class SettingsWindow : Window
     }
 
     private void BrowseFiller_Click(object sender,RoutedEventArgs e){using var d=new Forms.FolderBrowserDialog{Description="Select filler media folder",UseDescriptionForTitle=true};if(d.ShowDialog()==Forms.DialogResult.OK)_vm.FillerFolder=d.SelectedPath;}
+    private void BrowseSctePlaylist_Click(object sender, RoutedEventArgs e)
+    {
+        var d = new OpenFileDialog { Filter = "Kashtrix Playlist (*.ktxplay;*.json;*.m3u)|*.ktxplay;*.json;*.m3u|All Files (*.*)|*.*" };
+        if (d.ShowDialog() == true)
+        {
+            _vm.Settings.ProfessionalBroadcast.ScteOnBreakPlaylistFile = d.FileName;
+        }
+    }
 
     private void ImportPreset_Click(object sender,RoutedEventArgs e)
     {

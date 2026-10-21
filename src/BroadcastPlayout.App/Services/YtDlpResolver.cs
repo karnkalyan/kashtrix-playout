@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -11,6 +12,29 @@ namespace BroadcastPlayout.Services;
 /// </summary>
 public static class YtDlpResolver
 {
+    private static readonly ConcurrentDictionary<string, (YtDlpResult Result, DateTime CachedAt)> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static bool TryGetCached(string? pageUrl, out YtDlpResult? result)
+    {
+        result = null;
+        if (string.IsNullOrWhiteSpace(pageUrl)) return false;
+        var key = pageUrl.Trim();
+        if (_cache.TryGetValue(key, out var entry) && (DateTime.UtcNow - entry.CachedAt).TotalHours < 6)
+        {
+            result = entry.Result;
+            return true;
+        }
+        return false;
+    }
+
+    public static void Store(string pageUrl, YtDlpResult result)
+    {
+        if (!string.IsNullOrWhiteSpace(pageUrl) && result != null)
+        {
+            _cache[pageUrl.Trim()] = (result, DateTime.UtcNow);
+        }
+    }
+
     public static bool LooksLikeWebVideoPage(string? value)
     {
         if (!Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var uri)) return false;
@@ -34,6 +58,11 @@ public static class YtDlpResolver
         if (string.IsNullOrWhiteSpace(pageUrl)) throw new InvalidOperationException("Web video URL is empty.");
         var url = pageUrl.Trim();
 
+        if (TryGetCached(url, out var cached) && cached is not null)
+        {
+            return cached;
+        }
+
         var selectors = new[]
         {
             "bestvideo*+bestaudio/best",
@@ -54,7 +83,11 @@ public static class YtDlpResolver
             try
             {
                 var parsed = ParseResolvedResult(url, result.Output);
-                if (parsed is not null) return parsed;
+                if (parsed is not null)
+                {
+                    Store(url, parsed);
+                    return parsed;
+                }
                 lastError = "yt-dlp completed but did not return a playable media URL.";
             }
             catch (Exception ex)

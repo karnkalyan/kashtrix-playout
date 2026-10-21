@@ -53,8 +53,8 @@
     <!-- FIX29: legacy BreakingSequence path can hit MAX_PATH in Downloads. Ignore any
          leftover FIX28 copy; the same assets now live under demos\ref\brk. -->
     <None Remove="demos\reference\BreakingSequence\**\*" />
-    <None Update="demos\**\*" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\cg-demo\**\*" CopyToOutputDirectory="PreserveNewest" Link="cg-demo\%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Update="demos\**\*" Condition="'$(MSBuildProjectName)' == 'BroadcastPlayout.App'" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\cg-demo\**\*" Condition="'$(MSBuildProjectName)' == 'BroadcastPlayout.App'" CopyToOutputDirectory="PreserveNewest" Link="cg-demo\%(RecursiveDir)%(Filename)%(Extension)" />
     <None Update="native\ffmpeg\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="native\ndi\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="vendor\decklink\**\*" CopyToOutputDirectory="PreserveNewest" />

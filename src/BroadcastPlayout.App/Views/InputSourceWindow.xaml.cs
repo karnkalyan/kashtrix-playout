@@ -347,8 +347,17 @@ public partial class InputSourceWindow : Window
 
                 var firstPts = double.NaN;
                 var clock = System.Diagnostics.Stopwatch.StartNew();
-                while (!ct.IsCancellationRequested && generation == Interlocked.Read(ref _previewGeneration) && decoder.TryRead(out var frame))
+                while (!ct.IsCancellationRequested && generation == Interlocked.Read(ref _previewGeneration))
                 {
+                    if (!decoder.TryRead(out var frame))
+                    {
+                        if (item.IsLiveSource)
+                        {
+                            Thread.Sleep(8);
+                            continue;
+                        }
+                        break;
+                    }
                     while (!ct.IsCancellationRequested && _isPreviewPaused && generation == Interlocked.Read(ref _previewGeneration))
                     {
                         Thread.Sleep(30);
@@ -460,12 +469,21 @@ public partial class InputSourceWindow : Window
         {
             using var audioOut = new BroadcastPlayout.Outputs.LocalAudioOutput();
             using var decoder = new AudioDecoder(item);
-            while (!ct.IsCancellationRequested && generation == Interlocked.Read(ref _previewGeneration) && decoder.TryRead(out var chunk))
+            while (!ct.IsCancellationRequested && generation == Interlocked.Read(ref _previewGeneration))
             {
                 if (_isPreviewPaused)
                 {
                     Thread.Sleep(30);
                     continue;
+                }
+                if (!decoder.TryRead(out var chunk))
+                {
+                    if (item.IsLiveSource)
+                    {
+                        Thread.Sleep(8);
+                        continue;
+                    }
+                    break;
                 }
                 audioOut.Send(chunk);
                 var (l, r) = Measure(chunk.Pcm16Stereo48k);
@@ -557,7 +575,7 @@ public partial class InputSourceWindow : Window
         return new PlaylistItem
         {
             Title = CleanTitle(TitleBox.Text, "URL INPUT"), EventType = live ? "LIVE" : "URL",
-            SourceKind = "URL", FilePath = targetPath, AlternateAudioUrl = _resolvedWebAudioUrl ?? string.Empty, InputFormat = UrlFormatBox.Text.Trim(), IsLiveSource = live,
+            SourceKind = "URL", FilePath = targetPath, ResolvedMediaUrl = _resolvedWebVideoUrl ?? string.Empty, AlternateAudioUrl = _resolvedWebAudioUrl ?? string.Empty, InputFormat = UrlFormatBox.Text.Trim(), IsLiveSource = live,
             SourceDuration = sourceDuration, InPoint = inPoint, OutPoint = outPoint,
             SourceFrameRate = probe is { FramesPerSecond: > 0 } ? probe.FramesPerSecond : 25.0,
             Codec = probe?.VideoCodec ?? "Network", VideoFormat = probe is null ? (live ? "Network Live" : "Network VOD") : $"{probe.Width}x{probe.Height} {probe.FramesPerSecond:0.###}p"
@@ -624,10 +642,72 @@ public partial class InputSourceWindow : Window
             SourceDuration = sourceDuration, InPoint = inPoint, OutPoint = outPoint, Codec = "External Source", VideoFormat = "External Source"
         };
     }
+
+    private void StudioMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (StudioLocalPanel == null || StudioRemotePanel == null) return;
+        var isRemote = StudioModeRemoteRadio?.IsChecked == true;
+        StudioLocalPanel.Visibility = isRemote ? Visibility.Collapsed : Visibility.Visible;
+        StudioRemotePanel.Visibility = isRemote ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private PlaylistItem CreateStudioItem()
     {
         var duration = ParseDuration(StudioDurationBox.Text);
         var (inPoint, outPoint, sourceDuration) = CalculatePoints(duration, isLive: true);
+        var isRemote = StudioModeRemoteRadio?.IsChecked == true;
+
+        if (isRemote)
+        {
+            var host = string.IsNullOrWhiteSpace(StudioHostBox?.Text) ? "127.0.0.1" : StudioHostBox.Text.Trim();
+            var port = string.IsNullOrWhiteSpace(StudioPortBox?.Text) ? "8088" : StudioPortBox.Text.Trim();
+            var protoIdx = StudioProtocolCombo?.SelectedIndex ?? 0;
+
+            string sourceKind;
+            string filePath;
+            string videoFormat;
+
+            switch (protoIdx)
+            {
+                case 1:
+                    sourceKind = "NetworkStream";
+                    filePath = $"srt://{host}:{port}?mode=caller&latency=200";
+                    videoFormat = $"SRT 1080p Studio Feed ({host}:{port})";
+                    break;
+                case 2:
+                    sourceKind = "NetworkStream";
+                    filePath = $"udp://{host}:{port}";
+                    videoFormat = $"UDP DVB-TS Studio Feed ({host}:{port})";
+                    break;
+                case 3:
+                    sourceKind = "NetworkStream";
+                    filePath = $"rtmp://{host}:{port}/live/studio";
+                    videoFormat = $"RTMP Studio Feed ({host}:{port})";
+                    break;
+                default:
+                    sourceKind = "NDI";
+                    filePath = $"KashtrixStudio ({host})";
+                    videoFormat = $"NDI Studio PGM ({host})";
+                    break;
+            }
+
+            return new PlaylistItem
+            {
+                Title = CleanTitle(TitleBox.Text, $"KASHTRIX STUDIO ({host})"),
+                EventType = "LIVE",
+                Category = "Input",
+                SourceKind = sourceKind,
+                FilePath = filePath,
+                IsLiveSource = true,
+                SourceDuration = sourceDuration,
+                InPoint = inPoint,
+                OutPoint = outPoint,
+                SourceFrameRate = 50.0,
+                Codec = "Remote Studio Network Stream",
+                VideoFormat = videoFormat
+            };
+        }
+
         return new PlaylistItem
         {
             Title = CleanTitle(TitleBox.Text, "KASHTRIX STUDIO LIVE"),
@@ -642,14 +722,16 @@ public partial class InputSourceWindow : Window
             OutPoint = outPoint,
             SourceFrameRate = 50.0,
             Codec = "Studio Shared Memory",
-            VideoFormat = "1920x1080 50p Studio PGM"
+            VideoFormat = "1920x1080 50p Studio PGM (127.0.0.1)"
         };
     }
 
     private void ConnectKashtrixStudio_Click(object sender, RoutedEventArgs e)
     {
         SourceTabs.SelectedIndex = 5;
-        TitleBox.Text = "Kashtrix Studio Live";
+        TitleBox.Text = StudioModeRemoteRadio?.IsChecked == true
+            ? $"Kashtrix Studio ({StudioHostBox?.Text?.Trim() ?? "Remote"})"
+            : "Kashtrix Studio Live";
         ResultItem = CreateStudioItem();
         DialogResult = true;
     }

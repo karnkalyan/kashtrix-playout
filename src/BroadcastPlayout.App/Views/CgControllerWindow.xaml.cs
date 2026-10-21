@@ -355,83 +355,90 @@ public partial class CgControllerWindow : Window, INotifyPropertyChanged, IDispo
 
     private void RenderClock_Tick(object? sender, EventArgs e)
     {
-        var playoutPreview = Volatile.Read(ref _latestPlayoutPreviewFrame);
-        VideoFrameData? previewToPublish = null;
-        if (_previewSnapshot is not null)
+        try
         {
-            var baseFrame = Volatile.Read(ref _latestPlayoutPreviewBaseFrame) ?? _monitorBaseFrame;
-            var frame = _previewMonitorCompositor.Composite(baseFrame, _previewSnapshot, MonitorElapsed(_previewStartedUtc, _previewSnapshot));
-            _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, frame);
-            previewToPublish = frame;
-        }
-        else if (playoutPreview is not null)
-        {
-            _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, playoutPreview);
-            previewToPublish = playoutPreview;
-        }
-        else
-        {
-            previewToPublish = _monitorBaseFrame;
-        }
-
-        if (previewToPublish is not null)
-        {
-            _cgPreviewBridge.SubmitVideo(previewToPublish);
-        }
-
-        var playoutProgram = Volatile.Read(ref _latestPlayoutProgramFrame);
-        VideoFrameData? programToPublish = null;
-        if (_programLayerSnapshots.Count > 1)
-        {
-            var frame = Volatile.Read(ref _latestPlayoutProgramBaseFrame) ?? _monitorBaseFrame;
-            foreach (var kvp in _programLayerSnapshots.OrderBy(x => x.Key))
+            var playoutPreview = Volatile.Read(ref _latestPlayoutPreviewFrame);
+            VideoFrameData? previewToPublish = null;
+            if (_previewSnapshot is not null)
             {
-                var snap = kvp.Value.Project;
-                var elapsed = MonitorElapsed(kvp.Value.StartedUtc, snap);
-                frame = _programMonitorCompositor.Composite(frame, snap, elapsed);
+                var baseFrame = Volatile.Read(ref _latestPlayoutPreviewBaseFrame) ?? _monitorBaseFrame;
+                var frame = _previewMonitorCompositor.Composite(baseFrame, _previewSnapshot, MonitorElapsed(_previewStartedUtc, _previewSnapshot));
+                _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, frame);
+                previewToPublish = frame;
             }
-            _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
-            programToPublish = frame;
-        }
-        else if (_programSnapshot is not null)
-        {
-            var baseFrame = Volatile.Read(ref _latestPlayoutProgramBaseFrame) ?? _monitorBaseFrame;
-            VideoFrameData frame;
-            var transitionElapsed = _programTransitionStartedUtc == DateTime.MinValue ? double.MaxValue : (DateTime.UtcNow - _programTransitionStartedUtc).TotalSeconds;
-            if (_programPreviousSnapshot is not null && !_programTransitionMode.Equals("None", StringComparison.OrdinalIgnoreCase) && transitionElapsed < _programTransitionSeconds)
+            else if (playoutPreview is not null)
             {
-                var progress = Math.Clamp(transitionElapsed / Math.Max(.05, _programTransitionSeconds), 0, 1);
-                frame = _programMonitorCompositor.CompositeTransition(
-                    baseFrame,
-                    _programPreviousSnapshot,
-                    _programSnapshot,
-                    MonitorElapsed(_programStartedUtc, _programSnapshot),
-                    MonitorElapsed(_programStartedUtc, _programSnapshot),
-                    progress,
-                    _programTransitionMode);
+                _previewMonitorBitmap = PresentMonitorFrame(PreviewCgImage, _previewMonitorBitmap, playoutPreview);
+                previewToPublish = playoutPreview;
             }
             else
             {
-                _programPreviousSnapshot = null;
-                _programTransitionMode = "None";
-                frame = _programMonitorCompositor.Composite(baseFrame, _programSnapshot, MonitorElapsed(_programStartedUtc, _programSnapshot));
+                previewToPublish = _monitorBaseFrame;
             }
-            _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
-            programToPublish = frame;
-        }
-        else if (playoutProgram is not null)
-        {
-            _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, playoutProgram);
-            programToPublish = playoutProgram;
-        }
-        else
-        {
-            programToPublish = _monitorBaseFrame;
-        }
 
-        if (programToPublish is not null)
+            if (previewToPublish is not null)
+            {
+                _cgPreviewBridge.SubmitVideo(previewToPublish);
+            }
+
+            var playoutProgram = Volatile.Read(ref _latestPlayoutProgramFrame);
+            VideoFrameData? programToPublish = null;
+            if (_programLayerSnapshots.Count > 1)
+            {
+                var frame = Volatile.Read(ref _latestPlayoutProgramBaseFrame) ?? _monitorBaseFrame;
+                foreach (var kvp in _programLayerSnapshots.OrderBy(x => x.Key))
+                {
+                    var snap = kvp.Value.Project;
+                    var elapsed = MonitorElapsed(kvp.Value.StartedUtc, snap);
+                    frame = _programMonitorCompositor.Composite(frame, snap, elapsed);
+                }
+                _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
+                programToPublish = frame;
+            }
+            else if (_programSnapshot is not null)
+            {
+                var baseFrame = Volatile.Read(ref _latestPlayoutProgramBaseFrame) ?? _monitorBaseFrame;
+                VideoFrameData frame;
+                var transitionElapsed = _programTransitionStartedUtc == DateTime.MinValue ? double.MaxValue : (DateTime.UtcNow - _programTransitionStartedUtc).TotalSeconds;
+                if (_programPreviousSnapshot is not null && !_programTransitionMode.Equals("None", StringComparison.OrdinalIgnoreCase) && transitionElapsed < _programTransitionSeconds)
+                {
+                    var progress = Math.Clamp(transitionElapsed / Math.Max(.05, _programTransitionSeconds), 0, 1);
+                    frame = _programMonitorCompositor.CompositeTransition(
+                        baseFrame,
+                        _programPreviousSnapshot,
+                        _programSnapshot,
+                        MonitorElapsed(_programStartedUtc, _programSnapshot),
+                        MonitorElapsed(_programStartedUtc, _programSnapshot),
+                        progress,
+                        _programTransitionMode);
+                }
+                else
+                {
+                    _programPreviousSnapshot = null;
+                    _programTransitionMode = "None";
+                    frame = _programMonitorCompositor.Composite(baseFrame, _programSnapshot, MonitorElapsed(_programStartedUtc, _programSnapshot));
+                }
+                _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, frame);
+                programToPublish = frame;
+            }
+            else if (playoutProgram is not null)
+            {
+                _programMonitorBitmap = PresentMonitorFrame(ProgramCgImage, _programMonitorBitmap, playoutProgram);
+                programToPublish = playoutProgram;
+            }
+            else
+            {
+                programToPublish = _monitorBaseFrame;
+            }
+
+            if (programToPublish is not null)
+            {
+                _cgProgramBridge.SubmitVideo(programToPublish, onAir: true);
+            }
+        }
+        catch (Exception ex)
         {
-            _cgProgramBridge.SubmitVideo(programToPublish, onAir: true);
+            System.Diagnostics.Debug.WriteLine($"[CgController] Render tick exception: {ex.Message}");
         }
     }
 

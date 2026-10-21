@@ -53,3 +53,5 @@ $RECYCLE.BIN/
 *.tmp
 *.orig
 *.zip
+installer-output/
+scratch/

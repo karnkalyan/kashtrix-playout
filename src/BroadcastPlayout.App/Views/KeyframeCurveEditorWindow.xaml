@@ -4,7 +4,7 @@
         Title="Keyframe Motion Speed Curves"
         Width="820" Height="560" MinWidth="680" MinHeight="440"
         WindowStartupLocation="CenterOwner" WindowStyle="None"
-        ResizeMode="CanResizeWithGrip" Background="#0C1017" BorderBrush="#263445" BorderThickness="1">
+        ResizeMode="CanResizeWithGrip" Background="#0C1017" BorderBrush="Transparent" BorderThickness="0">
     <Window.Resources>
         <DrawingBrush x:Key="MotionGridBrush" TileMode="Tile" Viewport="0,0,32,32" ViewportUnits="Absolute" Stretch="None">
             <DrawingBrush.Drawing>

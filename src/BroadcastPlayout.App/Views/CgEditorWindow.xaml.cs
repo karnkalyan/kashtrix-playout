@@ -69,6 +69,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private bool _penDrawing;
     private bool _penCreatesMask;
     private CgLayer? _penMaskTarget;
+    private bool _focusMaskGizmo;
     private bool _autoKey = true;
     private readonly List<CgLayer> _layerClipboard = [];
     private int _pasteGeneration;
@@ -128,6 +129,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private const double TimelineBasePixelsPerSecond = 120.0;
     private bool _isTimelineFit = true;
     private CgTimelineEvent? _draggedPauseEvent;
+    private double _lastPlaybackPlayhead;
+    private bool _timelinePauseTriggered;
+    private double _canvasZoomFactor = 1.0;
+    private string _canvasZoomSelection = "FIT";
     // MouseMove can arrive hundreds of times per second. Rebuilding the full CG canvas for
     // every raw input message (including video/HTML layers) caused sticky, jittery dragging.
     // Coalesce interactive redraws to the next WPF composition frame instead.
@@ -143,6 +148,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private readonly Stack<CompositionNavigationFrame> _compositionNavigation = new();
     private readonly Stack<string> _undoStack = new();
     private readonly Stack<string> _redoStack = new();
+    private readonly Dictionary<CgLayer, (double X, double Y, CgKeyframe? Key)> _previewMultiDragStarts = new();
     private bool _isUndoRedoAction;
 
     public void RecordUndoSnapshot()
@@ -150,9 +156,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (_isUndoRedoAction || _selectedProject is null) return;
         try
         {
+            SyncLayersToProject();
             var json = JsonSerializer.Serialize(_selectedProject);
             _undoStack.Push(json);
-            if (_undoStack.Count > 50)
+            if (_undoStack.Count > 60)
             {
                 var list = _undoStack.ToList();
                 list.RemoveAt(list.Count - 1);
@@ -170,6 +177,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         try
         {
             _isUndoRedoAction = true;
+            SyncLayersToProject();
             var currentJson = JsonSerializer.Serialize(_selectedProject);
             _redoStack.Push(currentJson);
             var prevJson = _undoStack.Pop();
@@ -185,6 +193,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         try
         {
             _isUndoRedoAction = true;
+            SyncLayersToProject();
             var currentJson = JsonSerializer.Serialize(_selectedProject);
             _undoStack.Push(currentJson);
             var nextJson = _redoStack.Pop();
@@ -198,6 +207,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         var restored = JsonSerializer.Deserialize<CgProject>(json);
         if (restored is null || _selectedProject is null) return;
+        _compositionNavigation.Clear();
         _selectedProject.Name = restored.Name;
         _selectedProject.Width = restored.Width;
         _selectedProject.Height = restored.Height;
@@ -241,7 +251,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     private readonly HashSet<Guid> _expandedTimelineLayerIds = [];
 
-    public CgEditorWindow(MainViewModel main)
+    public CgEditorWindow(MainViewModel main, bool startBlank = false)
     {
         InitializeComponent();
         WindowChromeActions.ApplyCleanBorder(this);
@@ -262,7 +272,15 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (_titleSafePercent <= _actionSafePercent) _titleSafePercent = Math.Min(35.0, _actionSafePercent + 5.0);
         _safeAreaPreset = SafePresetFromValues(_actionSafePercent, _titleSafePercent);
         DataContext = this;
-        SelectedProject = main.ActiveCgProject ?? Projects.FirstOrDefault();
+        if (startBlank)
+        {
+            var blank = new CgProject { Name = "New Composition", Width = 1920, Height = 1080, FrameRate = 25, DurationSeconds = 10 };
+            SelectedProject = blank;
+        }
+        else
+        {
+            SelectedProject = main.ActiveCgProject ?? Projects.FirstOrDefault();
+        }
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
         _timer.Tick += (_, _) =>
         {
@@ -286,6 +304,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                         _playbackLoopIteration += Math.Max(1, loops);
                         rawElapsed %= totalCycle;
                         _playbackBaseSeconds = rawElapsed;
+                        _lastPlaybackPlayhead = rawElapsed;
                         _playbackClock.Restart();
                         Raise(nameof(BoundDataSourceStatus));
                     }
@@ -294,9 +313,33 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                         _playing = false;
                         _playbackClock.Stop();
                         Playhead = ProjectDuration;
+                        Raise(nameof(PlayButtonText));
                         return;
                     }
                 }
+
+                // Check for timeline ruler pause events
+                if (project?.TimelineEvents != null)
+                {
+                    var pauseEvt = project.TimelineEvents.FirstOrDefault(e => e.Enabled &&
+                        (e.Type == "Pause" || string.Equals(e.Type, "Hold", StringComparison.OrdinalIgnoreCase)) &&
+                        _lastPlaybackPlayhead < e.TimeSeconds && rawElapsed >= e.TimeSeconds);
+                    if (pauseEvt != null && !_timelinePauseTriggered)
+                    {
+                        _timelinePauseTriggered = true;
+                        _playing = false;
+                        _playbackClock.Stop();
+                        _playbackBaseSeconds = pauseEvt.TimeSeconds;
+                        Playhead = pauseEvt.TimeSeconds;
+                        _lastPlaybackPlayhead = pauseEvt.TimeSeconds;
+                        Raise(nameof(PlayButtonText));
+                        Raise(nameof(PlayheadText));
+                        Raise(nameof(RemainingText));
+                        RenderPreview();
+                        return;
+                    }
+                }
+                _lastPlaybackPlayhead = rawElapsed;
 
                 if (rawElapsed < pausePoint)
                 {
@@ -336,6 +379,30 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                     duration = Math.Clamp(lastLayerEnd, 5.0, 60.0);
                 }
                 var next = _playbackBaseSeconds + _playbackClock.Elapsed.TotalSeconds;
+
+                // Check for timeline ruler pause events between _lastPlaybackPlayhead and next
+                if (project?.TimelineEvents != null)
+                {
+                    var pauseEvt = project.TimelineEvents.FirstOrDefault(e => e.Enabled &&
+                        (e.Type == "Pause" || string.Equals(e.Type, "Hold", StringComparison.OrdinalIgnoreCase)) &&
+                        _lastPlaybackPlayhead < e.TimeSeconds && next >= e.TimeSeconds);
+                    if (pauseEvt != null && !_timelinePauseTriggered)
+                    {
+                        _timelinePauseTriggered = true;
+                        _playing = false;
+                        _playbackClock.Stop();
+                        _playbackBaseSeconds = pauseEvt.TimeSeconds;
+                        Playhead = pauseEvt.TimeSeconds;
+                        _lastPlaybackPlayhead = pauseEvt.TimeSeconds;
+                        Raise(nameof(PlayButtonText));
+                        Raise(nameof(PlayheadText));
+                        Raise(nameof(RemainingText));
+                        RenderPreview();
+                        return;
+                    }
+                }
+                _lastPlaybackPlayhead = next;
+
                 if (next >= duration)
                 {
                     if (Loop)
@@ -344,6 +411,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                         _playbackLoopIteration += Math.Max(1, loops);
                         next %= duration;
                         _playbackBaseSeconds = next;
+                        _lastPlaybackPlayhead = next;
                         _playbackClock.Restart();
                         Raise(nameof(BoundDataSourceStatus));
                     }
@@ -352,6 +420,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                         next = duration;
                         _playing = false;
                         _playbackClock.Stop();
+                        Raise(nameof(PlayButtonText));
                     }
                 }
                 Playhead = next;
@@ -369,7 +438,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     public ObservableCollection<CgProject> Projects { get; }
     public ICollectionView ProjectView { get; }
-    public IReadOnlyList<string> TemplateCategories { get; } = ["ALL", "3D", "AP1 HD", "PRIME HD", "SPACE 4K", "PUBLIC 4K", "NEWS", "BREAKING NEWS", "MARKET / FINANCE", "TICKERS", "LOWER THIRDS", "LOGO / BUG", "COUNTDOWN / TIMER", "WEATHER", "MUSIC", "PROGRAM", "IMPORTED"];
+    public IReadOnlyList<string> TemplateCategories { get; } = ["ALL", "MARKET TV PACKAGE", "3D", "AP1 HD", "PRIME HD", "SPACE 4K", "PUBLIC 4K", "NEWS", "BREAKING NEWS", "MARKET / FINANCE", "TICKERS", "LOWER THIRDS", "LOGO / BUG", "COUNTDOWN / TIMER", "WEATHER", "MUSIC", "PROGRAM", "IMPORTED"];
     public string TemplateCategory
     {
         get => _templateCategory;
@@ -605,6 +674,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         return TemplateCategory switch
         {
             "ALL" => true,
+            "MARKET TV PACKAGE" => n.Contains("MARKET") || n.Contains("NEPSE") || n.Contains("STOCK") || n.Contains("FINANCE"),
             "3D" => n.Contains("3D") || n.Contains("EXTRUDE") || n.Contains("DEPTH"),
             "AP1 HD" => n.Contains("AP1") || n.Contains("AP 1"),
             "PRIME HD" => n.Contains("PRIME"),
@@ -991,6 +1061,31 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         get => _playhead;
         set { var v = Math.Clamp(value, 0, ProjectDuration); if (Math.Abs(_playhead - v) < .0001) return; _playhead = v; Raise(); Raise(nameof(PlayheadText)); Raise(nameof(RemainingText)); Raise(nameof(BoundDataSourceStatus)); RenderPreview(); RenderTimeline(); }
     }
+    public string PlayButtonText => _playing ? "⏸" : "▶";
+    public double CanvasZoomFactor
+    {
+        get => _canvasZoomFactor;
+        set
+        {
+            var v = double.IsFinite(value) ? Math.Clamp(value, 0.25, 4.0) : 1.0;
+            if (Math.Abs(_canvasZoomFactor - v) < 0.001) return;
+            _canvasZoomFactor = v;
+            Raise();
+        }
+    }
+    public string CanvasZoomSelection
+    {
+        get => _canvasZoomSelection;
+        set
+        {
+            if (_canvasZoomSelection == value) return;
+            _canvasZoomSelection = value ?? "FIT";
+            Raise();
+            ApplyCanvasZoomSelection(_canvasZoomSelection);
+        }
+    }
+    public IReadOnlyList<string> CanvasZoomPresets { get; } = ["FIT", "25%", "50%", "75%", "100%", "125%", "150%", "200%", "300%"];
+    public IReadOnlyList<string> SmartAnimationPresets { get; } = ["None", "Breaking News Flip", "Lower Third Slide", "Ticker Smooth Scroll", "Push In/Out", "Pop Scale", "Fade Smooth"];
     public string PlayheadText
     {
         get
@@ -1163,9 +1258,9 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             Background = "#151B26",
             UseGradient = true,
             GradientColor2 = "#283548",
-            BorderColor = "#00E5FF",
-            BorderWidth = 3,
-            UseBorder = true,
+            BorderColor = "Transparent",
+            BorderWidth = 0,
+            UseBorder = false,
             CornerRadius = 16,
             AnchorX = 0.5,
             AnchorY = 0.5,
@@ -1257,14 +1352,17 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var boxX = Math.Max(0.0, (pw - boxW) / 2.0);
         var boxY = Math.Max(0.0, (ph - boxH) / 2.0);
 
-        (string name, string text, string stroke, double angle)[] faces = [
-            ("Face 1 (Front)", "KASHTRIX 3D BOX\nFACE 1 · ON AIR", "#00E5FF", 0),
-            ("Face 2 (Right)", "BROADCAST PLAYOUT\nFACE 2 · 4K READY", "#00E676", 90),
-            ("Face 3 (Back)", "CG ENGINE SYSTEM\nFACE 3 · MULTI-LAYER", "#FFB300", 180),
-            ("Face 4 (Left)", "AUTOMATION HUB\nFACE 4 · ROCK SOLID", "#FF4081", 270)
+        (string name, string text, string stroke, double angleY, double angleX, string bg1, string bg2)[] faces = [
+            ("Face 1 (Front)", "KASHTRIX 3D BOX\nFACE 1 · ON AIR", "#00E5FF", 0, 0, "#141E2B", "#0D1520"),
+            ("Face 2 (Right)", "BROADCAST PLAYOUT\nFACE 2 · 4K READY", "#00E676", 90, 0, "#0F1823", "#060A10"),
+            ("Face 3 (Back)", "CG ENGINE SYSTEM\nFACE 3 · MULTI-LAYER", "#FFB300", 180, 0, "#0A1018", "#04070B"),
+            ("Face 4 (Left)", "AUTOMATION HUB\nFACE 4 · ROCK SOLID", "#FF4081", 270, 0, "#101824", "#080C14"),
+            ("Face 5 (Top)", "3D BOX TOP CAP\nKASHTRIX GFX", "#80D8FF", 0, -90, "#1C2838", "#121B27"),
+            ("Face 6 (Bottom)", "3D BOX BOTTOM CAP\n4K BROADCAST", "#455A64", 0, 90, "#070A0F", "#020305")
         ];
         foreach (var face in faces)
         {
+            var isCap = Math.Abs(face.angleX) > 10.0;
             var plate = new CgLayer
             {
                 Name = $"3D Box {face.name}",
@@ -1274,22 +1372,27 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 Y = boxY,
                 Width = boxW,
                 Height = boxH,
-                Background = "#0B1522",
+                Background = face.bg1,
                 UseGradient = true,
-                GradientColor2 = "#05090F",
-                BorderColor = face.stroke,
-                BorderWidth = 3,
-                UseBorder = true,
+                GradientColor2 = face.bg2,
+                BorderColor = "Transparent",
+                BorderWidth = 0,
+                UseBorder = false,
                 CornerRadius = 14,
                 AnchorX = 0.5,
                 AnchorY = 0.5,
                 Perspective = 1100,
                 KeyframeRepeat = -1,
                 GroupId = groupId,
-                Keyframes = [
-                    new() { TimeSeconds = 0.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationY = face.angle, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
-                    new() { TimeSeconds = 4.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationY = face.angle + 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
-                ]
+                Keyframes = isCap
+                    ? [
+                        new() { TimeSeconds = 0.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationX = face.angleX, RotationY = 0, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                        new() { TimeSeconds = 4.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationX = face.angleX, RotationY = 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+                    ]
+                    : [
+                        new() { TimeSeconds = 0.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationX = 0, RotationY = face.angleY, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                        new() { TimeSeconds = 4.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationX = 0, RotationY = face.angleY + 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+                    ]
             };
             var textLayer = new CgLayer
             {
@@ -1311,10 +1414,15 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 Perspective = 1100,
                 KeyframeRepeat = -1,
                 GroupId = groupId,
-                Keyframes = [
-                    new() { TimeSeconds = 0.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationY = face.angle, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
-                    new() { TimeSeconds = 4.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationY = face.angle + 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
-                ]
+                Keyframes = isCap
+                    ? [
+                        new() { TimeSeconds = 0.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationX = face.angleX, RotationY = 0, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                        new() { TimeSeconds = 4.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationX = face.angleX, RotationY = 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+                    ]
+                    : [
+                        new() { TimeSeconds = 0.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationX = 0, RotationY = face.angleY, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 },
+                        new() { TimeSeconds = 4.0, X = boxX, Y = boxY, Width = boxW, Height = boxH, RotationX = 0, RotationY = face.angleY + 360, Opacity = 1.0, ScaleX = 1, ScaleY = 1, AnchorX = 0.5, AnchorY = 0.5 }
+                    ]
             };
             AddLayer(plate);
             AddLayer(textLayer);
@@ -1442,6 +1550,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         _penDrawing = true;
         _penCreatesMask = createMask;
         _penMaskTarget = createMask ? SelectedLayer : null;
+        if (createMask) _focusMaskGizmo = true;
         PreviewCanvas.Cursor = Cursors.Cross;
         PreviewCanvas.Focus();
         RenderPreview();
@@ -1471,7 +1580,12 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             maskTarget.MaskX = minX; maskTarget.MaskY = minY;
             maskTarget.MaskWidth = width; maskTarget.MaskHeight = height;
             maskTarget.MaskPathData = normalized;
+            _maskBrushCache.Clear();
+            _focusMaskGizmo = true;
             SelectedLayer = maskTarget;
+            SyncLayersToProject();
+            _main.SaveCgProjects();
+            RenderAll();
         }
         else
         {
@@ -1480,11 +1594,24 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 Name = "Pen Shape", Role = "Shape", Type = "Shape", ShapeKind = "Custom Path",
                 ShapePathData = normalized, ShapePathClosed = points.Length >= 3,
                 X = minX, Y = minY, Width = width, Height = height,
-                Background = "#CC8F4FD4", BorderColor = "#FFFFFFFF", BorderWidth = 2,
+                Background = "#CC8F4FD4", BorderColor = "#00000000", BorderWidth = 0, UseBorder = false,
                 AnimationIn = "None", AnimationOut = "None", AnimationInSeconds = 0, AnimationOutSeconds = 0
             });
         }
         SyncLayersToProject(); _main.SaveCgProjects(); Raise(nameof(SelectedLayer)); RenderAll();
+    }
+    private void RemoveOutline_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedLayer is null) return;
+        RecordUndoSnapshot();
+        SelectedLayer.UseBorder = false;
+        SelectedLayer.UseOutline = false;
+        SelectedLayer.BorderWidth = 0;
+        SelectedLayer.BorderColor = "#00000000";
+        Raise(nameof(SelectedLayer));
+        SyncLayersToProject();
+        _main.SaveCgProjects();
+        RenderAll();
     }
     private void AddEllipse_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer { Name="Ellipse", Role="Shape", Type="Shape", ShapeKind="Ellipse", X=150, Y=150, Width=420, Height=260, Background="#B58F4FD4", BorderColor="#00000000", BorderWidth=0, AnimationIn="None", AnimationOut="None", AnimationInSeconds=0, AnimationOutSeconds=0 });
     private void AddLine_Click(object sender, RoutedEventArgs e) => AddLayer(new CgLayer { Name="Line", Role="Shape", Type="Shape", ShapeKind="Line", X=180, Y=720, Width=1100, Height=14, Background="#FFFFFFFF", BorderColor="#FFFFFFFF", BorderWidth=2, AnimationIn="None", AnimationOut="None", AnimationInSeconds=0, AnimationOutSeconds=0 });
@@ -2030,7 +2157,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         RotationX=state.RotationX, RotationY=state.RotationY, Rotation=state.Rotation, Opacity=state.Opacity,
         ScaleX=state.ScaleX, ScaleY=state.ScaleY, ScaleZ=state.ScaleZ,
         AnchorX=state.AnchorX, AnchorY=state.AnchorY, AnchorZ=state.AnchorZ,
-        SkewX=state.SkewX, SkewY=state.SkewY, BlurRadius=state.BlurRadius, Ease=ease
+        SkewX=state.SkewX, SkewY=state.SkewY, BlurRadius=state.BlurRadius, LightSweepProgress=state.LightSweepProgress, Ease=ease
     };
 
     private CgKeyframe CaptureCurrentKeyframe(double time)
@@ -2080,6 +2207,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             SelectedKeyframe.AnchorZ = layer.AnchorZ;
             SelectedKeyframe.SkewX = layer.SkewX;
             SelectedKeyframe.SkewY = layer.SkewY;
+            SelectedKeyframe.LightSweepProgress = layer.LightSweepProgress;
             SelectedKeyframe.StyleJson = styleNow;
             _autoKeyEditSnapshot = CaptureLayerEditSnapshot(layer);
             return;
@@ -2109,7 +2237,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 layer.RotationX, layer.RotationY, layer.Rotation, layer.Opacity,
                 layer.ScaleX, layer.ScaleY, layer.ScaleZ,
                 layer.AnchorX, layer.AnchorY, layer.AnchorZ,
-                layer.SkewX, layer.SkewY, layer.BlurRadius);
+                layer.SkewX, layer.SkewY, layer.BlurRadius, layer.LightSweepProgress);
             var baseKey = KeyframeFromMotion(0, baseState, layer.DefaultEase);
             baseKey.StyleJson = styleNow;
             layer.Keyframes.Add(baseKey);
@@ -2130,6 +2258,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         key.ScaleX = layer.ScaleX; key.ScaleY = layer.ScaleY; key.ScaleZ = layer.ScaleZ;
         key.AnchorX = layer.AnchorX; key.AnchorY = layer.AnchorY; key.AnchorZ = layer.AnchorZ;
         key.SkewX = layer.SkewX; key.SkewY = layer.SkewY;
+        key.LightSweepProgress = layer.LightSweepProgress;
         key.StyleJson = styleNow;
 
         Keyframes.Clear();
@@ -2147,6 +2276,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         key.RotationX = layer.RotationX; key.RotationY = layer.RotationY; key.Rotation = layer.Rotation; key.Opacity = layer.Opacity;
         key.ScaleX = layer.ScaleX; key.ScaleY = layer.ScaleY; key.ScaleZ = layer.ScaleZ; key.AnchorX = layer.AnchorX; key.AnchorY = layer.AnchorY; key.AnchorZ = layer.AnchorZ;
         key.SkewX = layer.SkewX; key.SkewY = layer.SkewY;
+        key.LightSweepProgress = layer.LightSweepProgress;
         key.StyleJson = styleJson;
     }
 
@@ -2162,6 +2292,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         AnchorX = k.AnchorX, AnchorY = k.AnchorY, AnchorZ = k.AnchorZ,
         SkewX = k.SkewX, SkewY = k.SkewY,
         BlurRadius = k.BlurRadius,
+        LightSweepProgress = k.LightSweepProgress,
         StyleJson = k.StyleJson,
         Ease = k.Ease,
         Hold = k.Hold,
@@ -2221,7 +2352,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         SelectedKeyframe.ScaleX=captured.ScaleX;SelectedKeyframe.ScaleY=captured.ScaleY;SelectedKeyframe.ScaleZ=captured.ScaleZ;
         SelectedKeyframe.AnchorX=captured.AnchorX;SelectedKeyframe.AnchorY=captured.AnchorY;SelectedKeyframe.AnchorZ=captured.AnchorZ;
         SelectedKeyframe.SkewX=captured.SkewX;SelectedKeyframe.SkewY=captured.SkewY;
-        SelectedKeyframe.BlurRadius = captured.BlurRadius; SelectedKeyframe.StyleJson = captured.StyleJson;
+        SelectedKeyframe.BlurRadius = captured.BlurRadius; SelectedKeyframe.LightSweepProgress = captured.LightSweepProgress; SelectedKeyframe.StyleJson = captured.StyleJson;
         SortSelectedKeyframes(); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll();
     }
     private void DeleteKeyframe_Click(object sender,RoutedEventArgs e)
@@ -2263,6 +2394,13 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             RenderAll();
         }
     }
+    private void OpenEffectsTab_Click(object sender, RoutedEventArgs e)
+    {
+        if (InspectorTabs != null && EffectsTab != null)
+        {
+            InspectorTabs.SelectedItem = EffectsTab;
+        }
+    }
     private void SortSelectedKeyframes()
     {
         if(SelectedLayer is null)return;var ordered=SelectedLayer.Keyframes.OrderBy(x=>x.TimeSeconds).ToList();SelectedLayer.Keyframes=ordered;Keyframes.Clear();foreach(var k in ordered)Keyframes.Add(k);if(SelectedKeyframe is not null&&!Keyframes.Contains(SelectedKeyframe))SelectedKeyframe=Keyframes.FirstOrDefault();
@@ -2277,29 +2415,64 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var l = SelectedLayer;
         AddLayer(CloneLayer(l, l.Name + " Copy", 30, 30));
     }
-    private static CgLayer CloneLayer(CgLayer l, string name, double dx = 0, double dy = 0) => new()
+    private static CgLayer CloneLayer(CgLayer l, string name, double dx = 0, double dy = 0, bool cleanPaste = false)
     {
-        Name=name, Type=l.Type, Role=l.Role, ShapeKind=l.ShapeKind, ShapePathData=l.ShapePathData, ShapePathClosed=l.ShapePathClosed, Text=l.Text, Source=l.Source, BlendMode=l.BlendMode, MaskEnabled=l.MaskEnabled, MaskShape=l.MaskShape, MaskPathData=l.MaskPathData, MaskX=l.MaskX+dx, MaskY=l.MaskY+dy, MaskWidth=l.MaskWidth, MaskHeight=l.MaskHeight, MaskCornerRadius=l.MaskCornerRadius, MaskFeather=l.MaskFeather, MaskInvert=l.MaskInvert, ExternalProjectSource=l.ExternalProjectSource, ExternalComposition=l.ExternalComposition, ExternalProjectKind=l.ExternalProjectKind, Precomposition=ClonePrecomposition(l.Precomposition), VideoSourceKind=l.VideoSourceKind, VideoInputFormat=l.VideoInputFormat, VideoInputOptions=l.VideoInputOptions, VideoDevice=l.VideoDevice, AudioDevice=l.AudioDevice, AlternateAudioUrl=l.AlternateAudioUrl, VideoIsLiveSource=l.VideoIsLiveSource, VideoCaptureWidth=l.VideoCaptureWidth, VideoCaptureHeight=l.VideoCaptureHeight, VideoSourceFrameRate=l.VideoSourceFrameRate,
-        X=l.X+dx, Y=l.Y+dy, Z=l.Z, Width=l.Width, Height=l.Height, ScaleX=l.ScaleX, ScaleY=l.ScaleY, ScaleZ=l.ScaleZ, RotationX=l.RotationX, RotationY=l.RotationY, AnchorX=l.AnchorX, AnchorY=l.AnchorY, AnchorZ=l.AnchorZ, Perspective=l.Perspective, FontSize=l.FontSize, FontFamily=l.FontFamily,
-        Fill=l.Fill, Background=l.Background, StartSeconds=l.StartSeconds, EndSeconds=l.EndSeconds,
-        AnimationIn=l.AnimationIn, AnimationOut=l.AnimationOut, AnimationInSeconds=l.AnimationInSeconds, AnimationOutSeconds=l.AnimationOutSeconds, Speed=l.Speed, Rotation=l.Rotation, Opacity=l.Opacity,
-        CornerRadius=l.CornerRadius, CornerRadiusTopLeft=l.CornerRadiusTopLeft, CornerRadiusTopRight=l.CornerRadiusTopRight, CornerRadiusBottomRight=l.CornerRadiusBottomRight, CornerRadiusBottomLeft=l.CornerRadiusBottomLeft, CornerRadiusAsPercent=l.CornerRadiusAsPercent, CornerRadiusTopLeftPercent=l.CornerRadiusTopLeftPercent, CornerRadiusTopRightPercent=l.CornerRadiusTopRightPercent, CornerRadiusBottomRightPercent=l.CornerRadiusBottomRightPercent, CornerRadiusBottomLeftPercent=l.CornerRadiusBottomLeftPercent, BorderColor=l.BorderColor, BorderWidth=l.BorderWidth, UseBorder=l.UseBorder, UseOutline=l.UseOutline, FitToAr=l.FitToAr, LightSweepEnabled=l.LightSweepEnabled, LightSweepProgress=l.LightSweepProgress, LightSweepWidth=l.LightSweepWidth, LightSweepAngle=l.LightSweepAngle, LightSweepIntensity=l.LightSweepIntensity, LightSweepColor=l.LightSweepColor,
-        HorizontalTextAlignment=l.HorizontalTextAlignment, VerticalTextAlignment=l.VerticalTextAlignment,
-        Bold=l.Bold, Italic=l.Italic, Underline=l.Underline, OutlineColor=l.OutlineColor, OutlineWidth=l.OutlineWidth,
-        ShadowColor=l.ShadowColor, ShadowOffsetX=l.ShadowOffsetX, ShadowOffsetY=l.ShadowOffsetY, ShadowBlur=l.ShadowBlur,
-        LetterSpacing=l.LetterSpacing, LineSpacing=l.LineSpacing, UseGradient=l.UseGradient, GradientColor2=l.GradientColor2, GradientAngle=l.GradientAngle, GradientStops=new ObservableCollection<CgGradientStop>((l.GradientStops??[]).Select(x=>new CgGradientStop { Color=x.Color, Offset=x.Offset })), GlossEnabled=l.GlossEnabled, GlossOpacity=l.GlossOpacity, TextAnimationPreset=l.TextAnimationPreset, TextAnimationUnit=l.TextAnimationUnit, TextAnimationDurationSeconds=l.TextAnimationDurationSeconds, TextAnimationStaggerSeconds=l.TextAnimationStaggerSeconds, TickerMode=l.TickerMode, TickerDirection=l.TickerDirection,
-        TickerGap=l.TickerGap, TickerRepeat=l.TickerRepeat, SqueezeProgram=l.SqueezeProgram, SqueezeHorizontalMode=l.SqueezeHorizontalMode, SqueezeX=l.SqueezeX,
-        SqueezeY=l.SqueezeY, SqueezeWidth=l.SqueezeWidth, SqueezeHeight=l.SqueezeHeight,
-        SqueezeInSeconds=l.SqueezeInSeconds, SqueezeOutSeconds=l.SqueezeOutSeconds,
-        GroupId=l.GroupId, DefaultEase=l.DefaultEase, KeyframeDelaySeconds=l.KeyframeDelaySeconds, KeyframeRepeat=l.KeyframeRepeat, KeyframeYoyo=l.KeyframeYoyo, DataSourceId=l.DataSourceId, DataField=l.DataField, DataFormat=l.DataFormat, CalendarSystem=l.CalendarSystem,
-        DataItemDurationSeconds=l.DataItemDurationSeconds, DataItemOffset=l.DataItemOffset,
-        SequenceFps=l.SequenceFps, SequenceStartFrame=l.SequenceStartFrame, SequenceEndFrame=l.SequenceEndFrame,
-        SequenceLoop=l.SequenceLoop, SequenceHoldLastFrame=l.SequenceHoldLastFrame, SequenceAdvanceDataItem=l.SequenceAdvanceDataItem,
-        SequenceOverlayIntervalItems=l.SequenceOverlayIntervalItems,
-        UseBackground=l.UseBackground, AnimationGlowColor=l.AnimationGlowColor, AnimationGlowRadius=l.AnimationGlowRadius, AnimationBlurRadius=l.AnimationBlurRadius,
-        Keyframes=l.Keyframes.Select(k=>new CgKeyframe { TimeSeconds=k.TimeSeconds,X=k.X+dx,Y=k.Y+dy,Z=k.Z,Width=k.Width,Height=k.Height,RotationX=k.RotationX,RotationY=k.RotationY,Rotation=k.Rotation,Opacity=k.Opacity,ScaleX=k.ScaleX,ScaleY=k.ScaleY,ScaleZ=k.ScaleZ,AnchorX=k.AnchorX,AnchorY=k.AnchorY,AnchorZ=k.AnchorZ,SkewX=k.SkewX,SkewY=k.SkewY,BlurRadius=k.BlurRadius,StyleJson=k.StyleJson,Ease=k.Ease,Hold=k.Hold,Cp1X=k.Cp1X,Cp1Y=k.Cp1Y,Cp2X=k.Cp2X,Cp2Y=k.Cp2Y,SpeedOffset=k.SpeedOffset,TargetProperty=k.TargetProperty }).ToList(),
-        Visible=l.Visible
-    };
+        CgLayer clone;
+        try
+        {
+            var json = JsonSerializer.Serialize(l);
+            clone = JsonSerializer.Deserialize<CgLayer>(json) ?? new CgLayer();
+        }
+        catch
+        {
+            clone = new CgLayer();
+        }
+
+        clone.Id = Guid.NewGuid();
+        clone.Name = name;
+        clone.X += dx;
+        clone.Y += dy;
+        if (clone.MaskEnabled)
+        {
+            clone.MaskX += dx;
+            clone.MaskY += dy;
+        }
+
+        if (cleanPaste)
+        {
+            clone.Keyframes?.Clear();
+            clone.AnimationIn = "None";
+            clone.AnimationOut = "None";
+            clone.AnimationInSeconds = 0;
+            clone.AnimationOutSeconds = 0;
+            clone.LightSweepEnabled = false;
+            clone.GlossEnabled = false;
+            clone.ShadowBlur = 0;
+            clone.ShadowColor = "#00000000";
+            clone.AnimationGlowRadius = 0;
+            clone.AnimationBlurRadius = 0;
+            clone.BlurRadius = 0;
+            clone.TextAnimationPreset = "None";
+        }
+        else
+        {
+            if (dx != 0 || dy != 0)
+            {
+                foreach (var k in clone.Keyframes ?? [])
+                {
+                    k.X += dx;
+                    k.Y += dy;
+                }
+            }
+        }
+
+        if (l.Precomposition != null)
+        {
+            clone.Precomposition = ClonePrecomposition(l.Precomposition);
+        }
+
+        return clone;
+    }
 
     private static CgProject? ClonePrecomposition(CgProject? project)
     {
@@ -2364,6 +2537,18 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             _playbackBaseSeconds = Playhead;
             _playbackClock.Stop();
             _playing = false;
+            Raise(nameof(PlayButtonText));
+            return;
+        }
+        if (_timelinePauseTriggered)
+        {
+            _timelinePauseTriggered = false;
+            Playhead = Math.Min(ProjectDuration, Playhead + 0.05);
+            _playbackBaseSeconds = Playhead;
+            _lastPlaybackPlayhead = Playhead;
+            _playbackClock.Restart();
+            _playing = true;
+            Raise(nameof(PlayButtonText));
             return;
         }
         // The editor opens demos on a representative visible frame; the first PLAY must
@@ -2372,11 +2557,14 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         {
             Playhead = 0;
             _playbackLoopIteration = 0;
+            _lastPlaybackPlayhead = 0;
         }
         _playbackPrimed = true;
         _playbackBaseSeconds = Playhead;
+        _lastPlaybackPlayhead = Playhead;
         _playbackClock.Restart();
         _playing = true;
+        Raise(nameof(PlayButtonText));
     }
     private void ColorPicker_Click(object sender, RoutedEventArgs e)
     {
@@ -3003,6 +3191,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             PreviewCanvasBorder.Width = targetW;
             PreviewCanvasBorder.Height = targetH;
         }
+        if (string.Equals(_canvasZoomSelection, "FIT", StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyCanvasZoomSelection("FIT");
+        }
     }
 
     private void Inspector_TextChanged(object sender, TextChangedEventArgs e)
@@ -3461,17 +3653,23 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (MaskEnabledCheck.IsChecked == true)
         {
             SelectedLayer.MaskEnabled = true;
+            _focusMaskGizmo = true;
             if (SelectedLayer.MaskWidth <= .001 || SelectedLayer.MaskHeight <= .001)
             {
                 SelectedLayer.MaskX = SelectedLayer.X; SelectedLayer.MaskY = SelectedLayer.Y;
                 SelectedLayer.MaskWidth = Math.Max(4, SelectedLayer.Width); SelectedLayer.MaskHeight = Math.Max(4, SelectedLayer.Height);
             }
-            _drawMaskLayer = SelectedLayer; _drawingMask = false; PreviewCanvas.Cursor = Cursors.Cross;
         }
         else
         {
-            SelectedLayer.MaskEnabled = false; _drawMaskLayer = null; _drawingMask = false; PreviewCanvas.Cursor = Cursors.Arrow;
+            SelectedLayer.MaskEnabled = false;
+            _focusMaskGizmo = false;
         }
+        _drawMaskLayer = null;
+        _drawingMask = false;
+        PreviewCanvas.Cursor = Cursors.Arrow;
+        _maskBrushCache.Clear();
+        UpdateMaskGizmoButtonText();
         CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); RenderAll();
     }
 
@@ -3480,6 +3678,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (SelectedLayer is null) return;
         _drawMaskLayer = SelectedLayer;
         _drawingMask = false;
+        _focusMaskGizmo = true;
+        UpdateMaskGizmoButtonText();
         PreviewCanvas.Cursor = Cursors.Cross;
         RenderPreview();
     }
@@ -3489,9 +3689,39 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (SelectedLayer is null) return;
         if (AutoKey && _autoKeyEditSnapshot is null) CaptureAutoKeyEditSnapshot();
         SelectedLayer.MaskEnabled = false;
+        _focusMaskGizmo = false;
         _drawMaskLayer = null; _drawingMask = false;
         PreviewCanvas.Cursor = Cursors.Arrow;
+        UpdateMaskGizmoButtonText();
         CommitInspectorAutoKey(); SyncLayersToProject(); _main.SaveCgProjects(); Raise(nameof(SelectedLayer)); RenderAll();
+    }
+
+    private void ToggleMaskGizmo_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedLayer is null) return;
+        if (!SelectedLayer.MaskEnabled)
+        {
+            SelectedLayer.MaskEnabled = true;
+            if (SelectedLayer.MaskWidth <= .001 || SelectedLayer.MaskHeight <= .001)
+            {
+                SelectedLayer.MaskX = SelectedLayer.X; SelectedLayer.MaskY = SelectedLayer.Y;
+                SelectedLayer.MaskWidth = Math.Max(4, SelectedLayer.Width); SelectedLayer.MaskHeight = Math.Max(4, SelectedLayer.Height);
+            }
+        }
+        _focusMaskGizmo = !_focusMaskGizmo;
+        UpdateMaskGizmoButtonText();
+        RenderPreview();
+    }
+
+    private void UpdateMaskGizmoButtonText()
+    {
+        if (BtnFocusMaskGizmo is null) return;
+        BtnFocusMaskGizmo.Content = _focusMaskGizmo
+            ? "🎯 MASK FOCUSED ON CANVAS (CLICK TO SWITCH TO LAYER)"
+            : "🎯 FOCUS MASK ON CANVAS (PREVENT TRANSFORM OVERLAP)";
+        BtnFocusMaskGizmo.Background = _focusMaskGizmo
+            ? new SolidColorBrush(Color.FromRgb(0, 110, 130))
+            : new SolidColorBrush(Color.FromRgb(18, 37, 51));
     }
 
 
@@ -3693,6 +3923,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var sx = (PreviewCanvas.Width > 1 ? PreviewCanvas.Width : 960.0) / Math.Max(1.0, project.Width);
         var sy = (PreviewCanvas.Height > 1 ? PreviewCanvas.Height : 540.0) / Math.Max(1.0, project.Height);
         DrawCanvasGrid();
+        CgSmartLayerManager.UpdateLayout(project, 0.016, Playhead);
         var hasAnyTicker = Layers.Any(l => string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase));
         var tickerGroupId = Layers.FirstOrDefault(l => string.Equals(l.Type, "Ticker", StringComparison.OrdinalIgnoreCase))?.GroupId ?? Guid.Empty;
 
@@ -3737,6 +3968,15 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var baseW = Math.Max(2, (is3dRotated ? visualLayer.Width : motion.Width) * sx);
             var baseH = Math.Max(2, (is3dRotated ? visualLayer.Height : motion.Height) * sy);
             var x = motion.X * sx; var y = motion.Y * sy; var w = baseW; var h = baseH;
+            if (visualLayer.IsFlexible || visualLayer.AutoShift || visualLayer.AutoResize)
+            {
+                var (effY, effH) = CgSmartLayerManager.GetEffectiveYAndHeight(visualLayer);
+                y = effY * sy;
+                h = effH * sy;
+            }
+            var (bnSlide, bnOpacity, bnScale, bnFlipAngle, bnYellowGlow) = CgSmartLayerManager.EvaluateBreakingNews(visualLayer, Playhead);
+            if (bnSlide != 0) x += bnSlide * sx;
+            if (bnOpacity < 1.0) el.Opacity = Math.Clamp(el.Opacity * bnOpacity, 0, 1);
             if (is3dRotated)
             {
                 var ax = Math.Clamp(motion.AnchorX, 0, 1);
@@ -3836,11 +4076,42 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             };
             Panel.SetZIndex(line, 2000); PreviewCanvas.Children.Add(line);
         }
-        foreach (var point in _penPoints)
+        for (var i = 0; i < _penPoints.Count; i++)
         {
-            var node = new Ellipse { Width = 9, Height = 9, Fill = Brushes.White, Stroke = _penCreatesMask ? Brushes.DeepSkyBlue : Brushes.Gold, StrokeThickness = 2, IsHitTestVisible = false };
-            Canvas.SetLeft(node, point.X * sx - 4.5); Canvas.SetTop(node, point.Y * sy - 4.5);
-            Panel.SetZIndex(node, 2001); PreviewCanvas.Children.Add(node);
+            var point = _penPoints[i];
+            var isFirst = i == 0;
+            var canClose = isFirst && _penPoints.Count >= 3;
+            var nodeSize = canClose ? 14.0 : 9.0;
+            var node = new Ellipse
+            {
+                Width = nodeSize,
+                Height = nodeSize,
+                Fill = canClose ? Brushes.LimeGreen : Brushes.White,
+                Stroke = canClose ? Brushes.White : (_penCreatesMask ? Brushes.DeepSkyBlue : Brushes.Gold),
+                StrokeThickness = canClose ? 2.5 : 2.0,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(node, point.X * sx - (nodeSize / 2.0));
+            Canvas.SetTop(node, point.Y * sy - (nodeSize / 2.0));
+            Panel.SetZIndex(node, 2001);
+            PreviewCanvas.Children.Add(node);
+
+            if (canClose)
+            {
+                var snapRing = new Ellipse
+                {
+                    Width = 26,
+                    Height = 26,
+                    Stroke = Brushes.LimeGreen,
+                    StrokeThickness = 1.5,
+                    StrokeDashArray = new DoubleCollection { 3, 2 },
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(snapRing, point.X * sx - 13);
+                Canvas.SetTop(snapRing, point.Y * sy - 13);
+                Panel.SetZIndex(snapRing, 2002);
+                PreviewCanvas.Children.Add(snapRing);
+            }
         }
     }
 
@@ -3889,7 +4160,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var radius = Math.Clamp(layer.MaskCornerRadius * Math.Min(sx, sy), 0.0, Math.Min(mw, mh) / 2.0);
         var shape = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant();
         var invert = layer.MaskInvert;
-        var customMask = shape == "CUSTOM PATH"
+        var isCustomMask = shape is "CUSTOM PATH" or "CUSTOM" or "PEN" or "PEN PATH" or "PEN MASK" or "CUSTOM MASK";
+        var customMask = isCustomMask
             ? CgPathData.Parse(layer.MaskPathData)
                 .Select(p => new CgPathData.Point(mx + p.X * mw, my + p.Y * mh)).ToArray()
             : [];
@@ -3974,29 +4246,57 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var mxProject = layer.MaskWidth > .0001 ? layer.MaskX : layer.X;
         var myProject = layer.MaskHeight > .0001 ? layer.MaskY : layer.Y;
         var rect = new Rect(mxProject * sx, myProject * sy, Math.Max(1, mwProject * sx), Math.Max(1, mhProject * sy));
-        Geometry mask = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant() switch
-        {
-            "CUSTOM PATH" => BuildNormalizedPathGeometry(layer.MaskPathData, rect, true),
-            "ELLIPSE" => new EllipseGeometry(rect),
-            "ROUNDED RECTANGLE" => new RectangleGeometry(rect, Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy)), Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy))),
-            _ => new RectangleGeometry(rect)
-        };
+        var shape = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant();
+        Geometry mask;
+        if (shape is "CUSTOM PATH" or "CUSTOM" or "PEN" or "PEN PATH" or "PEN MASK" or "CUSTOM MASK")
+            mask = BuildNormalizedPathGeometry(layer.MaskPathData, rect, true);
+        else if (shape == "ELLIPSE")
+            mask = new EllipseGeometry(rect);
+        else if (shape == "ROUNDED RECTANGLE")
+            mask = new RectangleGeometry(rect, Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy)), Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy)));
+        else
+            mask = new RectangleGeometry(rect);
+
         if (!layer.MaskInvert) return mask;
         return new CombinedGeometry(GeometryCombineMode.Exclude, new RectangleGeometry(new Rect(0, 0, canvasWidth, canvasHeight)), mask);
     }
 
     private static Geometry BuildNormalizedPathGeometry(string? data, Rect bounds, bool closed)
     {
+        if (string.IsNullOrWhiteSpace(data)) return new RectangleGeometry(bounds);
+        if (data.StartsWith("M", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var svgGeom = Geometry.Parse(data);
+                if (svgGeom is not null)
+                {
+                    var group = new TransformGroup();
+                    group.Children.Add(new TranslateTransform(bounds.Left, bounds.Top));
+                    svgGeom.Transform = group;
+                    return svgGeom;
+                }
+            }
+            catch { }
+        }
+
         var points = CgPathData.Parse(data)
             .Select(p => new Point(bounds.Left + p.X * bounds.Width, bounds.Top + p.Y * bounds.Height))
             .ToArray();
         if (points.Length == 0) return new RectangleGeometry(bounds);
-        var geometry = new StreamGeometry();
-        using (var context = geometry.Open())
+        var geometry = new PathGeometry();
+        var figure = new PathFigure
         {
-            context.BeginFigure(points[0], isFilled: closed, isClosed: closed);
-            if (points.Length > 1) context.PolyLineTo(points.Skip(1).ToArray(), isStroked: true, isSmoothJoin: true);
+            StartPoint = points[0],
+            IsClosed = closed,
+            IsFilled = closed
+        };
+        for (int i = 1; i < points.Length; i++)
+        {
+            figure.Segments.Add(new LineSegment(points[i], true));
         }
+        geometry.Figures.Add(figure);
+        geometry.FillRule = FillRule.Nonzero;
         geometry.Freeze();
         return geometry;
     }
@@ -4115,11 +4415,11 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
         var outline = new Border
         {
-            Width = baseW, Height = baseH, Background = Brushes.Transparent,
+            Width = baseW, Height = baseH, Background = null,
             BorderBrush = new SolidColorBrush(Color.FromRgb(255, 74, 178)), BorderThickness = new Thickness(1.5),
             RenderTransform = group.Children.Count > 0 ? group : null,
             Tag = new PreviewHit { Layer = layer, Mode = "move" }, Cursor = Cursors.SizeAll,
-            ToolTip = "Drag to move · corner/edge handles resize · Arrow keys nudge · Ctrl+Arrow resize"
+            ToolTip = "Drag border to move layer · corner/edge handles resize · Arrow keys nudge · Ctrl+Arrow resize"
         };
         Canvas.SetLeft(outline, x); Canvas.SetTop(outline, y); Panel.SetZIndex(outline, 1000); PreviewCanvas.Children.Add(outline);
         _previewSelectionOutline = outline;
@@ -4131,38 +4431,76 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var mxProject = layer.MaskWidth > .0001 ? layer.MaskX : layer.X;
             var myProject = layer.MaskHeight > .0001 ? layer.MaskY : layer.Y;
             var maskRect = new Rect(mxProject * sx, myProject * sy, Math.Max(1, mwProject * sx), Math.Max(1, mhProject * sy));
-            Geometry maskGeometry = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant() switch
-            {
-                "CUSTOM PATH" => BuildNormalizedPathGeometry(layer.MaskPathData, maskRect, true),
-                "ELLIPSE" => new EllipseGeometry(maskRect),
-                "ROUNDED RECTANGLE" => new RectangleGeometry(maskRect, Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy)), Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy))),
-                _ => new RectangleGeometry(maskRect)
-            };
+            var shape = (layer.MaskShape ?? "Rectangle").Trim().ToUpperInvariant();
+            Geometry maskGeometry;
+            if (shape is "CUSTOM PATH" or "CUSTOM" or "PEN" or "PEN PATH" or "PEN MASK" or "CUSTOM MASK")
+                maskGeometry = BuildNormalizedPathGeometry(layer.MaskPathData, maskRect, true);
+            else if (shape == "ELLIPSE")
+                maskGeometry = new EllipseGeometry(maskRect);
+            else if (shape == "ROUNDED RECTANGLE")
+                maskGeometry = new RectangleGeometry(maskRect, Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy)), Math.Max(0, layer.MaskCornerRadius * Math.Min(sx, sy)));
+            else
+                maskGeometry = new RectangleGeometry(maskRect);
+
+            var maskGuideZ = _focusMaskGizmo ? 1025 : 1003;
+            var maskHandleZ = _focusMaskGizmo ? 1030 : 1006;
+            var maskHandleSize = _focusMaskGizmo ? 12.0 : 10.0;
+            var maskHandleBrush = _focusMaskGizmo ? Brushes.Cyan : Brushes.DeepSkyBlue;
+            var maskStrokeBrush = _focusMaskGizmo ? new SolidColorBrush(Color.FromRgb(0, 20, 30)) : Brushes.White;
+
             var maskGuide = new System.Windows.Shapes.Path
             {
-                Data = maskGeometry, Fill = new SolidColorBrush(Color.FromArgb(24, 74, 225, 255)), Stroke = new SolidColorBrush(Color.FromRgb(74, 225, 255)), StrokeThickness = 1.6,
+                Data = maskGeometry,
+                Fill = new SolidColorBrush(Color.FromArgb(_focusMaskGizmo ? (byte)45 : (byte)20, 74, 225, 255)),
+                Stroke = new SolidColorBrush(_focusMaskGizmo ? Color.FromRgb(0, 229, 255) : Color.FromRgb(74, 225, 255)),
+                StrokeThickness = _focusMaskGizmo ? 2.2 : 1.6,
                 StrokeDashArray = new DoubleCollection { 5, 3 },
                 Tag = new PreviewHit { Layer = layer, Mode = "move_mask" },
                 Cursor = Cursors.SizeAll,
-                ToolTip = "Drag mask to reposition · Use corner/edge handles to resize mask"
+                ToolTip = _focusMaskGizmo ? "Drag mask to reposition · Use corner/edge handles to resize mask" : "Click or drag mask to move · Click MASK badge to focus mask gizmo"
             };
-            Panel.SetZIndex(maskGuide, 995); PreviewCanvas.Children.Add(maskGuide);
+            Panel.SetZIndex(maskGuide, maskGuideZ); PreviewCanvas.Children.Add(maskGuide);
+
             var maskLabel = new Border
             {
-                Background = new SolidColorBrush(Color.FromArgb(220, 2, 24, 31)), BorderBrush = new SolidColorBrush(Color.FromRgb(74,225,255)), BorderThickness = new Thickness(1), Padding = new Thickness(4,1,4,1), IsHitTestVisible = false,
-                Child = new TextBlock { Text = $"MASK · {layer.MaskShape}{(layer.MaskInvert ? " · INVERT" : "")} · {layer.MaskWidth:0}×{layer.MaskHeight:0} (DRAG / RESIZE)", Foreground = new SolidColorBrush(Color.FromRgb(126,236,255)), FontSize = 8 }
+                Background = new SolidColorBrush(_focusMaskGizmo ? Color.FromRgb(0, 110, 130) : Color.FromArgb(220, 2, 24, 31)),
+                BorderBrush = new SolidColorBrush(_focusMaskGizmo ? Color.FromRgb(0, 229, 255) : Color.FromRgb(74, 225, 255)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(5, 2, 5, 2),
+                CornerRadius = new CornerRadius(3),
+                Cursor = Cursors.Hand,
+                ToolTip = _focusMaskGizmo ? "Mask is focused! Click to return to layer transform." : "Click to focus mask controls (prevents layer transform overlap).",
+                Child = new TextBlock
+                {
+                    Text = _focusMaskGizmo
+                        ? $"🎯 MASK [FOCUSED] · {layer.MaskShape} · {layer.MaskWidth:0}×{layer.MaskHeight:0} (CLICK TO EXIT FOCUS)"
+                        : $"MASK · {layer.MaskShape}{(layer.MaskInvert ? " · INVERT" : "")} · {layer.MaskWidth:0}×{layer.MaskHeight:0} (CLICK TO FOCUS)",
+                    Foreground = Brushes.White,
+                    FontSize = 8.5,
+                    FontWeight = _focusMaskGizmo ? FontWeights.Bold : FontWeights.Normal
+                }
             };
-            Canvas.SetLeft(maskLabel, Math.Max(0, maskRect.Left)); Canvas.SetTop(maskLabel, Math.Max(0, maskRect.Top - 18)); Panel.SetZIndex(maskLabel, 996); PreviewCanvas.Children.Add(maskLabel);
+            maskLabel.MouseLeftButtonDown += (s, e) =>
+            {
+                _focusMaskGizmo = !_focusMaskGizmo;
+                UpdateMaskGizmoButtonText();
+                RenderPreview();
+                e.Handled = true;
+            };
+            Canvas.SetLeft(maskLabel, Math.Max(0, maskRect.Left));
+            Canvas.SetTop(maskLabel, Math.Max(0, maskRect.Top - 24));
+            Panel.SetZIndex(maskLabel, maskGuideZ + 1);
+            PreviewCanvas.Children.Add(maskLabel);
 
             var mx = maskRect.Left; var my = maskRect.Top; var mw = maskRect.Width; var mh = maskRect.Height;
-            AddPreviewHandle(layer, "mask_nw", mx - 5, my - 5, Cursors.SizeNWSE, Brushes.DeepSkyBlue, Brushes.White);
-            AddPreviewHandle(layer, "mask_ne", mx + mw - 5, my - 5, Cursors.SizeNESW, Brushes.DeepSkyBlue, Brushes.White);
-            AddPreviewHandle(layer, "mask_sw", mx - 5, my + mh - 5, Cursors.SizeNESW, Brushes.DeepSkyBlue, Brushes.White);
-            AddPreviewHandle(layer, "mask_se", mx + mw - 5, my + mh - 5, Cursors.SizeNWSE, Brushes.DeepSkyBlue, Brushes.White);
-            AddPreviewHandle(layer, "mask_n", mx + mw / 2 - 5, my - 5, Cursors.SizeNS, Brushes.DeepSkyBlue, Brushes.White);
-            AddPreviewHandle(layer, "mask_s", mx + mw / 2 - 5, my + mh - 5, Cursors.SizeNS, Brushes.DeepSkyBlue, Brushes.White);
-            AddPreviewHandle(layer, "mask_w", mx - 5, my + mh / 2 - 5, Cursors.SizeWE, Brushes.DeepSkyBlue, Brushes.White);
-            AddPreviewHandle(layer, "mask_e", mx + mw - 5, my + mh / 2 - 5, Cursors.SizeWE, Brushes.DeepSkyBlue, Brushes.White);
+            AddPreviewHandle(layer, "mask_nw", mx - 5, my - 5, Cursors.SizeNWSE, maskHandleBrush, maskStrokeBrush, maskHandleZ, maskHandleSize);
+            AddPreviewHandle(layer, "mask_ne", mx + mw - 5, my - 5, Cursors.SizeNESW, maskHandleBrush, maskStrokeBrush, maskHandleZ, maskHandleSize);
+            AddPreviewHandle(layer, "mask_sw", mx - 5, my + mh - 5, Cursors.SizeNESW, maskHandleBrush, maskStrokeBrush, maskHandleZ, maskHandleSize);
+            AddPreviewHandle(layer, "mask_se", mx + mw - 5, my + mh - 5, Cursors.SizeNWSE, maskHandleBrush, maskStrokeBrush, maskHandleZ, maskHandleSize);
+            AddPreviewHandle(layer, "mask_n", mx + mw / 2 - 5, my - 5, Cursors.SizeNS, maskHandleBrush, maskStrokeBrush, maskHandleZ, maskHandleSize);
+            AddPreviewHandle(layer, "mask_s", mx + mw / 2 - 5, my + mh - 5, Cursors.SizeNS, maskHandleBrush, maskStrokeBrush, maskHandleZ, maskHandleSize);
+            AddPreviewHandle(layer, "mask_w", mx - 5, my + mh / 2 - 5, Cursors.SizeWE, maskHandleBrush, maskStrokeBrush, maskHandleZ, maskHandleSize);
+            AddPreviewHandle(layer, "mask_e", mx + mw - 5, my + mh / 2 - 5, Cursors.SizeWE, maskHandleBrush, maskStrokeBrush, maskHandleZ, maskHandleSize);
         }
 
         if (layer.SqueezeProgram && layer.SqueezeWidth > 0 && layer.SqueezeHeight > 0)
@@ -4212,36 +4550,41 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var pW = group.Transform(new Point(0, baseH / 2));
         var pE = group.Transform(new Point(baseW, baseH / 2));
 
-        AddPreviewHandle(layer, "nw", x + pNW.X - 5, y + pNW.Y - 5, Cursors.SizeNWSE);
-        AddPreviewHandle(layer, "ne", x + pNE.X - 5, y + pNE.Y - 5, Cursors.SizeNESW);
-        AddPreviewHandle(layer, "sw", x + pSW.X - 5, y + pSW.Y - 5, Cursors.SizeNESW);
-        AddPreviewHandle(layer, "se", x + pSE.X - 5, y + pSE.Y - 5, Cursors.SizeNWSE);
-        AddPreviewHandle(layer, "n", x + pN.X - 5, y + pN.Y - 5, Cursors.SizeNS);
-        AddPreviewHandle(layer, "s", x + pS.X - 5, y + pS.Y - 5, Cursors.SizeNS);
-        AddPreviewHandle(layer, "w", x + pW.X - 5, y + pW.Y - 5, Cursors.SizeWE);
-        AddPreviewHandle(layer, "e", x + pE.X - 5, y + pE.Y - 5, Cursors.SizeWE);
+        var layerHandleZ = (layer.MaskEnabled && _focusMaskGizmo) ? 1002 : 1010;
+        Brush? layerHandleFill = (layer.MaskEnabled && _focusMaskGizmo) ? new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)) : Brushes.White;
+        Brush? layerHandleStroke = (layer.MaskEnabled && _focusMaskGizmo) ? new SolidColorBrush(Color.FromArgb(90, 139, 61, 255)) : new SolidColorBrush(Color.FromRgb(139, 61, 255));
+        var layerHandleSize = (layer.MaskEnabled && _focusMaskGizmo) ? 8.0 : 10.0;
+
+        AddPreviewHandle(layer, "nw", x + pNW.X - 5, y + pNW.Y - 5, Cursors.SizeNWSE, layerHandleFill, layerHandleStroke, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "ne", x + pNE.X - 5, y + pNE.Y - 5, Cursors.SizeNESW, layerHandleFill, layerHandleStroke, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "sw", x + pSW.X - 5, y + pSW.Y - 5, Cursors.SizeNESW, layerHandleFill, layerHandleStroke, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "se", x + pSE.X - 5, y + pSE.Y - 5, Cursors.SizeNWSE, layerHandleFill, layerHandleStroke, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "n", x + pN.X - 5, y + pN.Y - 5, Cursors.SizeNS, layerHandleFill, layerHandleStroke, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "s", x + pS.X - 5, y + pS.Y - 5, Cursors.SizeNS, layerHandleFill, layerHandleStroke, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "w", x + pW.X - 5, y + pW.Y - 5, Cursors.SizeWE, layerHandleFill, layerHandleStroke, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "e", x + pE.X - 5, y + pE.Y - 5, Cursors.SizeWE, layerHandleFill, layerHandleStroke, layerHandleZ, layerHandleSize);
         // Skew handles (orange): drag the top/bottom handles sideways to skew X, the left/right handles up/down to skew Y.
         var pSkN = group.Transform(new Point(baseW * 0.25, 0));
         var pSkS = group.Transform(new Point(baseW * 0.75, baseH));
         var pSkW = group.Transform(new Point(0, baseH * 0.75));
         var pSkE = group.Transform(new Point(baseW, baseH * 0.25));
-        AddPreviewHandle(layer, "skew_n", x + pSkN.X - 5, y + pSkN.Y - 5, Cursors.SizeWE, Brushes.Orange, Brushes.Black);
-        AddPreviewHandle(layer, "skew_s", x + pSkS.X - 5, y + pSkS.Y - 5, Cursors.SizeWE, Brushes.Orange, Brushes.Black);
-        AddPreviewHandle(layer, "skew_w", x + pSkW.X - 5, y + pSkW.Y - 5, Cursors.SizeNS, Brushes.Orange, Brushes.Black);
-        AddPreviewHandle(layer, "skew_e", x + pSkE.X - 5, y + pSkE.Y - 5, Cursors.SizeNS, Brushes.Orange, Brushes.Black);
+        AddPreviewHandle(layer, "skew_n", x + pSkN.X - 5, y + pSkN.Y - 5, Cursors.SizeWE, Brushes.Orange, Brushes.Black, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "skew_s", x + pSkS.X - 5, y + pSkS.Y - 5, Cursors.SizeWE, Brushes.Orange, Brushes.Black, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "skew_w", x + pSkW.X - 5, y + pSkW.Y - 5, Cursors.SizeNS, Brushes.Orange, Brushes.Black, layerHandleZ, layerHandleSize);
+        AddPreviewHandle(layer, "skew_e", x + pSkE.X - 5, y + pSkE.Y - 5, Cursors.SizeNS, Brushes.Orange, Brushes.Black, layerHandleZ, layerHandleSize);
         var rotHandleOffset = group.Transform(new Point(baseW / 2, -24));
-        AddPreviewHandle(layer, "rot", x + rotHandleOffset.X - 5, y + rotHandleOffset.Y - 5, Cursors.Hand, Brushes.Gold, Brushes.Black);
+        AddPreviewHandle(layer, "rot", x + rotHandleOffset.X - 5, y + rotHandleOffset.Y - 5, Cursors.Hand, Brushes.Gold, Brushes.Black, layerHandleZ, layerHandleSize);
         var label = new Border { Background = new SolidColorBrush(Color.FromArgb(220, 31, 16, 42)), Padding = new Thickness(5,2,5,2), IsHitTestVisible = false,
             Child = new TextBlock { Text = $"{layer.Name}  X {motion.X:0}  Y {motion.Y:0}  {motion.Width:0}×{motion.Height:0}", Foreground = Brushes.White, FontSize = 8.5 } };
         Canvas.SetLeft(label, Math.Max(0, x + pNW.X)); Canvas.SetTop(label, Math.Max(0, y + pNW.Y - 22)); Panel.SetZIndex(label, 1001); PreviewCanvas.Children.Add(label);
         _previewSelectionLabel = label;
     }
 
-    private void AddPreviewHandle(CgLayer layer, string mode, double x, double y, Cursor cursor, Brush? fill = null, Brush? stroke = null)
+    private void AddPreviewHandle(CgLayer layer, string mode, double x, double y, Cursor cursor, Brush? fill = null, Brush? stroke = null, int zIndex = 1008, double size = 10)
     {
-        var handle = new Rectangle { Width = 10, Height = 10, Fill = fill ?? Brushes.White, Stroke = stroke ?? new SolidColorBrush(Color.FromRgb(139,61,255)), StrokeThickness = 1,
+        var handle = new Rectangle { Width = size, Height = size, Fill = fill ?? Brushes.White, Stroke = stroke ?? new SolidColorBrush(Color.FromRgb(139,61,255)), StrokeThickness = size > 10 ? 1.8 : 1.0,
             Tag = new PreviewHit { Layer = layer, Mode = mode }, Cursor = cursor };
-        Canvas.SetLeft(handle, x); Canvas.SetTop(handle, y); Panel.SetZIndex(handle, 1008); PreviewCanvas.Children.Add(handle);
+        Canvas.SetLeft(handle, x); Canvas.SetTop(handle, y); Panel.SetZIndex(handle, zIndex); PreviewCanvas.Children.Add(handle);
         _previewSelectionHandles[mode] = handle;
     }
 
@@ -4961,11 +5304,16 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
         var elapsed = Math.Max(0, ContinuousPlaybackSeconds - layer.StartSeconds);
         var distance = elapsed * speedPx;
-        var repeating = layer.TickerRepeat && distance >= totalW;
-        var phase = repeating ? (distance - totalW) % Math.Max(1.0, totalW) : distance;
+        var repeatSpan = Math.Max(1.0, totalW);
+        var baseOffset = distance % repeatSpan;
+        if (baseOffset < 0) baseOffset += repeatSpan;
+
         var startX = isRight
-            ? (repeating ? phase : -totalW + distance)
-            : (repeating ? layerW - totalW - phase : layerW - distance);
+            ? (-repeatSpan + baseOffset)
+            : (layerW - baseOffset);
+
+        while (startX > (isRight ? 0 : -repeatSpan))
+            startX -= repeatSpan;
 
         var crawlCanvas = new Canvas
         {
@@ -4978,7 +5326,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         Canvas.SetTop(p, top);
         crawlCanvas.Children.Add(p);
 
-        if (repeating)
+        if (layer.TickerRepeat)
         {
             StackPanel CreateDuplicatePanel()
             {
@@ -5031,48 +5379,52 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 return dup;
             }
 
-            if (isRight)
+            var cur = startX + totalW;
+            while (cur < layerW)
             {
-                var cur = startX + totalW;
-                while (cur < layerW)
-                {
-                    var pNext = CreateDuplicatePanel();
-                    Canvas.SetLeft(pNext, cur);
-                    Canvas.SetTop(pNext, top);
-                    crawlCanvas.Children.Add(pNext);
-                    cur += totalW;
-                }
-                cur = startX - totalW;
-                while (cur + totalW > 0)
-                {
-                    var pPrev = CreateDuplicatePanel();
-                    Canvas.SetLeft(pPrev, cur);
-                    Canvas.SetTop(pPrev, top);
-                    crawlCanvas.Children.Add(pPrev);
-                    cur -= totalW;
-                }
+                var pNext = CreateDuplicatePanel();
+                Canvas.SetLeft(pNext, cur);
+                Canvas.SetTop(pNext, top);
+                crawlCanvas.Children.Add(pNext);
+                cur += totalW;
             }
-            else
+            cur = startX - totalW;
+            while (cur + totalW > 0)
             {
-                var cur = startX + totalW;
-                while (cur < layerW)
-                {
-                    var pNext = CreateDuplicatePanel();
-                    Canvas.SetLeft(pNext, cur);
-                    Canvas.SetTop(pNext, top);
-                    crawlCanvas.Children.Add(pNext);
-                    cur += totalW;
-                }
-                cur = startX - totalW;
-                while (cur + totalW > 0)
-                {
-                    var pPrev = CreateDuplicatePanel();
-                    Canvas.SetLeft(pPrev, cur);
-                    Canvas.SetTop(pPrev, top);
-                    crawlCanvas.Children.Add(pPrev);
-                    cur -= totalW;
-                }
+                var pPrev = CreateDuplicatePanel();
+                Canvas.SetLeft(pPrev, cur);
+                Canvas.SetTop(pPrev, top);
+                crawlCanvas.Children.Add(pPrev);
+                cur -= totalW;
             }
+        }
+
+        // Display pause effect badge on ticker when timeline ruler pause is active
+        var isTimelinePaused = _timelinePauseTriggered || (SelectedProject?.TimelineEvents?.Any(e => e.Enabled && Math.Abs(e.TimeSeconds - Playhead) < 0.08) == true);
+        if (isTimelinePaused)
+        {
+            var pauseBadge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(230, 245, 158, 11)),
+                BorderBrush = Brushes.White,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(8 * sx, 2 * sy, 8 * sx, 2 * sy),
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Child = new TextBlock
+                {
+                    Text = "⏸ PAUSED ON TIMELINE",
+                    Foreground = Brushes.Black,
+                    FontFamily = fontFamily,
+                    FontSize = Math.Max(8.5, 10.5 * sy),
+                    FontWeight = FontWeights.Bold
+                }
+            };
+            Canvas.SetLeft(pauseBadge, Math.Max(10, layerW - 180 * sx));
+            Canvas.SetTop(pauseBadge, Math.Max(2, (layerH - (22 * sy)) / 2.0));
+            Panel.SetZIndex(pauseBadge, 100);
+            crawlCanvas.Children.Add(pauseBadge);
         }
 
         var border = new Border
@@ -5260,16 +5612,22 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         bg = effectiveBg;
         var kind = (layer.ShapeKind ?? "Rectangle").ToUpperInvariant();
         var strokeBrush = BrushFrom(layer.BorderColor, fill);
-        var strokeThickness = (layer.UseBorder && layer.BorderWidth > 0) ? Math.Max(0, layer.BorderWidth) * .5 : 0.0;
+        var hasExplicitBorder = layer.UseBorder && layer.BorderWidth > 0;
+        var strokeThickness = hasExplicitBorder ? Math.Max(0, layer.BorderWidth) * .5 : 0.0;
 
         if (kind is "CUSTOM PATH" or "PEN PATH")
         {
+            var needsStroke = hasExplicitBorder || !layer.ShapePathClosed;
+            var customStrokeThickness = hasExplicitBorder 
+                ? Math.Max(0.5, layer.BorderWidth * .5) 
+                : (!layer.ShapePathClosed ? Math.Max(1.0, layer.BorderWidth > 0 ? layer.BorderWidth * .5 : 2.0) : 0.0);
+
             return new System.Windows.Shapes.Path
             {
                 Data = BuildNormalizedPathGeometry(layer.ShapePathData, new Rect(0, 0, 100, 100), layer.ShapePathClosed),
                 Fill = layer.ShapePathClosed ? bg : Brushes.Transparent,
-                Stroke = strokeBrush,
-                StrokeThickness = Math.Max(1, strokeThickness),
+                Stroke = needsStroke ? strokeBrush : Brushes.Transparent,
+                StrokeThickness = customStrokeThickness,
                 Stretch = Stretch.Fill,
                 StrokeLineJoin = PenLineJoin.Round,
                 StrokeStartLineCap = PenLineCap.Round,
@@ -6005,12 +6363,45 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             // Expanded AE-style property tracks
             if (isExpanded)
             {
-                string[] subProps = ["Position", "Scale", "Rotation", "Opacity", "Effects"];
-                string[] subLabels = ["  ↳ Position", "  ↳ Scale", "  ↳ Rotation", "  ↳ Opacity", "  ↳ Effects"];
-                for (var s = 0; s < subProps.Length; s++)
+                var propList = new List<(string Prop, string Label)>
+                {
+                    ("Position", "  ↳ Position"),
+                    ("Scale", "  ↳ Scale"),
+                    ("Rotation", "  ↳ Rotation"),
+                    ("Opacity", "  ↳ Opacity")
+                };
+
+                var hasSpecificEffect = false;
+                if (l.LightSweepEnabled)
+                {
+                    propList.Add(("LightSweep", "  ↳ Light Sweep"));
+                    hasSpecificEffect = true;
+                }
+                if (l.ShadowEnabled)
+                {
+                    propList.Add(("Shadow", "  ↳ Drop Shadow"));
+                    hasSpecificEffect = true;
+                }
+                if (l.UseGlow)
+                {
+                    propList.Add(("Glow", "  ↳ Outer Glow"));
+                    hasSpecificEffect = true;
+                }
+                if (l.UseMotionBlur)
+                {
+                    propList.Add(("MotionBlur", "  ↳ Motion Blur"));
+                    hasSpecificEffect = true;
+                }
+                if (!hasSpecificEffect)
+                {
+                    propList.Add(("Effects", "  ↳ Effects"));
+                }
+
+                for (var s = 0; s < propList.Count; s++)
                 {
                     var subY = currentY;
-                    var propName = subProps[s];
+                    var propName = propList[s].Prop;
+                    var propLabel = propList[s].Label;
                     if (TimelineHeadersCanvas is not null)
                     {
                         var subHeader = new Rectangle
@@ -6025,7 +6416,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
                         var subText = new TextBlock
                         {
-                            Text = subLabels[s],
+                            Text = propLabel,
                             Foreground = new SolidColorBrush(Color.FromRgb(150, 165, 180)),
                             FontSize = 8.5,
                             Width = 98,
@@ -6035,7 +6426,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                         TimelineHeadersCanvas.Children.Add(subText);
 
                         var hasKeyAtPlayhead = (l.Keyframes ?? []).Any(k => Math.Abs(k.TimeSeconds - Playhead) <= 0.04 &&
-                            (string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(propName, StringComparison.OrdinalIgnoreCase)));
+                            (string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(propName, StringComparison.OrdinalIgnoreCase) || (propName == "LightSweep" && k.TargetProperty.Contains("Sweep", StringComparison.OrdinalIgnoreCase))));
 
                         var kfBtn = new TextBlock
                         {
@@ -6069,7 +6460,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                     });
 
                     var matchingKeys = (l.Keyframes ?? [])
-                        .Where(k => string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(propName, StringComparison.OrdinalIgnoreCase))
+                        .Where(k => string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(propName, StringComparison.OrdinalIgnoreCase) || (propName == "LightSweep" && k.TargetProperty.Contains("Sweep", StringComparison.OrdinalIgnoreCase)))
                         .OrderBy(k => k.TimeSeconds)
                         .ToList();
 
@@ -6262,6 +6653,16 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         if (modifiers.HasFlag(ModifierKeys.Shift)) { SelectLayerRange(layer); return; }
         if (modifiers.HasFlag(ModifierKeys.Control)) { ToggleLayerSelection(layer); return; }
+        if (layer.GroupId != Guid.Empty)
+        {
+            var groupLayers = Layers.Where(l => l.GroupId == layer.GroupId).ToList();
+            if (groupLayers.Count > 0)
+            {
+                SetLayerSelection(groupLayers, layer, updateAnchor: true);
+                SelectedGroup = Groups.FirstOrDefault(g => g.Id == layer.GroupId);
+                return;
+            }
+        }
         SetLayerSelection([layer], layer, updateAnchor: true);
     }
 
@@ -6401,9 +6802,11 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             e.Handled = true;
             return;
         }
+        ClearLayerSelection();
         Playhead = TimelineXToTime(point.X);
         _dragMode = "playhead";
         TimelineCanvas.CaptureMouse();
+        RenderAll();
     }
 
     private double TimelineXToTime(double x)
@@ -6434,7 +6837,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                 var prop = layerHit.Property ?? "All";
                 l.Keyframes ??= [];
                 var existing = l.Keyframes.FirstOrDefault(k => Math.Abs(k.TimeSeconds - Playhead) <= 0.04 &&
-                    (string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(prop, StringComparison.OrdinalIgnoreCase)));
+                    (string.IsNullOrEmpty(k.TargetProperty) || k.TargetProperty.Equals("All", StringComparison.OrdinalIgnoreCase) || k.TargetProperty.Contains(prop, StringComparison.OrdinalIgnoreCase) || (prop == "LightSweep" && k.TargetProperty.Contains("Sweep", StringComparison.OrdinalIgnoreCase))));
                 if (existing != null)
                 {
                     l.Keyframes.Remove(existing);
@@ -6445,6 +6848,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
                     var state = CgAnimationEngine.EvaluateLayerLocal(l, Playhead);
                     var kf = KeyframeFromMotion(Playhead, state, l.DefaultEase);
                     kf.TargetProperty = prop;
+                    kf.LightSweepProgress = l.LightSweepProgress;
                     kf.StyleJson = CgAnimationEngine.CaptureStyleJson(l);
                     l.Keyframes.Add(kf);
                     SelectedKeyframe = kf;
@@ -6469,6 +6873,11 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             SelectTimelineLayer(layerHit.Layer, selectionModifiers);
             e.Handled = true;
         }
+        else
+        {
+            ClearLayerSelection();
+            RenderAll();
+        }
     }
 
     private void TimelineHeadersCanvas_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -6480,8 +6889,29 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (hit is Rectangle { Tag: TimelineLayerHit layerHit })
         {
             var layer = layerHit.Layer;
-            if (!IsLayerSelected(layer)) SetLayerSelection([layer], layer, updateAnchor: true);
+            if (!IsLayerSelected(layer))
+            {
+                if (layer.GroupId != Guid.Empty)
+                {
+                    var groupLayers = Layers.Where(l => l.GroupId == layer.GroupId).ToList();
+                    if (groupLayers.Count > 0)
+                    {
+                        SetLayerSelection(groupLayers, layer, updateAnchor: true);
+                        SelectedGroup = Groups.FirstOrDefault(g => g.Id == layer.GroupId);
+                    }
+                    else
+                    {
+                        SetLayerSelection([layer], layer, updateAnchor: true);
+                    }
+                }
+                else
+                {
+                    SetLayerSelection([layer], layer, updateAnchor: true);
+                }
+            }
             else SetLayerSelection(GetSelectedLayers(), layer);
+            ShowLayerContextMenu(layer, point, TimelineHeadersCanvas);
+            e.Handled = true;
         }
     }
 
@@ -6520,13 +6950,32 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             e.Handled = true;
             return;
         }
-        if (!IsLayerSelected(layer)) SetLayerSelection([layer], layer, updateAnchor: true);
+        if (!IsLayerSelected(layer))
+        {
+            if (layer.GroupId != Guid.Empty)
+            {
+                var groupLayers = Layers.Where(l => l.GroupId == layer.GroupId).ToList();
+                if (groupLayers.Count > 0)
+                {
+                    SetLayerSelection(groupLayers, layer, updateAnchor: true);
+                    SelectedGroup = Groups.FirstOrDefault(g => g.Id == layer.GroupId);
+                }
+                else
+                {
+                    SetLayerSelection([layer], layer, updateAnchor: true);
+                }
+            }
+            else
+            {
+                SetLayerSelection([layer], layer, updateAnchor: true);
+            }
+        }
         else SetLayerSelection(GetSelectedLayers(), layer);
-        ShowLayerContextMenu(layer, point);
+        ShowLayerContextMenu(layer, point, TimelineCanvas);
         e.Handled = true;
     }
 
-    private void ShowLayerContextMenu(CgLayer layer, Point point)
+    private void ShowLayerContextMenu(CgLayer layer, Point point, UIElement? target = null)
     {
         var cm = new ContextMenu();
         var header = new MenuItem { Header = $"LAYER: {layer.Name}", IsEnabled = false, FontWeight = FontWeights.Bold };
@@ -6558,7 +7007,29 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
         cm.Items.Add(new Separator());
 
-        var groupItem = new MenuItem { Header = "GROUP SELECTED LAYERS" };
+        var copyItem = new MenuItem { Header = "COPY", InputGestureText = "Ctrl+C" };
+        copyItem.Click += CopyLayer_Click;
+        cm.Items.Add(copyItem);
+
+        var cutItem = new MenuItem { Header = "CUT", InputGestureText = "Ctrl+X" };
+        cutItem.Click += CutLayer_Click;
+        cm.Items.Add(cutItem);
+
+        var pasteItem = new MenuItem { Header = "PASTE (ALL EFFECTS & PROPERTIES)", InputGestureText = "Ctrl+V" };
+        pasteItem.Click += PasteLayer_Click;
+        cm.Items.Add(pasteItem);
+
+        var pasteCleanItem = new MenuItem { Header = "CLEAN PASTE (VALUES ONLY)", InputGestureText = "Ctrl+Shift+V" };
+        pasteCleanItem.Click += PasteCleanLayers_Click;
+        cm.Items.Add(pasteCleanItem);
+
+        var dupItem = new MenuItem { Header = "DUPLICATE", InputGestureText = "Ctrl+D" };
+        dupItem.Click += DuplicateSelectedLayers_Click;
+        cm.Items.Add(dupItem);
+
+        cm.Items.Add(new Separator());
+
+        var groupItem = new MenuItem { Header = "GROUP SELECTED LAYERS", InputGestureText = "Ctrl+G" };
         groupItem.Click += GroupSelectedLayers_Click;
         cm.Items.Add(groupItem);
 
@@ -6566,19 +7037,33 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         unGroupItem.Click += UngroupSelectedLayers_Click;
         cm.Items.Add(unGroupItem);
 
-        var delItem = new MenuItem { Header = "DELETE LAYER" };
-        delItem.Click += (_, _) =>
-        {
-            RecordUndoSnapshot();
-            Layers.Remove(layer);
-            SelectedLayer = Layers.LastOrDefault();
-            SyncLayersToProject();
-            _main.SaveCgProjects();
-            RenderAll();
-        };
+        var precompItem = new MenuItem { Header = "PRECOMPOSE SELECTED", InputGestureText = "Ctrl+Shift+G" };
+        precompItem.Click += PrecomposeSelectedLayers_Click;
+        cm.Items.Add(precompItem);
+
+        cm.Items.Add(new Separator());
+
+        var alignMenu = new MenuItem { Header = "ALIGN TO CANVAS" };
+        var alLeft = new MenuItem { Header = "LEFT" }; alLeft.Click += AlignLeft_Click; alignMenu.Items.Add(alLeft);
+        var alHCenter = new MenuItem { Header = "HORIZONTAL CENTER" }; alHCenter.Click += AlignHorizontalCenter_Click; alignMenu.Items.Add(alHCenter);
+        var alRight = new MenuItem { Header = "RIGHT" }; alRight.Click += AlignRight_Click; alignMenu.Items.Add(alRight);
+        alignMenu.Items.Add(new Separator());
+        var alTop = new MenuItem { Header = "TOP" }; alTop.Click += AlignTop_Click; alignMenu.Items.Add(alTop);
+        var alVCenter = new MenuItem { Header = "VERTICAL CENTER" }; alVCenter.Click += AlignVerticalCenter_Click; alignMenu.Items.Add(alVCenter);
+        var alBottom = new MenuItem { Header = "BOTTOM" }; alBottom.Click += AlignBottom_Click; alignMenu.Items.Add(alBottom);
+        cm.Items.Add(alignMenu);
+
+        var clearAnimItem = new MenuItem { Header = "CLEAR IN / OUT ANIMATION" };
+        clearAnimItem.Click += ClearLayerAnimation_Click;
+        cm.Items.Add(clearAnimItem);
+
+        cm.Items.Add(new Separator());
+
+        var delItem = new MenuItem { Header = "DELETE", InputGestureText = "Delete" };
+        delItem.Click += DeleteSelectedLayers_Click;
         cm.Items.Add(delItem);
 
-        cm.PlacementTarget = TimelineCanvas;
+        cm.PlacementTarget = target ?? TimelineCanvas;
         cm.IsOpen = true;
     }
 
@@ -6906,7 +7391,25 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (e.OriginalSource is not DependencyObject origin) return;
         if (ItemsControl.ContainerFromElement(LayerList, origin) is not ListBoxItem item) return;
         if (item.DataContext is CgLayer layer && !IsLayerSelected(layer))
-            SetLayerSelection([layer], layer, updateAnchor: true);
+        {
+            if (layer.GroupId != Guid.Empty)
+            {
+                var groupLayers = Layers.Where(l => l.GroupId == layer.GroupId).ToList();
+                if (groupLayers.Count > 0)
+                {
+                    SetLayerSelection(groupLayers, layer, updateAnchor: true);
+                    SelectedGroup = Groups.FirstOrDefault(g => g.Id == layer.GroupId);
+                }
+                else
+                {
+                    SetLayerSelection([layer], layer, updateAnchor: true);
+                }
+            }
+            else
+            {
+                SetLayerSelection([layer], layer, updateAnchor: true);
+            }
+        }
         else if (item.DataContext is CgLayer selectedLayer)
             SetLayerSelection(GetSelectedLayers(), selectedLayer);
     }
@@ -6956,18 +7459,44 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (selected.Count == 0) return;
         _layerClipboard.Clear();
         foreach (var layer in selected) _layerClipboard.Add(CloneLayer(layer, layer.Name));
+        try
+        {
+            var json = JsonSerializer.Serialize(_layerClipboard);
+            Clipboard.SetText(json);
+        }
+        catch { }
         _pasteGeneration = 0;
     }
 
-    private void PasteLayers()
+    private void PasteLayers(bool cleanPaste = false)
     {
+        if (_layerClipboard.Count == 0)
+        {
+            try
+            {
+                if (Clipboard.ContainsText())
+                {
+                    var text = Clipboard.GetText();
+                    if (!string.IsNullOrWhiteSpace(text) && text.Contains("\"Type\""))
+                    {
+                        var fromSysClip = JsonSerializer.Deserialize<List<CgLayer>>(text);
+                        if (fromSysClip != null && fromSysClip.Count > 0)
+                        {
+                            _layerClipboard.AddRange(fromSysClip);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
         if (_layerClipboard.Count == 0) return;
         RecordUndoSnapshot();
         var offset = 20.0 * (++_pasteGeneration);
         var added = new List<CgLayer>();
         foreach (var source in _layerClipboard)
         {
-            var copy = CloneLayer(source, source.Name.EndsWith(" Copy", StringComparison.OrdinalIgnoreCase) ? source.Name : source.Name + " Copy", offset, offset);
+            var baseName = source.Name.EndsWith(" Copy", StringComparison.OrdinalIgnoreCase) ? source.Name : source.Name + " Copy";
+            var copy = CloneLayer(source, cleanPaste ? source.Name + " (Clean)" : baseName, offset, offset, cleanPaste);
             Layers.Add(copy); added.Add(copy);
         }
         if (added.Count > 0)
@@ -6976,6 +7505,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             SyncLayersToProject(); _main.SaveCgProjects(); RenderAll();
         }
     }
+
+    private void PasteCleanLayers_Click(object sender, RoutedEventArgs e) => PasteLayers(cleanPaste: true);
 
     private void DeleteSelectedLayers()
     {
@@ -7004,6 +7535,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         Groups.Add(group);
         foreach (var layer in selected) layer.GroupId = group.Id;
         SelectedGroup = group;
+        SetLayerSelection(selected, selected.FirstOrDefault(), updateAnchor: true);
         SyncLayersToProject(); _main.SaveCgProjects(); RenderAll();
     }
 
@@ -7036,6 +7568,16 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         var parentGroupId = originalCommonGroups.Length == 1 && originalCommonGroups[0] != Guid.Empty && !includedGroupIds.Contains(originalCommonGroups[0])
             ? originalCommonGroups[0] : Guid.Empty;
 
+        var childLayers = selected.Select(l =>
+        {
+            var clone = CloneLayer(l, l.Name, 0, 0);
+            clone.StartSeconds = Math.Max(0, l.StartSeconds - minStart);
+            clone.EndSeconds = Math.Max(clone.StartSeconds + .001, l.EndSeconds - minStart);
+            foreach (var key in clone.Keyframes ?? []) key.TimeSeconds = Math.Max(0, key.TimeSeconds - minStart);
+            if (clone.GroupId != Guid.Empty && !includedGroupIds.Contains(clone.GroupId)) clone.GroupId = Guid.Empty;
+            return clone;
+        }).ToList();
+
         var child = new CgProject
         {
             Name = $"Precomp {Layers.Count(x => string.Equals(x.Type, "Precomp", StringComparison.OrdinalIgnoreCase)) + 1}",
@@ -7044,24 +7586,24 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             FrameRate = parent.FrameRate,
             DurationSeconds = childDuration,
             OnAir = true,
-            Layers = selected.ToList(),
-            Groups = movedGroups.ToList(),
+            Layers = childLayers,
+            Groups = movedGroups.Select(g => new CgGroup
+            {
+                Id = g.Id,
+                Name = g.Name,
+                OriginX = g.OriginX,
+                OriginY = g.OriginY,
+                ParentGroupId = g.ParentGroupId != Guid.Empty && !includedGroupIds.Contains(g.ParentGroupId) ? Guid.Empty : g.ParentGroupId,
+                Keyframes = (g.Keyframes ?? []).Select(k => new CgKeyframe
+                {
+                    TimeSeconds = Math.Max(0, k.TimeSeconds - minStart),
+                    X = k.X, Y = k.Y, Width = k.Width, Height = k.Height,
+                    ScaleX = k.ScaleX, ScaleY = k.ScaleY, Opacity = k.Opacity, Rotation = k.Rotation, Ease = k.Ease
+                }).ToList()
+            }).ToList(),
             HtmlSources = [],
             DataSources = JsonSerializer.Deserialize<List<CgDataSource>>(JsonSerializer.Serialize(parent.DataSources ?? [])) ?? []
         };
-
-        foreach (var layer in child.Layers)
-        {
-            layer.StartSeconds = Math.Max(0, layer.StartSeconds - minStart);
-            layer.EndSeconds = Math.Max(layer.StartSeconds + .001, layer.EndSeconds - minStart);
-            foreach (var key in layer.Keyframes ?? []) key.TimeSeconds = Math.Max(0, key.TimeSeconds - minStart);
-            if (layer.GroupId != Guid.Empty && !includedGroupIds.Contains(layer.GroupId)) layer.GroupId = Guid.Empty;
-        }
-        foreach (var group in child.Groups)
-        {
-            if (group.ParentGroupId != Guid.Empty && !includedGroupIds.Contains(group.ParentGroupId)) group.ParentGroupId = Guid.Empty;
-            foreach (var key in group.Keyframes ?? []) key.TimeSeconds = Math.Max(0, key.TimeSeconds - minStart);
-        }
 
         foreach (var layer in selected) Layers.Remove(layer);
         foreach (var group in movedGroups) Groups.Remove(group);
@@ -7100,7 +7642,18 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         var selected = GetSelectedLayers();
         if (selected.Count == 0) return;
+        RecordUndoSnapshot();
+        var removedGroupIds = selected.Select(x => x.GroupId).Where(id => id != Guid.Empty).Distinct().ToList();
         foreach (var layer in selected) layer.GroupId = Guid.Empty;
+        foreach (var gid in removedGroupIds)
+        {
+            if (!Layers.Any(l => l.GroupId == gid))
+            {
+                var g = Groups.FirstOrDefault(x => x.Id == gid);
+                if (g != null) Groups.Remove(g);
+            }
+        }
+        SelectedGroup = null;
         SyncLayersToProject(); _main.SaveCgProjects(); RenderAll();
     }
 
@@ -7108,6 +7661,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     {
         var selected = GetSelectedLayers().ToArray();
         if (selected.Length == 0) return;
+        RecordUndoSnapshot();
         if (oneStep)
         {
             if (toFront)
@@ -7140,7 +7694,10 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     private void ClearSelectedLayerAnimations()
     {
-        foreach (var layer in GetSelectedLayers())
+        var selected = GetSelectedLayers();
+        if (selected.Count == 0) return;
+        RecordUndoSnapshot();
+        foreach (var layer in selected)
         {
             layer.AnimationIn = "None"; layer.AnimationOut = "None";
             layer.AnimationInSeconds = 0; layer.AnimationOutSeconds = 0;
@@ -7171,6 +7728,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (project is null) return;
         var selected = GetSelectedLayers();
         if (selected.Count == 0) return;
+        RecordUndoSnapshot();
         foreach (var layer in selected)
         {
             var current = AutoKey ? CgAnimationEngine.EvaluateLayerLocal(layer, Playhead) : CgAnimationEngine.MotionState.FromLayer(layer);
@@ -7267,9 +7825,39 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             var projectPoint = new Point(
                 Math.Clamp(point.X * px, 0, SelectedProject.Width),
                 Math.Clamp(point.Y * py, 0, SelectedProject.Height));
+
+            // Check if connecting start and ending point (snap to first point)
+            if (_penPoints.Count >= 3)
+            {
+                var startPt = _penPoints[0];
+                var distToStart = (projectPoint - startPt).Length;
+                if (distToStart < 25.0)
+                {
+                    FinishPenDrawing();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Double click on last connecting point finishes drawing
+            if (e.ClickCount >= 2)
+            {
+                if (_penPoints.Count >= 2)
+                {
+                    if (_penPoints.Count >= 3 && (_penPoints[^1] - _penPoints[^2]).Length < 25.0)
+                    {
+                        _penPoints.RemoveAt(_penPoints.Count - 1);
+                    }
+                    FinishPenDrawing();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (_penPoints.Count == 0 || (projectPoint - _penPoints[^1]).Length > 1)
                 _penPoints.Add(projectPoint);
-            if (e.ClickCount >= 2) FinishPenDrawing(); else RenderPreview();
+
+            RenderPreview();
             e.Handled = true;
             return;
         }
@@ -7309,11 +7897,47 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             RecordUndoSnapshot();
             if (!IsLayerSelected(ph.Layer))
             {
-                SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
+                if (ph.Layer.GroupId != Guid.Empty && selectionModifiers == ModifierKeys.None)
+                {
+                    var groupLayers = Layers.Where(l => l.GroupId == ph.Layer.GroupId).ToList();
+                    if (groupLayers.Count > 0)
+                    {
+                        SetLayerSelection(groupLayers, ph.Layer, updateAnchor: true);
+                        SelectedGroup = Groups.FirstOrDefault(g => g.Id == ph.Layer.GroupId);
+                    }
+                    else
+                    {
+                        SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
+                    }
+                }
+                else
+                {
+                    SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
+                }
             }
             _previewDragLayer = ph.Layer;
             _previewDragMode = ph.Mode;
             _previewDragStart = point;
+
+            _previewMultiDragStarts.Clear();
+            var movingLayers = GetSelectedLayers().Contains(ph.Layer)
+                ? GetSelectedLayers().ToList()
+                : (ph.Layer.GroupId != Guid.Empty
+                    ? Layers.Where(l => l.GroupId == ph.Layer.GroupId).ToList()
+                    : new List<CgLayer> { ph.Layer });
+
+            foreach (var ml in movingLayers)
+            {
+                if (AutoKey)
+                {
+                    var k = EnsureAutoKeyframe(ml, Playhead);
+                    _previewMultiDragStarts[ml] = (k.X, k.Y, k);
+                }
+                else
+                {
+                    _previewMultiDragStarts[ml] = (ml.X, ml.Y, null);
+                }
+            }
 
             if (ph.Layer.SqueezeProgram && (ph.Layer.SqueezeWidth <= 0 || ph.Layer.SqueezeHeight <= 0))
             {
@@ -7333,6 +7957,8 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             }
             else if (ph.Mode == "move_mask" || ph.Mode.StartsWith("mask_"))
             {
+                _focusMaskGizmo = true;
+                UpdateMaskGizmoButtonText();
                 _previewEditKeyframe = null;
                 _previewStartX = ph.Layer.MaskX;
                 _previewStartY = ph.Layer.MaskY;
@@ -7374,14 +8000,62 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             e.Handled = true;
             return;
         }
-        var point=e.GetPosition(PreviewCanvas);
-        var hit=PreviewCanvas.InputHitTest(point) as DependencyObject;
-        while(hit is not null && hit is FrameworkElement fe && fe.Tag is null) hit=VisualTreeHelper.GetParent(hit);
-        if(hit is FrameworkElement element && element.Tag is PreviewHit ph)
+        var point = e.GetPosition(PreviewCanvas);
+        var hit = PreviewCanvas.InputHitTest(point) as DependencyObject;
+        hit = FindPreviewHitElement(hit) ?? FindPreviewHitByBounds(point);
+        if (hit is FrameworkElement element && element.Tag is PreviewHit ph)
         {
-            if (!IsLayerSelected(ph.Layer)) SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
+            if (!IsLayerSelected(ph.Layer))
+            {
+                if (ph.Layer.GroupId != Guid.Empty)
+                {
+                    var groupLayers = Layers.Where(l => l.GroupId == ph.Layer.GroupId).ToList();
+                    if (groupLayers.Count > 0)
+                    {
+                        SetLayerSelection(groupLayers, ph.Layer, updateAnchor: true);
+                        SelectedGroup = Groups.FirstOrDefault(g => g.Id == ph.Layer.GroupId);
+                    }
+                    else
+                    {
+                        SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
+                    }
+                }
+                else
+                {
+                    SetLayerSelection([ph.Layer], ph.Layer, updateAnchor: true);
+                }
+            }
             else SetLayerSelection(GetSelectedLayers(), ph.Layer);
+            ShowLayerContextMenu(ph.Layer, point, PreviewCanvas);
+            e.Handled = true;
+            return;
         }
+
+        // Empty canvas right click menu
+        var cm = new ContextMenu();
+        var pasteItem = new MenuItem { Header = "PASTE (ALL EFFECTS & PROPERTIES)", InputGestureText = "Ctrl+V" };
+        pasteItem.Click += (_, _) => PasteLayers(cleanPaste: false);
+        pasteItem.IsEnabled = _layerClipboard.Count > 0 || (Clipboard.ContainsText() && Clipboard.GetText().Contains("\"Type\""));
+        cm.Items.Add(pasteItem);
+
+        var pasteCleanItem = new MenuItem { Header = "CLEAN PASTE (VALUES ONLY)", InputGestureText = "Ctrl+Shift+V" };
+        pasteCleanItem.Click += (_, _) => PasteLayers(cleanPaste: true);
+        pasteCleanItem.IsEnabled = pasteItem.IsEnabled;
+        cm.Items.Add(pasteCleanItem);
+
+        cm.Items.Add(new Separator());
+
+        var selectAllItem = new MenuItem { Header = "SELECT ALL LAYERS", InputGestureText = "Ctrl+A" };
+        selectAllItem.Click += (_, _) => { SetLayerSelection(Layers, Layers.LastOrDefault(), updateAnchor: true); RenderAll(); };
+        cm.Items.Add(selectAllItem);
+
+        var deselectItem = new MenuItem { Header = "DESELECT ALL" };
+        deselectItem.Click += (_, _) => { ClearLayerSelection(); RenderAll(); };
+        cm.Items.Add(deselectItem);
+
+        cm.PlacementTarget = PreviewCanvas;
+        cm.IsOpen = true;
+        e.Handled = true;
     }
 
     private void ApplyInteractivePreviewGeometry(CgProject project, CgLayer layer)
@@ -7498,6 +8172,22 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
 
     private void PreviewCanvas_MouseMove(object sender, MouseEventArgs e)
     {
+        if (_penDrawing && SelectedProject is not null)
+        {
+            if (_penPoints.Count >= 3)
+            {
+                var pt = e.GetPosition(PreviewCanvas);
+                var px = SelectedProject.Width / Math.Max(1.0, PreviewCanvas.ActualWidth);
+                var py = SelectedProject.Height / Math.Max(1.0, PreviewCanvas.ActualHeight);
+                var projectPt = new Point(pt.X * px, pt.Y * py);
+                var dist = (projectPt - _penPoints[0]).Length;
+                PreviewCanvas.Cursor = dist < 25.0 ? Cursors.Hand : Cursors.Cross;
+            }
+            else
+            {
+                PreviewCanvas.Cursor = Cursors.Cross;
+            }
+        }
         if(_drawingMask && _drawMaskLayer is not null && e.LeftButton==MouseButtonState.Pressed && SelectedProject is not null)
         {
             var maskPoint=e.GetPosition(PreviewCanvas); var px=SelectedProject.Width/Math.Max(1.0,PreviewCanvas.ActualWidth); var py=SelectedProject.Height/Math.Max(1.0,PreviewCanvas.ActualHeight);
@@ -7698,6 +8388,48 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
             default: x += dx; y += dy; break;
         }
 
+        if (_previewDragMode == "move" || (!_previewDragMode.StartsWith("pip_") && !_previewDragMode.StartsWith("mask_") && !_previewDragMode.StartsWith("skew_") && _previewDragMode != "rot" && _previewDragMode is not ("nw" or "ne" or "sw" or "se" or "n" or "s" or "w" or "e")))
+        {
+            if (_previewMultiDragStarts.Count > 1)
+            {
+                foreach (var kvp in _previewMultiDragStarts)
+                {
+                    var targetLayer = kvp.Key;
+                    var startPos = kvp.Value;
+                    var newX = startPos.X + dx;
+                    var newY = startPos.Y + dy;
+
+                    if (startPos.Key is not null)
+                    {
+                        startPos.Key.X = newX;
+                        startPos.Key.Y = newY;
+                        targetLayer.X = newX;
+                        targetLayer.Y = newY;
+                    }
+                    else
+                    {
+                        var layerDx = newX - targetLayer.X;
+                        var layerDy = newY - targetLayer.Y;
+                        targetLayer.X = newX;
+                        targetLayer.Y = newY;
+                        foreach (var frame in targetLayer.Keyframes ?? [])
+                        {
+                            frame.X += layerDx;
+                            frame.Y += layerDy;
+                        }
+                    }
+                    if (targetLayer.SqueezeProgram)
+                    {
+                        targetLayer.SqueezeX = targetLayer.X;
+                        targetLayer.SqueezeY = targetLayer.Y;
+                    }
+                    ApplyInteractivePreviewGeometry(project, targetLayer);
+                }
+                RequestInteractiveRender();
+                return;
+            }
+        }
+
         if (isShiftDown && _previewStartW > 0 && _previewStartH > 0 && _previewDragMode is "nw" or "ne" or "sw" or "se" or "w" or "e" or "n" or "s")
         {
             var origAspect = _previewStartW / _previewStartH;
@@ -7796,6 +8528,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         }
         var draggedLayer = _previewDragLayer;
         _previewDragLayer = null; _previewDragMode = ""; _previewEditKeyframe = null;
+        _previewMultiDragStarts.Clear();
         PreviewCanvas.ReleaseMouseCapture();
         CancelInteractiveRender();
         SortSelectedKeyframes();
@@ -7906,6 +8639,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         if (ctrl && e.Key == Key.A) { SetLayerSelection(Layers, Layers.LastOrDefault(), updateAnchor: true); e.Handled=true; return; }
         if (ctrl && e.Key == Key.C) { CopySelectedLayers(); e.Handled = true; return; }
         if (ctrl && e.Key == Key.X) { CopySelectedLayers(); DeleteSelectedLayers(); e.Handled = true; return; }
+        if (ctrl && shift && e.Key == Key.V) { PasteLayers(cleanPaste: true); e.Handled = true; return; }
         if (ctrl && e.Key == Key.V) { PasteLayers(); e.Handled = true; return; }
         if (ctrl && e.Key == Key.D) { DuplicateSelectedLayers_Click(this, new RoutedEventArgs()); e.Handled = true; return; }
         if (ctrl && shift && e.Key == Key.G) { PrecomposeSelectedLayers(); e.Handled = true; return; }
@@ -7960,6 +8694,7 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
     private void ClearCanvas_Click(object sender,RoutedEventArgs e)
     {
         if(SelectedProject is null)return;
+        RecordUndoSnapshot();
         Layers.Clear();HtmlSources.Clear();Groups.Clear();Keyframes.Clear();GroupKeyframes.Clear();
         SelectedLayer=null;SelectedHtml=null;SelectedGroup=null;SelectedKeyframe=null;SelectedGroupKeyframe=null;
         SyncLayersToProject();_main.SaveCgProjects();RenderAll();PreviewCanvas.Focus();
@@ -8464,4 +9199,93 @@ public partial class CgEditorWindow : Window, INotifyPropertyChanged
         _main.SaveCgProjects();
         RenderAll();
     }
+
+    public void CanvasZoomIn_Click(object sender, RoutedEventArgs e)
+    {
+        CanvasZoomFactor = Math.Min(4.0, CanvasZoomFactor * 1.15);
+        _canvasZoomSelection = $"{Math.Round(CanvasZoomFactor * 100)}%";
+        Raise(nameof(CanvasZoomSelection));
+    }
+
+    public void CanvasZoomOut_Click(object sender, RoutedEventArgs e)
+    {
+        CanvasZoomFactor = Math.Max(0.25, CanvasZoomFactor / 1.15);
+        _canvasZoomSelection = $"{Math.Round(CanvasZoomFactor * 100)}%";
+        Raise(nameof(CanvasZoomSelection));
+    }
+
+    public void CanvasZoomFit_Click(object sender, RoutedEventArgs e)
+    {
+        _canvasZoomSelection = "FIT";
+        Raise(nameof(CanvasZoomSelection));
+        ApplyCanvasZoomSelection("FIT");
+    }
+
+    private void CanvasScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            e.Handled = true;
+            if (e.Delta > 0)
+                CanvasZoomIn_Click(sender, new RoutedEventArgs());
+            else
+                CanvasZoomOut_Click(sender, new RoutedEventArgs());
+        }
+    }
+
+    private void ApplyCanvasZoomSelection(string? sel)
+    {
+        if (string.IsNullOrWhiteSpace(sel)) return;
+        if (string.Equals(sel, "FIT", StringComparison.OrdinalIgnoreCase))
+        {
+            if (CanvasScrollViewer is not null && PreviewCanvas is not null)
+            {
+                var availW = CanvasScrollViewer.ActualWidth > 80 
+                    ? CanvasScrollViewer.ActualWidth - 30 
+                    : (ActualWidth > 200 ? ActualWidth * 0.58 : 960.0);
+                var availH = CanvasScrollViewer.ActualHeight > 80 
+                    ? CanvasScrollViewer.ActualHeight - 30 
+                    : (ActualHeight > 200 ? ActualHeight * 0.58 : 540.0);
+                var cw = PreviewCanvas.Width > 1 ? PreviewCanvas.Width : 960.0;
+                var ch = PreviewCanvas.Height > 1 ? PreviewCanvas.Height : 540.0;
+                var scale = Math.Min(availW / cw, availH / ch);
+                CanvasZoomFactor = Math.Clamp(scale, 0.25, 2.5);
+                RenderPreview();
+            }
+        }
+        else if (sel.EndsWith('%') && double.TryParse(sel.TrimEnd('%'), out var percent))
+        {
+            CanvasZoomFactor = Math.Clamp(percent / 100.0, 0.25, 4.0);
+        }
+    }
+
+    private void ToggleLayerOnAir_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedLayer is null) return;
+        SelectedLayer.IsOnAirPlaying = !SelectedLayer.IsOnAirPlaying;
+        if (SelectedLayer.IsOnAirPlaying)
+        {
+            CgSmartLayerManager.RetriggerLayer(SelectedLayer, Playhead);
+        }
+        CommitInspectorAutoKey();
+        SyncLayersToProject();
+        _main.SaveCgProjects();
+        RenderAll();
+    }
+
+    private void RetriggerLayer_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedLayer is null) return;
+        CgSmartLayerManager.RetriggerLayer(SelectedLayer, Playhead);
+        RenderPreview();
+    }
+
+    private void UpdateLayerOnAir_Click(object sender, RoutedEventArgs e)
+    {
+        CommitInspectorAutoKey();
+        SyncLayersToProject();
+        _main.SaveCgProjects();
+        RenderAll();
+    }
 }
+

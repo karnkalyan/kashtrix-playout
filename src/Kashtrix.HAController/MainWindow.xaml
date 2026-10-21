@@ -4,29 +4,48 @@
         Title="Kashtrix Redundancy / HA Controller"
         Width="1540" Height="860" MinWidth="1100" MinHeight="650"
         Background="{StaticResource Bg0Brush}" WindowStartupLocation="CenterScreen"
+        WindowStyle="None" ResizeMode="CanResizeWithGrip"
         Closing="Window_Closing">
-    <Grid Margin="14">
+    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0" Background="{StaticResource Bg0Brush}">
+    <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="46"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- TITLE BAR -->
+        <Border Grid.Row="0" Background="#0C1116" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid Margin="14,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="KASHTRIX HA CONTROLLER" FontSize="16" FontWeight="Bold" Foreground="#E6C4FF"/>
+                    <Border Background="#2B1647" BorderBrush="#7C3AED" BorderThickness="1" CornerRadius="4" Padding="7,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="ClusterModeBadge" Text="BROADCAST CLUSTER" Foreground="#D8B4FE" FontSize="9.5" FontWeight="Bold"/>
+                    </Border>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Click="Minimize_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize"><TextBlock Style="{StaticResource WindowMinimizeGlyph}"/></Button>
+                    <Button Click="Maximize_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize / Restore"><TextBlock Style="{StaticResource WindowMaximizeGlyph}"/></Button>
+                    <Button Click="Close_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close"><TextBlock Style="{StaticResource WindowCloseGlyph}"/></Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- HEADER PANEL -->
-        <Border Style="{StaticResource PanelBorder}" Padding="16,12" Background="{StaticResource Bg1Brush}">
+        <Border Grid.Row="1" Style="{StaticResource PanelBorder}" Padding="16,10" Margin="14,12,14,0" Background="{StaticResource Bg1Brush}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="KASHTRIX REDUNDANCY / HA CONTROLLER" FontSize="21" FontWeight="Bold" Foreground="#E6C4FF"/>
-                        <Border Background="#2B1647" BorderBrush="#7C3AED" BorderThickness="1" CornerRadius="4" Padding="7,2" Margin="14,0,0,0" VerticalAlignment="Center">
-                            <TextBlock x:Name="ClusterModeBadge" Text="BROADCAST CLUSTER" Foreground="#D8B4FE" FontSize="10" FontWeight="Bold"/>
-                        </Border>
-                    </StackPanel>
-                    <TextBlock Text="1+1 hot standby · N+M shared backup coordinator · output interlock · real-time heartbeat telemetry" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
+                    <TextBlock Text="1+1 hot standby · N+M shared backup coordinator · output interlock · real-time heartbeat telemetry" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
                 </StackPanel>
 
                 <!-- Top Right Actions -->
@@ -40,7 +59,7 @@
         </Border>
 
         <!-- MAIN DATA GRID -->
-        <Border Grid.Row="1" Style="{StaticResource PanelBorder}" Padding="8" Margin="0,12" Background="{StaticResource Bg1Brush}">
+        <Border Grid.Row="2" Style="{StaticResource PanelBorder}" Padding="8" Margin="14,10,14,10" Background="{StaticResource Bg1Brush}">
             <DataGrid x:Name="NodeGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
                       Background="{StaticResource Bg1Brush}" BorderThickness="0" RowHeight="34" GridLinesVisibility="Horizontal"
                       HorizontalGridLinesBrush="#1E252D">
@@ -158,7 +177,7 @@
         </Border>
 
         <!-- FOOTER ACTION BAR -->
-        <Border Grid.Row="2" Style="{StaticResource PanelBorder}" Padding="14,10" Background="{StaticResource Bg1Brush}">
+        <Border Grid.Row="3" Style="{StaticResource PanelBorder}" Padding="14,10" Margin="14,0,14,14" Background="{StaticResource Bg1Brush}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -179,4 +198,5 @@
             </Grid>
         </Border>
     </Grid>
+    </Border>
 </Window>

@@ -30,14 +30,14 @@
                               Condition="'%(ReferenceCopyLocalPaths.Filename)' == 'Kashtrix.Playout' and ('%(ReferenceCopyLocalPaths.Extension)' == '.exe' or '%(ReferenceCopyLocalPaths.Extension)' == '.deps.json' or '%(ReferenceCopyLocalPaths.Extension)' == '.runtimeconfig.json' or '%(ReferenceCopyLocalPaths.Extension)' == '.pdb')" />
     </ItemGroup>
 
-    <!-- demos folder must ONLY be present in Kashtrix.CGEditor -->
-    <ItemGroup Condition="'$(MSBuildProjectName)' != 'Kashtrix.CGEditor'">
+    <!-- demos and cg-demo folders must ONLY be present in Kashtrix.CGEditor and BroadcastPlayout.App -->
+    <ItemGroup Condition="'$(MSBuildProjectName)' != 'Kashtrix.CGEditor' and '$(MSBuildProjectName)' != 'BroadcastPlayout.App'">
       <_SourceItemsToCopyToOutputDirectory Remove="@(_SourceItemsToCopyToOutputDirectory)"
-                                           Condition="$([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.TargetPath)').ToLower().StartsWith('demos\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\demos\'))" />
+                                           Condition="$([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.TargetPath)').ToLower().StartsWith('demos\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\demos\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.TargetPath)').ToLower().StartsWith('cg-demo\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\cg-demo\'))" />
       <_SourceItemsToCopyToOutputDirectoryAlways Remove="@(_SourceItemsToCopyToOutputDirectoryAlways)"
-                                                 Condition="$([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectoryAlways.TargetPath)').ToLower().StartsWith('demos\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectoryAlways.Identity)').ToLower().Contains('\demos\'))" />
+                                                 Condition="$([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectoryAlways.TargetPath)').ToLower().StartsWith('demos\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectoryAlways.Identity)').ToLower().Contains('\demos\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectoryAlways.TargetPath)').ToLower().StartsWith('cg-demo\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectoryAlways.Identity)').ToLower().Contains('\cg-demo\'))" />
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
-                               Condition="$([System.String]::Copy('%(ReferenceCopyLocalPaths.Identity)').ToLower().Contains('\demos\'))" />
+                               Condition="$([System.String]::Copy('%(ReferenceCopyLocalPaths.Identity)').ToLower().Contains('\demos\')) or $([System.String]::Copy('%(ReferenceCopyLocalPaths.Identity)').ToLower().Contains('\cg-demo\'))" />
     </ItemGroup>
 
     <!-- Satellite apps that do not require FFmpeg/NDI video pipelines or yt-dlp -->
@@ -49,7 +49,7 @@
                            '$(MSBuildProjectName)' == 'Kashtrix.HAController' or
                           '$(MSBuildProjectName)' == 'Kashtrix.Prompter' or
                           '$(MSBuildProjectName)' == 'Kashtrix.ApiGateway' or
-                           '$(MSBuildProjectName)' == 'Kashtrix.NRCS'">
+                          '$(MSBuildProjectName)' == 'Kashtrix.NRCS'">
       <_SourceItemsToCopyToOutputDirectory Remove="@(_SourceItemsToCopyToOutputDirectory)"
                                            Condition="'%(_SourceItemsToCopyToOutputDirectory.Filename)' != 'e_sqlite3' and ($([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.TargetPath)').ToLower().StartsWith('native\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\native\ffmpeg\')) or $([System.String]::Copy('%(_SourceItemsToCopyToOutputDirectory.Identity)').ToLower().Contains('\native\ndi\')) or '%(_SourceItemsToCopyToOutputDirectory.Filename)' == 'yt-dlp')" />
       <_SourceItemsToCopyToOutputDirectoryAlways Remove="@(_SourceItemsToCopyToOutputDirectoryAlways)"
@@ -66,9 +66,11 @@
     <Delete Files="$(TargetDir)Kashtrix.Playout.exe;$(TargetDir)Kashtrix.Playout.deps.json;$(TargetDir)Kashtrix.Playout.runtimeconfig.json;$(TargetDir)Kashtrix.Playout.pdb"
             TreatErrorsAsWarnings="true" />
 
-    <!-- 2. Remove demos folder from all applications except Kashtrix.CGEditor -->
+    <!-- 2. Remove demos and cg-demo folders from all applications except Kashtrix.CGEditor -->
     <RemoveDir Directories="$(TargetDir)demos"
                Condition="'$(MSBuildProjectName)' != 'Kashtrix.CGEditor' and Exists('$(TargetDir)demos')" />
+    <RemoveDir Directories="$(TargetDir)cg-demo"
+               Condition="'$(MSBuildProjectName)' != 'Kashtrix.CGEditor' and '$(MSBuildProjectName)' != 'BroadcastPlayout.App' and Exists('$(TargetDir)cg-demo')" />
 
     <!-- 3. Remove native ffmpeg/ndi and yt-dlp from satellite apps that do not process video/NDI -->
     <ItemGroup Condition="'$(MSBuildProjectName)' == 'Kashtrix.Settings' or
@@ -88,12 +90,12 @@
     <Delete Files="@(FilesToDelete)" TreatErrorsAsWarnings="true" />
     <RemoveDir Directories="@(DirectoriesToDelete)" />
 
-    <!-- 4. Remove CefSharp browser binaries from all satellite applications (only Playout uses CefSharp HTML5 CG) -->
-    <ItemGroup>
+    <!-- 4. Remove CefSharp browser binaries from all satellite applications except CGEditor (Playout and CGEditor use CefSharp HTML5 CG) -->
+    <ItemGroup Condition="'$(MSBuildProjectName)' != 'Kashtrix.CGEditor'">
       <CefSharpFiles Include="$(TargetDir)CefSharp*.dll;$(TargetDir)CefSharp*.pak;$(TargetDir)libcef.dll;$(TargetDir)chrome_elf.dll;$(TargetDir)d3dcompiler_47.dll;$(TargetDir)icudtl.dat;$(TargetDir)snapshot_blob.bin;$(TargetDir)v8_context_snapshot.bin;$(TargetDir)vk_swiftshader*.dll;$(TargetDir)vulkan*.dll;$(TargetDir)*.pak" />
       <CefSharpDirs Include="$(TargetDir)locales;$(TargetDir)swiftshader" />
     </ItemGroup>
-    <Delete Files="@(CefSharpFiles)" TreatErrorsAsWarnings="true" />
-    <RemoveDir Directories="@(CefSharpDirs)" />
+    <Delete Files="@(CefSharpFiles)" TreatErrorsAsWarnings="true" Condition="'$(MSBuildProjectName)' != 'Kashtrix.CGEditor'" />
+    <RemoveDir Directories="@(CefSharpDirs)" Condition="'$(MSBuildProjectName)' != 'Kashtrix.CGEditor'" />
   </Target>
 </Project>

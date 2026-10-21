@@ -102,6 +102,7 @@
             <Setter Property="Background" Value="{StaticResource Bg2Brush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource LineStrongBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <!-- Keep the shared chrome safe even for compact 24-30 DIP toolbar buttons and high-DPI text. -->
             <Setter Property="Padding" Value="10,3"/>
             <Setter Property="Margin" Value="2"/>
@@ -176,6 +177,27 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="7,5"/>
             <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="#4C6585"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="PasswordBox">
+            <Setter Property="Background" Value="{StaticResource Bg2Brush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="7,5"/>
+            <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="#4C6585"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style TargetType="ComboBox">
@@ -185,6 +207,7 @@
             <Setter Property="MinHeight" Value="26"/>
             <Setter Property="Padding" Value="8,0"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBox">
@@ -218,7 +241,7 @@
                             <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
                                    AllowsTransparency="True" PopupAnimation="Fade" Focusable="True" StaysOpen="False">
                                 <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                                        MaxHeight="360" Margin="0,3,0,0" Background="#0D121A" BorderBrush="#5D2B78"
+                                        MaxHeight="360" Margin="0,3,0,0" Background="#0D121A" BorderBrush="#2B3542"
                                         BorderThickness="1" CornerRadius="5">
                                     <ScrollViewer Margin="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                         <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
@@ -233,9 +256,9 @@
                                 <Setter TargetName="DropDownToggle" Property="Grid.Column" Value="1"/>
                                 <Setter TargetName="DropDownToggle" Property="Grid.ColumnSpan" Value="1"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Outer" Property="BorderBrush" Value="#8055B3"/></Trigger>
-                            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Outer" Property="BorderBrush" Value="{StaticResource PinkBrush}"/></Trigger>
-                            <Trigger Property="IsDropDownOpen" Value="True"><Setter TargetName="Outer" Property="BorderBrush" Value="{StaticResource PinkBrush}"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Outer" Property="BorderBrush" Value="#4C6585"/></Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Outer" Property="BorderBrush" Value="#4C6585"/></Trigger>
+                            <Trigger Property="IsDropDownOpen" Value="True"><Setter TargetName="Outer" Property="BorderBrush" Value="#4C6585"/></Trigger>
                             <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Outer" Property="Opacity" Value=".45"/></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -331,7 +354,7 @@
             </Setter>
         </Style>
         <Style TargetType="MenuItem">
-            <!-- Do not leave items transparent: the Windows popup host can otherwise show a white native surface behind white text. -->
+            <!-- Normal submenu items keep dark background so Windows popups remain dark. Top-level headers are fully transparent without box background. -->
             <Setter Property="Background" Value="#10151B"/>
             <Setter Property="Foreground" Value="#F4F6F8"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
@@ -360,19 +383,55 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="Role" Value="TopLevelHeader">
+                                <Setter TargetName="Root" Property="Background" Value="Transparent"/>
                                 <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom"/>
+                            </Trigger>
+                            <Trigger Property="Role" Value="TopLevelItem">
+                                <Setter TargetName="Root" Property="Background" Value="Transparent"/>
                             </Trigger>
                             <Trigger Property="HasItems" Value="True">
                                 <Setter Property="Padding" Value="0"/>
                             </Trigger>
-                            <Trigger Property="IsHighlighted" Value="True">
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Role" Value="TopLevelHeader"/>
+                                    <Condition Property="IsHighlighted" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Root" Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#38BDF8"/>
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Role" Value="TopLevelHeader"/>
+                                    <Condition Property="IsSubmenuOpen" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Root" Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#38BDF8"/>
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Role" Value="TopLevelItem"/>
+                                    <Condition Property="IsHighlighted" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Root" Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#38BDF8"/>
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Role" Value="SubmenuHeader"/>
+                                    <Condition Property="IsHighlighted" Value="True"/>
+                                </MultiTrigger.Conditions>
                                 <Setter TargetName="Root" Property="Background" Value="#1A222A"/>
                                 <Setter Property="Foreground" Value="White"/>
-                            </Trigger>
-                            <Trigger Property="IsSubmenuOpen" Value="True">
+                            </MultiTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="Role" Value="SubmenuItem"/>
+                                    <Condition Property="IsHighlighted" Value="True"/>
+                                </MultiTrigger.Conditions>
                                 <Setter TargetName="Root" Property="Background" Value="#1A222A"/>
                                 <Setter Property="Foreground" Value="White"/>
-                            </Trigger>
+                            </MultiTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45"/>
                             </Trigger>

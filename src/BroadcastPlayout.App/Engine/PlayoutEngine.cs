@@ -212,19 +212,37 @@ public sealed class PlayoutEngine : IDisposable
     private async Task<bool> PlaySegmentAsync(PlaylistItem item, MediaPlaybackPart part, TimeSpan startAt, long session, CancellationToken ct)
     {
         var effectiveItem = item;
-        if (YtDlpResolver.LooksLikeWebVideoPage(item.FilePath))
+        if (!string.IsNullOrWhiteSpace(item.ResolvedMediaUrl))
+        {
+            effectiveItem = item.Clone();
+            effectiveItem.FilePath = item.ResolvedMediaUrl;
+        }
+        else if (YtDlpResolver.LooksLikeWebVideoPage(item.FilePath))
         {
             try
             {
-                SetStatus(session, "RESOLVING WEB STREAM: " + item.Title);
-                var resolved = await YtDlpResolver.ResolveAsync(item.FilePath, ct).ConfigureAwait(false);
-                effectiveItem = item.Clone();
-                effectiveItem.FilePath = resolved.MediaUrl;
-                if (!string.IsNullOrWhiteSpace(resolved.AudioUrl))
+                if (YtDlpResolver.TryGetCached(item.FilePath, out var cached) && cached is not null)
                 {
-                    effectiveItem.AlternateAudioUrl = resolved.AudioUrl;
+                    item.ResolvedMediaUrl = cached.MediaUrl;
+                    if (!string.IsNullOrWhiteSpace(cached.AudioUrl)) item.AlternateAudioUrl = cached.AudioUrl;
+                    effectiveItem = item.Clone();
+                    effectiveItem.FilePath = cached.MediaUrl;
+                    if (!string.IsNullOrWhiteSpace(cached.AudioUrl)) effectiveItem.AlternateAudioUrl = cached.AudioUrl;
                 }
-                AuditLogService.Write("WEB_STREAM_RESOLVED", item.Title, $"Video: {resolved.MediaUrl[..Math.Min(60, resolved.MediaUrl.Length)]}... Audio: {!string.IsNullOrWhiteSpace(resolved.AudioUrl)}");
+                else
+                {
+                    SetStatus(session, "RESOLVING WEB STREAM: " + item.Title);
+                    var resolved = await YtDlpResolver.ResolveAsync(item.FilePath, ct).ConfigureAwait(false);
+                    item.ResolvedMediaUrl = resolved.MediaUrl;
+                    if (!string.IsNullOrWhiteSpace(resolved.AudioUrl)) item.AlternateAudioUrl = resolved.AudioUrl;
+                    effectiveItem = item.Clone();
+                    effectiveItem.FilePath = resolved.MediaUrl;
+                    if (!string.IsNullOrWhiteSpace(resolved.AudioUrl))
+                    {
+                        effectiveItem.AlternateAudioUrl = resolved.AudioUrl;
+                    }
+                    AuditLogService.Write("WEB_STREAM_RESOLVED", item.Title, $"Video: {resolved.MediaUrl[..Math.Min(60, resolved.MediaUrl.Length)]}... Audio: {!string.IsNullOrWhiteSpace(resolved.AudioUrl)}");
+                }
             }
             catch (Exception ex)
             {
@@ -480,14 +498,20 @@ public sealed class PlayoutEngine : IDisposable
                     var activeElapsed = clock.Elapsed.TotalSeconds - pausedSeconds;
                     var wait = target - activeElapsed;
 
-                    // Dynamic drift correction: if audio lags behind presentation clock by > 80ms, catch up immediately
-                    if (wait < -0.080 && !item.IsLiveSource)
+                    // Dynamic drift correction: if audio lags behind presentation clock, catch up immediately
+                    if (wait < -0.040)
                     {
                         break;
                     }
 
+                    if (item.IsLiveSource && item.AudioDelayMs <= 0)
+                    {
+                        // Live audio is already real-time streamed; emit immediately without timer quantization
+                        break;
+                    }
+
                     if (wait <= 0.001) break;
-                    if (ct.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(Math.Min(20.0, wait * 1000.0)))) return;
+                    if (ct.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(Math.Min(15.0, wait * 1000.0)))) return;
                 }
                 if (ct.IsCancellationRequested || !IsCurrentSession(session)) return;
                 EmitAudioMeter(chunk);

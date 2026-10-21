@@ -14,11 +14,14 @@ public sealed record FileSystemEntryItem(
     string TypeName,
     string SizeText,
     string Glyph,
-    Brush GlyphColor
+    Brush GlyphColor,
+    ImageSource? Thumbnail = null
 );
 
 public partial class KashtrixFileDialog : Window
 {
+    private static string _savedViewMode = "Details";
+    private string _currentViewMode = "Details";
     private readonly List<string> _history = [];
     private int _historyIndex = -1;
     private string _currentDirectory = "";
@@ -27,6 +30,7 @@ public partial class KashtrixFileDialog : Window
     public sealed record FilterOption(string Display, string[] Extensions);
 
     public bool IsSaveMode { get; set; }
+    public bool IsFolderPicker { get; set; }
     public bool Multiselect { get; set; }
     public string FileName { get; set; } = string.Empty;
     public string[] FileNames { get; private set; } = [];
@@ -67,9 +71,17 @@ public partial class KashtrixFileDialog : Window
 
     private void KashtrixFileDialog_Loaded(object sender, RoutedEventArgs e)
     {
-        ActionButton.Content = IsSaveMode ? "SAVE" : "OPEN";
-        TitleText.Text = IsSaveMode ? (string.IsNullOrWhiteSpace(Title) ? "SAVE FILE" : Title.ToUpperInvariant())
-                                    : (string.IsNullOrWhiteSpace(Title) ? "OPEN FILE" : Title.ToUpperInvariant());
+        if (IsFolderPicker)
+        {
+            ActionButton.Content = "SELECT FOLDER";
+            TitleText.Text = string.IsNullOrWhiteSpace(Title) ? "SELECT FOLDER" : Title.ToUpperInvariant();
+        }
+        else
+        {
+            ActionButton.Content = IsSaveMode ? "SAVE" : "OPEN";
+            TitleText.Text = IsSaveMode ? (string.IsNullOrWhiteSpace(Title) ? "SAVE FILE" : Title.ToUpperInvariant())
+                                        : (string.IsNullOrWhiteSpace(Title) ? "OPEN FILE" : Title.ToUpperInvariant());
+        }
 
         if (Multiselect && !IsSaveMode)
         {
@@ -97,6 +109,7 @@ public partial class KashtrixFileDialog : Window
             startDir = AppContext.BaseDirectory;
         }
 
+        SetViewMode(_savedViewMode);
         NavigateTo(startDir, addToHistory: true);
     }
 
@@ -215,6 +228,24 @@ public partial class KashtrixFileDialog : Window
                 if (!MatchesFilter(f.Extension, selectedExts)) continue;
 
                 var isMedia = IsMediaExtension(f.Extension);
+                var isImage = IsImageExtension(f.Extension);
+                ImageSource? thumb = null;
+                if (isImage)
+                {
+                    try
+                    {
+                        var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                        bmp.BeginInit();
+                        bmp.UriSource = new Uri(f.FullName);
+                        bmp.DecodePixelWidth = 120;
+                        bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                        bmp.EndInit();
+                        bmp.Freeze();
+                        thumb = bmp;
+                    }
+                    catch { }
+                }
+
                 items.Add(new FileSystemEntryItem(
                     f.Name,
                     f.FullName,
@@ -222,8 +253,9 @@ public partial class KashtrixFileDialog : Window
                     f.LastWriteTime.ToString("yyyy-MM-dd HH:mm"),
                     f.Extension.TrimStart('.').ToUpperInvariant() + " File",
                     FormatSize(f.Length),
-                    isMedia ? "🎬" : "📄",
-                    isMedia ? MediaBrush : DocBrush
+                    isImage ? "🖼️" : isMedia ? "🎬" : "📄",
+                    isImage ? MediaBrush : isMedia ? MediaBrush : DocBrush,
+                    thumb
                 ));
             }
 
@@ -233,6 +265,73 @@ public partial class KashtrixFileDialog : Window
         {
             MessageBox.Show($"Could not list directory: {ex.Message}", "Kashtrix File Explorer", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private static bool IsImageExtension(string ext)
+    {
+        var e = ext.ToLowerInvariant();
+        return e is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".webp" or ".gif" or ".ico";
+    }
+
+    private void ViewDetails_Click(object sender, RoutedEventArgs e) => SetViewMode("Details");
+    private void ViewList_Click(object sender, RoutedEventArgs e) => SetViewMode("List");
+    private void ViewThumbnails_Click(object sender, RoutedEventArgs e) => SetViewMode("Thumbnails");
+    private void ViewTiles_Click(object sender, RoutedEventArgs e) => SetViewMode("Tiles");
+    private void Refresh_Click(object sender, RoutedEventArgs e) => RefreshFileList();
+
+    private void SetViewMode(string mode)
+    {
+        _currentViewMode = mode;
+        _savedViewMode = mode;
+        switch (mode)
+        {
+            case "List":
+                FilesListView.View = null;
+                FilesListView.ItemTemplate = (DataTemplate)Resources["ListItemTemplate"];
+                FilesListView.ItemsPanel = (ItemsPanelTemplate)Resources["WrapPanelTemplate"];
+                break;
+            case "Thumbnails":
+                FilesListView.View = null;
+                FilesListView.ItemTemplate = (DataTemplate)Resources["ThumbnailItemTemplate"];
+                FilesListView.ItemsPanel = (ItemsPanelTemplate)Resources["WrapPanelTemplate"];
+                break;
+            case "Tiles":
+                FilesListView.View = null;
+                FilesListView.ItemTemplate = (DataTemplate)Resources["TileItemTemplate"];
+                FilesListView.ItemsPanel = (ItemsPanelTemplate)Resources["WrapPanelTemplate"];
+                break;
+            default: // Details
+                _currentViewMode = "Details";
+                _savedViewMode = "Details";
+                FilesListView.ItemTemplate = null;
+                FilesListView.ItemsPanel = (ItemsPanelTemplate)Resources["StackPanelTemplate"];
+                FilesListView.View = (ViewBase)Resources["DetailsGridView"];
+                break;
+        }
+        UpdateViewButtonsActiveState();
+    }
+
+    private void UpdateViewButtonsActiveState()
+    {
+        var activeBg = Brushes.Transparent;
+        var activeFg = new SolidColorBrush(Color.FromRgb(56, 189, 248)); // #38BDF8 clean active text
+        var inactiveBg = Brushes.Transparent;
+        var inactiveFg = new SolidColorBrush(Color.FromRgb(148, 163, 184)); // #94A3B8 muted clean text
+        var noBorder = Brushes.Transparent;
+
+        void StyleBtn(Button? btn, bool active)
+        {
+            if (btn == null) return;
+            btn.Background = active ? activeBg : inactiveBg;
+            btn.Foreground = active ? activeFg : inactiveFg;
+            btn.BorderBrush = noBorder;
+            btn.BorderThickness = new Thickness(0);
+        }
+
+        StyleBtn(FindName("BtnViewDetails") as Button, _currentViewMode == "Details");
+        StyleBtn(FindName("BtnViewList") as Button, _currentViewMode == "List");
+        StyleBtn(FindName("BtnViewThumbnails") as Button, _currentViewMode == "Thumbnails");
+        StyleBtn(FindName("BtnViewTiles") as Button, _currentViewMode == "Tiles");
     }
 
     private static bool MatchesFilter(string ext, string[] patterns)
@@ -350,6 +449,30 @@ public partial class KashtrixFileDialog : Window
                 FileName = selectedFiles[0];
                 DialogResult = true;
                 Close();
+                return;
+            }
+        }
+
+        if (IsFolderPicker)
+        {
+            if (FilesListView.SelectedItem is FileSystemEntryItem folderItem && folderItem.IsDirectory)
+            {
+                ConfirmSelection(folderItem.FullPath);
+                return;
+            }
+            var textVal = FileNameBox.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(textVal))
+            {
+                var cand = Path.IsPathRooted(textVal) ? textVal : Path.Combine(_currentDirectory, textVal);
+                if (Directory.Exists(cand))
+                {
+                    ConfirmSelection(cand);
+                    return;
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(_currentDirectory) && Directory.Exists(_currentDirectory))
+            {
+                ConfirmSelection(_currentDirectory);
                 return;
             }
         }
