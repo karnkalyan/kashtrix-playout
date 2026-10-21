@@ -63,6 +63,7 @@ Name: "prompter";    Description: "Kashtrix.Prompter (Studio News Teleprompter)"
 Name: "qc";          Description: "Kashtrix.QCController (Quality Control & Compliance)"; Types: full custom
 Name: "filemgr";     Description: "Kashtrix.FileManager (Media File Preparation)"; Types: full custom
 Name: "settings";    Description: "Kashtrix.Settings (Suite Configuration)"; Types: full custom
+Name: "licmgr";      Description: "Kashtrix.LicenseManager (Central License Authority)"; Types: full custom
 
 ; =====================================================================
 ; DESKTOP SHORTCUT TASKS
@@ -87,6 +88,7 @@ Name: "desktopicon\prompter";    Description: "Kashtrix.Prompter (Teleprompter)"
 Name: "desktopicon\qc";          Description: "Kashtrix.QCController";               Components: qc
 Name: "desktopicon\filemgr";     Description: "Kashtrix.FileManager";                Components: filemgr
 Name: "desktopicon\settings";    Description: "Kashtrix.Settings";                   Components: settings
+Name: "desktopicon\licmgr";      Description: "Kashtrix.LicenseManager";             Components: licmgr
 
 ; =====================================================================
 ; RELEASE BINARIES INSTALLATION
@@ -113,6 +115,7 @@ Source: "{#BuildBinDir}\Kashtrix.Prompter\x64\Release\net10.0-windows10.0.26100.
 Source: "{#BuildBinDir}\Kashtrix.QCController\x64\Release\net10.0-windows10.0.26100.0\win-x64\*"; DestDir: "{app}\QCController"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: qc
 Source: "{#BuildBinDir}\Kashtrix.FileManager\x64\Release\net10.0-windows10.0.26100.0\win-x64\*"; DestDir: "{app}\FileManager"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: filemgr
 Source: "{#BuildBinDir}\Kashtrix.Settings\x64\Release\net10.0-windows10.0.26100.0\win-x64\*"; DestDir: "{app}\Settings"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: settings
+Source: "{#BuildBinDir}\Kashtrix.LicenseManager\x64\Release\net10.0-windows10.0.26100.0\win-x64\*"; DestDir: "{app}\LicenseManager"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: licmgr
 
 ; 3. Branding, Templates & Native Engine Assets
 Source: "{#BrandingDir}\*"; DestDir: "{app}\Branding"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -142,6 +145,7 @@ Name: "{group}\Kashtrix Teleprompter"; Filename: "{app}\Prompter\Kashtrix.Prompt
 Name: "{group}\Kashtrix QC Controller"; Filename: "{app}\QCController\Kashtrix.QCController.exe"; Components: qc
 Name: "{group}\Kashtrix File Manager"; Filename: "{app}\FileManager\Kashtrix.FileManager.exe"; Components: filemgr
 Name: "{group}\Kashtrix Settings"; Filename: "{app}\Settings\Kashtrix.Settings.exe"; Components: settings
+Name: "{group}\Kashtrix License Manager"; Filename: "{app}\LicenseManager\Kashtrix.LicenseManager.exe"; Components: licmgr
 Name: "{group}\Uninstall Kashtrix Suite"; Filename: "{uninstallexe}"
 
 ; =====================================================================
@@ -165,6 +169,7 @@ Name: "{autodesktop}\Kashtrix Teleprompter"; Filename: "{app}\Prompter\Kashtrix.
 Name: "{autodesktop}\Kashtrix QC Controller"; Filename: "{app}\QCController\Kashtrix.QCController.exe"; Tasks: desktopicon\qc; Components: qc
 Name: "{autodesktop}\Kashtrix File Manager"; Filename: "{app}\FileManager\Kashtrix.FileManager.exe"; Tasks: desktopicon\filemgr; Components: filemgr
 Name: "{autodesktop}\Kashtrix Settings"; Filename: "{app}\Settings\Kashtrix.Settings.exe"; Tasks: desktopicon\settings; Components: settings
+Name: "{autodesktop}\Kashtrix License Manager"; Filename: "{app}\LicenseManager\Kashtrix.LicenseManager.exe"; Tasks: desktopicon\licmgr; Components: licmgr
 
 ; =====================================================================
 ; POST-INSTALLATION RUN

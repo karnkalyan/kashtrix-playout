@@ -38,10 +38,10 @@ public sealed class ModuleGateItem : INotifyPropertyChanged
         }
     }
 
-    public string StatusBadgeText => IsActive ? "ACTIVE · LICENSED" : "DEACTIVATED";
-    public Brush StatusBadgeBg => IsActive ? new SolidColorBrush(Color.FromRgb(16, 42, 24)) : new SolidColorBrush(Color.FromRgb(38, 22, 18));
-    public Brush StatusBadgeFg => IsActive ? new SolidColorBrush(Color.FromRgb(85, 200, 120)) : new SolidColorBrush(Color.FromRgb(240, 140, 90));
-    public Brush StatusBorderBrush => IsActive ? new SolidColorBrush(Color.FromRgb(36, 92, 54)) : new SolidColorBrush(Color.FromRgb(110, 40, 30));
+    public string StatusBadgeText => IsActive ? "ACTIVE · LICENSED" : "UNLICENSED";
+    public Brush StatusBadgeBg => IsActive ? new SolidColorBrush(Color.FromRgb(16, 42, 24)) : new SolidColorBrush(Color.FromRgb(30, 41, 59));
+    public Brush StatusBadgeFg => IsActive ? new SolidColorBrush(Color.FromRgb(85, 200, 120)) : new SolidColorBrush(Color.FromRgb(148, 163, 184));
+    public Brush StatusBorderBrush => IsActive ? new SolidColorBrush(Color.FromRgb(36, 92, 54)) : new SolidColorBrush(Color.FromRgb(51, 65, 85));
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null) =>
@@ -72,11 +72,6 @@ public partial class LicenseManagerWindow : Window
             NodeIdBox.Text = KashtrixLicenseAuthority.HardwareId;
             KtxTokenBox.Text = KashtrixLicenseAuthority.ProvisioningKtxCode;
 
-            LicenseServerHostBox.Text = string.IsNullOrWhiteSpace(p.LicenseServerHost) ? KashtrixLicenseAuthority.DefaultProductionHost : p.LicenseServerHost;
-            LicenseServerPortBox.Text = p.LicenseServerPort > 0 ? p.LicenseServerPort.ToString() : KashtrixLicenseAuthority.DefaultProductionPort.ToString();
-            TenantIdBox.Text = string.IsNullOrWhiteSpace(p.TenantId) ? KashtrixLicenseAuthority.ProductTenantId : p.TenantId;
-            AppIdBox.Text = string.IsNullOrWhiteSpace(p.ApplicationId) ? KashtrixLicenseAuthority.ProductApplicationId : p.ApplicationId;
-
             ActivationStatusText.Text = string.IsNullOrWhiteSpace(p.ActivationStatus) ? "Unlicensed · Activation Required" : p.ActivationStatus;
             ExpirationText.Text = string.IsNullOrWhiteSpace(p.ExpirationDate) ? "Requires License Key Activation" : p.ExpirationDate;
             MaxResText.Text = $"{p.PlayoutMaxResolution} UHD (SD/HD/FHD/4K/8K)";
@@ -104,17 +99,17 @@ public partial class LicenseManagerWindow : Window
                 TierBannerText.Text = "KASHTRIX SUITE · UNLICENSED EVALUATION";
                 TierBannerSubtext.Text = "Centralized Omni License Protocol v2 · Activation key required to unlock broadcast transmission engines.";
                 BannerIconText.Text = "🔒";
-                BannerIconBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
-                BannerIconBorder.Background = new SolidColorBrush(Color.FromRgb(38, 26, 20));
-                TopBannerBorder.Background = new SolidColorBrush(Color.FromRgb(24, 19, 16));
-                TopBannerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(92, 43, 20));
+                BannerIconBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(51, 65, 85));
+                BannerIconBorder.Background = new SolidColorBrush(Color.FromRgb(30, 41, 59));
+                TopBannerBorder.Background = new SolidColorBrush(Color.FromRgb(15, 23, 42));
+                TopBannerBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(30, 41, 59));
 
                 BannerBadgeText.Text = "UNLICENSED · ACTIVATION REQUIRED";
-                BannerBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11));
-                BannerBadgeDot.Fill = new SolidColorBrush(Color.FromRgb(245, 158, 11));
-                BannerBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(45, 28, 18));
-                BannerBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(163, 78, 36));
-                ActivationStatusText.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+                BannerBadgeText.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+                BannerBadgeDot.Fill = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+                BannerBadgeBorder.Background = new SolidColorBrush(Color.FromRgb(30, 41, 59));
+                BannerBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(51, 65, 85));
+                ActivationStatusText.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
             }
 
             PopulateModuleGates(p);
@@ -229,14 +224,6 @@ public partial class LicenseManagerWindow : Window
             p.RegisteredOrg = OrgBox.Text.Trim();
             p.SerialNumber = LicenseKeyBox.Text.Trim();
 
-            p.LicenseServerHost = LicenseServerHostBox.Text.Trim();
-            if (int.TryParse(LicenseServerPortBox.Text.Trim(), out var port) && port > 0)
-            {
-                p.LicenseServerPort = port;
-            }
-            p.TenantId = TenantIdBox.Text.Trim();
-            p.ApplicationId = AppIdBox.Text.Trim();
-
             // Apply module states directly to policy
             foreach (var m in _modules)
             {
@@ -272,30 +259,6 @@ public partial class LicenseManagerWindow : Window
         {
             MessageBox.Show($"Error saving license policy: {ex.Message}", "Save Policy Error", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-    }
-
-    private async void TestServer_Click(object sender, RoutedEventArgs e)
-    {
-        var host = LicenseServerHostBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(host)) host = KashtrixLicenseAuthority.DefaultProductionHost;
-        if (!int.TryParse(LicenseServerPortBox.Text.Trim(), out var port) || port <= 0)
-        {
-            port = KashtrixLicenseAuthority.DefaultProductionPort;
-        }
-
-        StatusMessageText.Text = $"Testing connectivity to {host}:{port}...";
-        var (ok, msg) = await KashtrixLicenseAuthority.TestServerConnectivityAsync(host, port);
-        StatusMessageText.Text = msg;
-        MessageBox.Show(msg, "License Server Connection Test", MessageBoxButton.OK, ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
-    }
-
-    private void ResetServerDefaults_Click(object sender, RoutedEventArgs e)
-    {
-        LicenseServerHostBox.Text = KashtrixLicenseAuthority.DefaultProductionHost;
-        LicenseServerPortBox.Text = KashtrixLicenseAuthority.DefaultProductionPort.ToString();
-        TenantIdBox.Text = KashtrixLicenseAuthority.ProductTenantId;
-        AppIdBox.Text = KashtrixLicenseAuthority.ProductApplicationId;
-        StatusMessageText.Text = "Production license server defaults restored (Omni License Protocol v2).";
     }
 
     private void CopyKtx_Click(object sender, RoutedEventArgs e)
@@ -341,9 +304,9 @@ public partial class LicenseManagerWindow : Window
                     LicenseId = LicenseIdBox.Text,
                     Tier = "Broadcast Enterprise Master",
                     Status = "Active · Perpetual",
-                    ServerEndpoint = $"{LicenseServerHostBox.Text}:{LicenseServerPortBox.Text}",
-                    TenantId = TenantIdBox.Text,
-                    ApplicationId = AppIdBox.Text,
+                    ServerEndpoint = $"{KashtrixLicenseAuthority.DefaultProductionHost}:{KashtrixLicenseAuthority.DefaultProductionPort}",
+                    TenantId = KashtrixLicenseAuthority.ProductTenantId,
+                    ApplicationId = KashtrixLicenseAuthority.ProductApplicationId,
                     IssuedAt = DateTime.UtcNow,
                     ActiveModules = _modules.Where(m => m.IsActive).Select(m => m.AppKey).ToArray(),
                     DeactivatedModules = _modules.Where(m => !m.IsActive).Select(m => m.AppKey).ToArray()

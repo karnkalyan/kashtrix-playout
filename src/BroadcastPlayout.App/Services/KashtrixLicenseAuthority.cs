@@ -99,7 +99,8 @@ public static class KashtrixLicenseAuthority
         new KtxModuleDefinition { code="FILE_MANAGER", name="Kashtrix File Manager", description="Broadcast media preparation, format validation & staging tool", type="boolean", defaultValue=false },
         new KtxModuleDefinition { code="CHANNELS_QUOTA", name="Simultaneous Playout Channels", description="Maximum active playout transmission channels", type="integer", min=1, max=64, step=1, defaultValue=16, unit="channels" },
         new KtxModuleDefinition { code="INPUTS_QUOTA", name="Simultaneous Input Sources", description="Maximum simultaneous live input sources", type="integer", min=1, max=64, step=1, defaultValue=16, unit="inputs" },
-        new KtxModuleDefinition { code="RESOLUTION", name="Maximum Broadcast Resolution", description="Maximum transmission resolution (hierarchical SD, HD, FHD, 4K, 8K)", type="string", defaultValue="8K" }
+        new KtxModuleDefinition { code="RES_4K", name="4K UHD Resolution Output", description="Hierarchical 4K UHD transmission output capability", type="boolean", defaultValue=false },
+        new KtxModuleDefinition { code="RES_8K", name="8K Ultra HD Resolution Output", description="Hierarchical 8K Ultra HD transmission output capability", type="boolean", defaultValue=false }
     };
 
     public static string PolicyFilePath => Path.Combine(
@@ -198,7 +199,7 @@ public static class KashtrixLicenseAuthority
                 }
                 else
                 {
-                    SavePolicy(_currentPolicy);
+                    _currentPolicy = new LicensePolicy();
                 }
             }
             catch
@@ -352,29 +353,14 @@ public static class KashtrixLicenseAuthority
         return true;
     }
 
-    private static string GenerateHardwareId()
+    private static string GetSystemUuid()
     {
         try
         {
-            var psi = new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -Command \"(Get-CimInstance Win32_ComputerSystemProduct).UUID\"")
-            {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-            using var proc = Process.Start(psi);
-            if (proc != null)
-            {
-                var uuid = proc.StandardOutput.ReadToEnd().Trim();
-                proc.WaitForExit(3000);
-                var compact = uuid.Replace("-", "");
-                if (uuid.Length >= 8 && !compact.All(c => c == '0' || c == 'F' || c == 'f'))
-                {
-                    var canonical = $"{uuid}|win32|{RuntimeInformation.OSArchitecture}".ToLowerInvariant();
-                    return Sha256Hex($"kashtrix-hwid-v2|{ProductTenantId}|{ProductApplicationId}|{canonical}")[..24].ToUpperInvariant();
-                }
-            }
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Cryptography");
+            var guid = key?.GetValue("MachineGuid")?.ToString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(guid) && guid.Length >= 8)
+                return guid.ToLowerInvariant();
         }
         catch { }
 
@@ -384,13 +370,63 @@ public static class KashtrixLicenseAuthority
                 .FirstOrDefault(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback);
             if (nic != null)
             {
-                var mac = nic.GetPhysicalAddress().ToString();
-                return Sha256Hex($"kashtrix-nic-hwid|{mac}")[..24].ToUpperInvariant();
+                var mac = nic.GetPhysicalAddress()?.ToString()?.ToLowerInvariant();
+                if (!string.IsNullOrEmpty(mac) && mac.Length >= 8)
+                    return mac;
             }
         }
         catch { }
 
-        return "KTX-NODE-F49H-88F4-PRO";
+        return Environment.MachineName.ToLowerInvariant();
+    }
+
+    public static string GetOrCreatePersistentClientId()
+    {
+        try
+        {
+            var tenantId = ProductTenantId.Trim().ToLowerInvariant();
+            var appId = ProductApplicationId.Trim().ToLowerInvariant();
+            var ns = Sha256Hex($"{tenantId}|{appId}")[..24];
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KashtrixPlayout");
+            Directory.CreateDirectory(dir);
+            var file = Path.Combine(dir, $"license-client-{ns}.id");
+            if (File.Exists(file))
+            {
+                var text = File.ReadAllText(file).Trim();
+                if (Guid.TryParse(text, out var parsedGuid))
+                {
+                    return parsedGuid.ToString("D").ToLowerInvariant();
+                }
+            }
+            var newId = Guid.NewGuid().ToString("D").ToLowerInvariant();
+            File.WriteAllText(file, newId);
+            return newId;
+        }
+        catch
+        {
+            return Guid.NewGuid().ToString("D").ToLowerInvariant();
+        }
+    }
+
+    private static string GenerateHardwareId()
+    {
+        var rawMachineId = GetSystemUuid();
+        var platform = "win32";
+        var arch = RuntimeInformation.OSArchitecture switch
+        {
+            Architecture.X64 => "x64",
+            Architecture.Arm64 => "arm64",
+            Architecture.X86 => "ia32",
+            _ => "x64"
+        };
+
+        var components = new[] { rawMachineId, platform, arch }
+            .Select(x => x.Trim().ToLowerInvariant())
+            .OrderBy(x => x, StringComparer.Ordinal);
+        var canonical = string.Join("|", components);
+        var baseFingerprint = Sha256Hex("lm-base-hwid-v2|" + canonical);
+        var appHwid = Sha256Hex($"lm-app-hwid-v2|{ProductTenantId.ToLowerInvariant()}|{ProductApplicationId.ToLowerInvariant()}|{baseFingerprint}");
+        return appHwid.ToLowerInvariant();
     }
 
     public static string GenerateKtxProvisioningToken()
@@ -399,11 +435,10 @@ public static class KashtrixLicenseAuthority
         var payload = new
         {
             v = 1,
-            tenantId = string.IsNullOrWhiteSpace(Current.TenantId) ? ProductTenantId : Current.TenantId,
-            applicationId = string.IsNullOrWhiteSpace(Current.ApplicationId) ? ProductApplicationId : Current.ApplicationId,
-            clientId = Guid.NewGuid().ToString("D"),
+            tenantId = ProductTenantId.ToLowerInvariant(),
+            applicationId = ProductApplicationId.ToLowerInvariant(),
+            clientId = GetOrCreatePersistentClientId(),
             hwid,
-            isActivated = Current.IsActivated,
             modules = SuiteModuleCatalog
         };
 
@@ -416,6 +451,17 @@ public static class KashtrixLicenseAuthority
 
     private static string Base64UrlEncode(byte[] input) =>
         Convert.ToBase64String(input).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private static byte[] Base64UrlDecode(string input)
+    {
+        var output = input.Replace('-', '+').Replace('_', '/');
+        switch (output.Length % 4)
+        {
+            case 2: output += "=="; break;
+            case 3: output += "="; break;
+        }
+        return Convert.FromBase64String(output);
+    }
 
     public static int GetResolutionLevel(string? resolution)
     {
@@ -545,7 +591,7 @@ public static class KashtrixLicenseAuthority
     }
 
     /// <summary>
-    /// Activates the software suite with an entered license key.
+    /// Activates the software suite with an entered signed license JWT token.
     /// </summary>
     public static bool ActivateLicense(string serialKey, string customerName, string company, out string message)
     {
@@ -553,98 +599,162 @@ public static class KashtrixLicenseAuthority
         var key = serialKey?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(key) || key.Length < 8)
         {
-            message = "Please enter a valid Kashtrix license key (minimum 8 characters).";
+            message = "Please enter a valid Kashtrix license key token.";
             return false;
         }
 
         var p = _currentPolicy;
-        p.IsActivated = true;
-        p.SerialNumber = key;
-        p.CustomerName = string.IsNullOrWhiteSpace(customerName) ? "Chief Transmission Engineer" : customerName.Trim();
-        p.LicensedCompany = string.IsNullOrWhiteSpace(company) ? "Kashtrix Broadcast Systems Ltd." : company.Trim();
-        p.RegisteredOrg = p.LicensedCompany;
-        p.LicenseId = "LIC-KTX-" + Sha256Hex(key + HardwareId)[..12].ToUpperInvariant();
-        p.ActivationStatus = "Active · Enterprise Verified";
-        p.ActivationDate = DateTime.UtcNow.ToString("MMMM dd, yyyy");
-        p.ExpirationDate = DateTime.UtcNow.AddYears(1).ToString("MMMM dd, yyyy") + " (Annual Enterprise License)";
-        p.SupportContract = "24/7 Enterprise Master SLA · Active";
 
-        // Unlock all modules
-        p.PlayoutActive = true;
-        p.OutputEngineActive = true;
-        p.InputEngineActive = true;
-        p.HaControllerActive = true;
-        p.NrcsActive = true;
-        p.ApiGatewayActive = true;
-        p.CgControllerActive = true;
-        p.CgEditorActive = true;
-        p.ChannelControllerActive = true;
-        p.IngestActive = true;
-        p.MamActive = true;
-        p.MultiviewerActive = true;
-        p.PlaylistEditorActive = true;
-        p.PlaylistSchedulerActive = true;
-        p.PrompterActive = true;
-        p.QcControllerActive = true;
-        p.FileManagerActive = true;
+        if (key.Contains('.'))
+        {
+            var parts = key.Split('.');
+            if (parts.Length == 3)
+            {
+                try
+                {
+                    var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
+                    using var doc = JsonDocument.Parse(payloadJson);
+                    var root = doc.RootElement;
 
-        p.AllowHardwareOutputs = true;
-        p.AllowStreamingOutputs = true;
-        p.AllowNdiOutputs = true;
-        p.AllowVirtualOutputs = true;
-        p.AllowHardwareInputs = true;
-        p.AllowStreamingInputs = true;
-        p.AllowNdiInputs = true;
-        p.FeatureEpg = true;
-        p.FeatureScte = true;
-        p.FeatureMos = true;
-        p.CgControllerAllowExternalOutput = true;
-        p.CgControllerQuickEdit = true;
-        p.CgEditorQuickEdit = true;
-        p.ChannelControllerCgPlayAllowed = true;
+                    if (root.TryGetProperty("typ", out var typEl) && typEl.GetString() != "license")
+                    {
+                        message = "Invalid license token: Token type must be 'license'.";
+                        return false;
+                    }
 
-        SavePolicy(p);
-        message = "Kashtrix Broadcast Suite successfully activated! All 17 enterprise modules and engines are now unlocked.";
-        return true;
+                    if (root.TryGetProperty("ten", out var tenEl))
+                    {
+                        var tokenTenant = tenEl.GetString() ?? "";
+                        if (!string.Equals(tokenTenant, ProductTenantId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            message = $"Tenant mismatch: License is scoped for tenant '{tokenTenant}', expected '{ProductTenantId}'.";
+                            return false;
+                        }
+                    }
+
+                    if (root.TryGetProperty("app", out var appEl))
+                    {
+                        var tokenApp = appEl.GetString() ?? "";
+                        if (!string.Equals(tokenApp, ProductApplicationId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            message = $"Application mismatch: License is scoped for application '{tokenApp}', expected '{ProductApplicationId}'.";
+                            return false;
+                        }
+                    }
+
+                    string expFormatted = "Perpetual (No Expiration Date)";
+                    if (root.TryGetProperty("exp", out var expEl) && expEl.TryGetInt64(out var expSeconds))
+                    {
+                        var expTime = DateTimeOffset.FromUnixTimeSeconds(expSeconds).UtcDateTime;
+                        if (DateTime.UtcNow > expTime)
+                        {
+                            message = $"License expired on {expTime:MMMM dd, yyyy}. Please obtain a renewed license.";
+                            return false;
+                        }
+                        expFormatted = expTime.ToString("MMMM dd, yyyy");
+                    }
+
+                    var serial = root.TryGetProperty("lic", out var licEl) ? licEl.GetString() : key;
+                    var licId = root.TryGetProperty("jti", out var jtiEl) ? jtiEl.GetString() : ("LIC-KTX-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant());
+
+                    var modulesSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (root.TryGetProperty("mod", out var modEl) && modEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in modEl.EnumerateArray())
+                        {
+                            var code = item.GetString();
+                            if (!string.IsNullOrEmpty(code)) modulesSet.Add(code);
+                        }
+                    }
+
+                    int channelsQuota = 16;
+                    int inputsQuota = 16;
+                    bool has4K = modulesSet.Contains("RES_4K");
+                    bool has8K = modulesSet.Contains("RES_8K");
+
+                    if (root.TryGetProperty("ent", out var entEl) && entEl.ValueKind == JsonValueKind.Object)
+                    {
+                        if (entEl.TryGetProperty("CHANNELS_QUOTA", out var cqEl) && cqEl.TryGetInt32(out var cq))
+                            channelsQuota = Math.Clamp(cq, 1, 64);
+                        if (entEl.TryGetProperty("INPUTS_QUOTA", out var iqEl) && iqEl.TryGetInt32(out var iq))
+                            inputsQuota = Math.Clamp(iq, 1, 64);
+                        if (entEl.TryGetProperty("RES_4K", out var r4El) && r4El.ValueKind == JsonValueKind.True)
+                            has4K = true;
+                        if (entEl.TryGetProperty("RES_8K", out var r8El) && r8El.ValueKind == JsonValueKind.True)
+                            has8K = true;
+                    }
+
+                    p.IsActivated = true;
+                    p.SerialNumber = serial ?? key;
+                    p.LicenseId = licId ?? "LIC-ENTERPRISE";
+                    p.CustomerName = string.IsNullOrWhiteSpace(customerName) ? "Licensed Operator" : customerName.Trim();
+                    p.LicensedCompany = string.IsNullOrWhiteSpace(company) ? "Kashtrix Broadcast Systems Ltd." : company.Trim();
+                    p.RegisteredOrg = p.LicensedCompany;
+                    p.ActivationStatus = "Active · Certified License";
+                    p.ActivationDate = DateTime.UtcNow.ToString("MMMM dd, yyyy");
+                    p.ExpirationDate = expFormatted;
+                    p.SupportContract = "Enterprise Broadcast Master SLA · Active";
+
+                    p.PlayoutActive = modulesSet.Contains("PLAYOUT");
+                    p.OutputEngineActive = modulesSet.Contains("OUTPUT_ENGINE");
+                    p.InputEngineActive = modulesSet.Contains("INPUT_ENGINE");
+                    p.HaControllerActive = modulesSet.Contains("HA_CONTROLLER");
+                    p.NrcsActive = modulesSet.Contains("NRCS");
+                    p.ApiGatewayActive = modulesSet.Contains("API_GATEWAY");
+                    p.CgControllerActive = modulesSet.Contains("CG_CONTROLLER");
+                    p.CgEditorActive = modulesSet.Contains("CG_EDITOR");
+                    p.ChannelControllerActive = modulesSet.Contains("CHANNEL_CTRL");
+                    p.IngestActive = modulesSet.Contains("INGEST_SERVER");
+                    p.MamActive = modulesSet.Contains("MAM");
+                    p.MultiviewerActive = modulesSet.Contains("MULTIVIEWER");
+                    p.PlaylistEditorActive = modulesSet.Contains("PLAYLIST_EDITOR");
+                    p.PlaylistSchedulerActive = modulesSet.Contains("SCHEDULER");
+                    p.PrompterActive = modulesSet.Contains("PROMPTER");
+                    p.QcControllerActive = modulesSet.Contains("QC_CONTROLLER");
+                    p.FileManagerActive = modulesSet.Contains("FILE_MANAGER");
+
+                    p.PlayoutMaxChannels = channelsQuota;
+                    p.PlayoutMaxInputSources = inputsQuota;
+                    p.PlayoutMaxResolution = has8K ? "8K" : (has4K ? "4K" : "FHD");
+                    p.OutputMaxResolution = p.PlayoutMaxResolution;
+                    p.InputMaxResolution = p.PlayoutMaxResolution;
+
+                    SavePolicy(p);
+                    message = $"Kashtrix Broadcast Suite successfully activated! Certified for {modulesSet.Count} modules with {channelsQuota} Playout channels ({p.PlayoutMaxResolution} resolution).";
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    message = $"Invalid signed license token payload: {ex.Message}";
+                    return false;
+                }
+            }
+        }
+
+        message = "Invalid license key format. Please paste the official signed cryptographic license key token issued by Kashtrix License Server.";
+        return false;
     }
 
     /// <summary>
-    /// Resets software to unactivated state.
+    /// Resets software to unactivated state and purges local license file.
     /// </summary>
     public static void ResetToUnlicensed()
     {
-        EnsureLoaded();
-        var p = _currentPolicy;
-        p.IsActivated = false;
-        p.SerialNumber = string.Empty;
-        p.LicenseId = "UNREGISTERED-TRIAL";
-        p.CustomerName = "Unregistered Operator";
-        p.LicensedCompany = "Evaluation Workstation";
-        p.RegisteredOrg = "Evaluation Workstation";
-        p.ActivationStatus = "Unlicensed · Activation Required";
-        p.ActivationDate = string.Empty;
-        p.ExpirationDate = "Not Activated (Requires License Key)";
-        p.SupportContract = "Trial Support · Unlicensed";
+        lock (_sync)
+        {
+            try
+            {
+                if (File.Exists(PolicyFilePath))
+                {
+                    File.Delete(PolicyFilePath);
+                }
+            }
+            catch { }
 
-        p.PlayoutActive = false;
-        p.OutputEngineActive = false;
-        p.InputEngineActive = false;
-        p.HaControllerActive = false;
-        p.NrcsActive = false;
-        p.ApiGatewayActive = false;
-        p.CgControllerActive = false;
-        p.CgEditorActive = false;
-        p.ChannelControllerActive = false;
-        p.IngestActive = false;
-        p.MamActive = false;
-        p.MultiviewerActive = false;
-        p.PlaylistEditorActive = false;
-        p.PlaylistSchedulerActive = false;
-        p.PrompterActive = false;
-        p.QcControllerActive = false;
-        p.FileManagerActive = false;
-
-        SavePolicy(p);
+            _currentPolicy = new LicensePolicy();
+            _cachedKtx = null;
+            _initialized = true;
+        }
     }
 
     /// <summary>
@@ -742,15 +852,15 @@ public sealed class LicensePolicy
     public bool IsActivated { get; set; } = false;
 
     // License Authority & Customer Metadata
-    public string TierName { get; set; } = "Broadcast Enterprise Master";
+    public string TierName { get; set; } = "Kashtrix Playout Suite";
     public string SerialNumber { get; set; } = string.Empty;
-    public string LicenseId { get; set; } = "UNREGISTERED-TRIAL";
+    public string LicenseId { get; set; } = "UNLICENSED";
     public string CustomerName { get; set; } = "Unregistered Operator";
     public string LicensedCompany { get; set; } = "Evaluation Workstation";
     public string RegisteredOrg { get; set; } = "Evaluation Workstation";
-    public string ActivationStatus { get; set; } = "Unlicensed · Activation Required";
+    public string ActivationStatus { get; set; } = "UNLICENSED · ACTIVATION REQUIRED";
     public string ActivationDate { get; set; } = string.Empty;
-    public string ExpirationDate { get; set; } = "Not Activated (Requires License Key)";
+    public string ExpirationDate { get; set; } = "Unlicensed (Requires Activation Key)";
     public string SupportContract { get; set; } = "Trial Support · Unlicensed";
 
     // License Server (Omni License Protocol v2)
@@ -764,31 +874,31 @@ public sealed class LicensePolicy
 
     // Playout.app settings
     public bool PlayoutActive { get; set; } = false;
-    public string PlayoutMaxResolution { get; set; } = "8K"; // SD, HD, FHD, 4K, 8K
-    public string PlayoutAudioFormat { get; set; } = "7.1 Surround (Mono, Stereo, 5.1 & 7.1)";
-    public int PlayoutMaxChannels { get; set; } = 16;
-    public int PlayoutMaxInputSources { get; set; } = 16;
-    public bool DirectPlayoutNdiOutputEnabled { get; set; } = false; // Direct NDI routed via Output Engine
-    public bool FeatureEpg { get; set; } = true;
-    public bool FeatureScte { get; set; } = true;
-    public bool FeatureMos { get; set; } = true;
+    public string PlayoutMaxResolution { get; set; } = "FHD"; // SD, HD, FHD, 4K, 8K
+    public string PlayoutAudioFormat { get; set; } = "Stereo";
+    public int PlayoutMaxChannels { get; set; } = 1;
+    public int PlayoutMaxInputSources { get; set; } = 1;
+    public bool DirectPlayoutNdiOutputEnabled { get; set; } = false;
+    public bool FeatureEpg { get; set; } = false;
+    public bool FeatureScte { get; set; } = false;
+    public bool FeatureMos { get; set; } = false;
 
     // Kashtrix.OutputEngine
     public bool OutputEngineActive { get; set; } = false;
-    public string OutputMaxResolution { get; set; } = "8K";
-    public int MaxOutputInstances { get; set; } = 16;
-    public bool AllowHardwareOutputs { get; set; } = true;
-    public bool AllowStreamingOutputs { get; set; } = true;
-    public bool AllowNdiOutputs { get; set; } = true;
-    public bool AllowVirtualOutputs { get; set; } = true;
+    public string OutputMaxResolution { get; set; } = "FHD";
+    public int MaxOutputInstances { get; set; } = 1;
+    public bool AllowHardwareOutputs { get; set; } = false;
+    public bool AllowStreamingOutputs { get; set; } = false;
+    public bool AllowNdiOutputs { get; set; } = false;
+    public bool AllowVirtualOutputs { get; set; } = false;
 
     // Kashtrix.InputEngine
     public bool InputEngineActive { get; set; } = false;
-    public string InputMaxResolution { get; set; } = "8K";
-    public int MaxInputInstances { get; set; } = 16;
-    public bool AllowHardwareInputs { get; set; } = true;
-    public bool AllowStreamingInputs { get; set; } = true;
-    public bool AllowNdiInputs { get; set; } = true;
+    public string InputMaxResolution { get; set; } = "FHD";
+    public int MaxInputInstances { get; set; } = 1;
+    public bool AllowHardwareInputs { get; set; } = false;
+    public bool AllowStreamingInputs { get; set; } = false;
+    public bool AllowNdiInputs { get; set; } = false;
 
     // Kashtrix.HAController
     public bool HaControllerActive { get; set; } = false;
@@ -800,31 +910,31 @@ public sealed class LicensePolicy
 
     // Kashtrix.CGController
     public bool CgControllerActive { get; set; } = false;
-    public bool CgControllerAllowExternalOutput { get; set; } = true;
-    public string CgControllerMaxResolution { get; set; } = "8K";
-    public bool CgControllerQuickEdit { get; set; } = true;
-    public bool CgControllerScheduler { get; set; } = true;
+    public bool CgControllerAllowExternalOutput { get; set; } = false;
+    public string CgControllerMaxResolution { get; set; } = "FHD";
+    public bool CgControllerQuickEdit { get; set; } = false;
+    public bool CgControllerScheduler { get; set; } = false;
 
     // Kashtrix.CGEditor
     public bool CgEditorActive { get; set; } = false;
-    public string CgEditorMaxResolution { get; set; } = "8K";
-    public bool CgEditorQuickEdit { get; set; } = true;
+    public string CgEditorMaxResolution { get; set; } = "FHD";
+    public bool CgEditorQuickEdit { get; set; } = false;
 
     // Kashtrix.ChannelController
     public bool ChannelControllerActive { get; set; } = false;
-    public bool ChannelControllerCgPlayAllowed { get; set; } = true;
+    public bool ChannelControllerCgPlayAllowed { get; set; } = false;
 
     // Kashtrix.IngestServer
     public bool IngestActive { get; set; } = false;
-    public int IngestTotalChannels { get; set; } = 16;
-    public string IngestMaxResolution { get; set; } = "8K";
+    public int IngestTotalChannels { get; set; } = 1;
+    public string IngestMaxResolution { get; set; } = "FHD";
 
     // Kashtrix.MAM
     public bool MamActive { get; set; } = false;
 
     // Kashtrix.Multiview
     public bool MultiviewerActive { get; set; } = false;
-    public int MultiviewerMaxInputs { get; set; } = 16;
+    public int MultiviewerMaxInputs { get; set; } = 1;
 
     // Kashtrix.PlaylistEditor & Scheduler
     public bool PlaylistEditorActive { get; set; } = false;
@@ -835,7 +945,7 @@ public sealed class LicensePolicy
 
     // Kashtrix.QCController
     public bool QcControllerActive { get; set; } = false;
-    public int QcControllerChannelsCount { get; set; } = 8;
+    public int QcControllerChannelsCount { get; set; } = 1;
 
     // Kashtrix.FileManager
     public bool FileManagerActive { get; set; } = false;

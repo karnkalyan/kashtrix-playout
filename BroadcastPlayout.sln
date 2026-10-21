@@ -38,6 +38,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kashtrix.OutputEngine", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kashtrix.InputEngine", "src\Kashtrix.InputEngine\Kashtrix.InputEngine.csproj", "{B3A4F5C1-2D33-4A6E-9C11-7E91E3F20106}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kashtrix.LicenseManager", "src\Kashtrix.LicenseManager\Kashtrix.LicenseManager.csproj", "{B3A4F5C1-2D33-4A6E-9C11-7E91E3F20107}"
+EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution
         Debug|x64 = Debug|x64

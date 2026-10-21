@@ -47,25 +47,25 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- TOP STATUS BANNER -->
-                <Border x:Name="TopBannerBorder" Grid.Row="0" Background="#181310" BorderBrush="#5C2B14" BorderThickness="1.5" CornerRadius="4" Padding="16,12" Margin="0,0,0,12">
+                <!-- TOP STATUS BANNER (STANDARD SLATE THEME) -->
+                <Border x:Name="TopBannerBorder" Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1.5" CornerRadius="4" Padding="16,12" Margin="0,0,0,12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="54"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Border x:Name="BannerIconBorder" Width="42" Height="42" Background="#261A14" BorderBrush="#F59E0B" BorderThickness="1.5" CornerRadius="21" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border x:Name="BannerIconBorder" Width="42" Height="42" Background="#1E293B" BorderBrush="#334155" BorderThickness="1.5" CornerRadius="21" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <TextBlock x:Name="BannerIconText" Text="🔒" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
                             <TextBlock x:Name="TierBannerText" Text="KASHTRIX SUITE · UNLICENSED EVALUATION" FontWeight="Bold" FontSize="14" Foreground="#F0F6FC"/>
                             <TextBlock x:Name="TierBannerSubtext" Text="Centralized Omni License Protocol v2 · Activation key required to unlock broadcast transmission engines." Foreground="{StaticResource MutedBrush}" FontSize="10.5" Margin="0,3,0,0"/>
                         </StackPanel>
-                        <Border x:Name="BannerBadgeBorder" Grid.Column="2" Background="#2D1C12" BorderBrush="#A34E24" BorderThickness="1.5" CornerRadius="4" Padding="14,7" VerticalAlignment="Center">
+                        <Border x:Name="BannerBadgeBorder" Grid.Column="2" Background="#1E293B" BorderBrush="#334155" BorderThickness="1.5" CornerRadius="4" Padding="14,7" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Ellipse x:Name="BannerBadgeDot" Width="8" Height="8" Fill="#F59E0B" Margin="0,0,7,0"/>
-                                <TextBlock x:Name="BannerBadgeText" Text="UNLICENSED · ACTIVATION REQUIRED" FontWeight="Bold" FontSize="10.5" Foreground="#F59E0B"/>
+                                <Ellipse x:Name="BannerBadgeDot" Width="8" Height="8" Fill="#64748B" Margin="0,0,7,0"/>
+                                <TextBlock x:Name="BannerBadgeText" Text="UNLICENSED · ACTIVATION REQUIRED" FontWeight="Bold" FontSize="10.5" Foreground="#94A3B8"/>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -79,7 +79,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- LEFT COLUMN: IDENTIFIERS & SERVER DETAILS -->
+                    <!-- LEFT COLUMN: IDENTIFIERS & WORKSTATION METRICS -->
                     <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="0,0,6,0">
                             <!-- CARD 1: LICENSEE & HWID -->
@@ -115,7 +115,7 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <TextBlock Text="LICENSE ID" Style="{StaticResource SectionCaption}"/>
-                                            <TextBox x:Name="LicenseIdBox" Text="UNREGISTERED-TRIAL" IsReadOnly="True" Margin="0,3,0,0" Height="28" Background="#070A0E" FontFamily="Consolas"/>
+                                            <TextBox x:Name="LicenseIdBox" Text="UNLICENSED" IsReadOnly="True" Margin="0,3,0,0" Height="28" Background="#070A0E" FontFamily="Consolas"/>
                                         </StackPanel>
                                     </Grid>
 
@@ -131,7 +131,7 @@
                                     </Grid>
 
                                     <TextBlock Text="WORKSTATION SECURE HARDWARE ID (HWID)" Style="{StaticResource SectionCaption}"/>
-                                    <TextBox x:Name="NodeIdBox" Text="KTX-NODE-88F4-992C-4KPRO" IsReadOnly="True" Margin="0,3,0,8" Height="28" Background="#070A0E" FontFamily="Consolas"/>
+                                    <TextBox x:Name="NodeIdBox" Text="KTX-NODE-..." IsReadOnly="True" Margin="0,3,0,8" Height="28" Background="#070A0E" FontFamily="Consolas"/>
 
                                     <TextBlock Text="KTX DEVICE PROVISIONING TOKEN" Style="{StaticResource SectionCaption}"/>
                                     <Grid Margin="0,3,0,8">
@@ -152,7 +152,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="LICENSE STATUS" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="1" x:Name="ActivationStatusText" Text="Unlicensed · Activation Required" FontWeight="Bold" Foreground="#F59E0B" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="1" x:Name="ActivationStatusText" Text="UNLICENSED · ACTIVATION REQUIRED" FontWeight="Bold" Foreground="#94A3B8" TextWrapping="Wrap"/>
                                             </Grid>
                                             <Grid Margin="0,0,0,6">
                                                 <Grid.ColumnDefinitions>
@@ -168,7 +168,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="RESOLUTION LIMIT" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="1" x:Name="MaxResText" Text="8K UHD (SD / HD / FHD / 4K / 8K)" FontWeight="SemiBold" Foreground="#38BDF8" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="1" x:Name="MaxResText" Text="FHD (SD / HD / FHD)" FontWeight="SemiBold" Foreground="#38BDF8" TextWrapping="Wrap"/>
                                             </Grid>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -176,53 +176,10 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="SUPPORT &amp; SLA" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="1" x:Name="SupportContractText" Text="Evaluation Support · Unlicensed" FontWeight="SemiBold" Foreground="#C084FC" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="1" x:Name="SupportContractText" Text="Evaluation Support · Unlicensed" FontWeight="SemiBold" Foreground="#94A3B8" TextWrapping="Wrap"/>
                                             </Grid>
                                         </StackPanel>
                                     </Border>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- CARD 2: LICENSE SERVER & PROTOCOL (Referenced from K-Mix) -->
-                            <Border Style="{StaticResource PanelBorder}" Padding="14">
-                                <StackPanel>
-                                    <Grid Margin="0,0,0,10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="LICENSE SERVER CONFIGURATION (OMNI V2)" FontWeight="Bold" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center"/>
-                                        <Border Grid.Column="1" Background="#142436" CornerRadius="3" Padding="6,2">
-                                            <TextBlock Text="K-MIX COMPATIBLE" FontSize="8.5" FontWeight="Bold" Foreground="#38BDF8"/>
-                                        </Border>
-                                    </Grid>
-
-                                    <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="2.2*"/>
-                                            <ColumnDefinition Width="8"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="SERVER HOST / FQDN" Style="{StaticResource SectionCaption}"/>
-                                            <TextBox x:Name="LicenseServerHostBox" Text="license.simulcast.com.np" Margin="0,3,0,0" Height="28" FontFamily="Consolas"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Text="PORT" Style="{StaticResource SectionCaption}"/>
-                                            <TextBox x:Name="LicenseServerPortBox" Text="7443" Margin="0,3,0,0" Height="28" FontFamily="Consolas"/>
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <TextBlock Text="PRODUCT TENANT UUID" Style="{StaticResource SectionCaption}"/>
-                                    <TextBox x:Name="TenantIdBox" Text="efbdb195-bf65-489d-b54c-bf807533151b" Margin="0,3,0,8" Height="28" FontFamily="Consolas" FontSize="10"/>
-
-                                    <TextBlock Text="PRODUCT APPLICATION UUID" Style="{StaticResource SectionCaption}"/>
-                                    <TextBox x:Name="AppIdBox" Text="91bdcf8a-d5e0-4cc4-9246-cafdda90d69a" Margin="0,3,0,10" Height="28" FontFamily="Consolas" FontSize="10"/>
-
-                                    <WrapPanel>
-                                        <Button Content="TEST CONNECTIVITY" Click="TestServer_Click" Style="{StaticResource SmallTool}" Height="28" Padding="12,2" Margin="0,0,8,0" ToolTip="Test connection to remote license server"/>
-                                        <Button Content="RESET DEFAULTS" Click="ResetServerDefaults_Click" Style="{StaticResource SmallTool}" Height="28" Padding="12,2" ToolTip="Restore production license server endpoint"/>
-                                    </WrapPanel>
                                 </StackPanel>
                             </Border>
 
