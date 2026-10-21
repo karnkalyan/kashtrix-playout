@@ -436,11 +436,12 @@ public partial class KashtrixFileDialog : Window
 
     private void Action_Click(object sender, RoutedEventArgs e)
     {
-        if (Multiselect && FilesListView.SelectedItems.Count > 1)
+        if (!IsSaveMode && !IsFolderPicker)
         {
             var selectedFiles = FilesListView.SelectedItems.OfType<FileSystemEntryItem>()
                 .Where(x => !x.IsDirectory)
                 .Select(x => x.FullPath)
+                .Where(File.Exists)
                 .ToArray();
 
             if (selectedFiles.Length > 0)
@@ -460,7 +461,7 @@ public partial class KashtrixFileDialog : Window
                 ConfirmSelection(folderItem.FullPath);
                 return;
             }
-            var textVal = FileNameBox.Text.Trim();
+            var textVal = FileNameBox.Text.Trim().Trim('"');
             if (!string.IsNullOrWhiteSpace(textVal))
             {
                 var cand = Path.IsPathRooted(textVal) ? textVal : Path.Combine(_currentDirectory, textVal);
@@ -479,6 +480,24 @@ public partial class KashtrixFileDialog : Window
 
         var text = FileNameBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(text)) return;
+
+        // User may have selected multiple files which formatted text as "file1" "file2"
+        if (text.Contains('"'))
+        {
+            var extracted = text.Split('"', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(t => Path.IsPathRooted(t) ? t : Path.Combine(_currentDirectory, t))
+                .Where(File.Exists)
+                .ToArray();
+
+            if (extracted.Length > 0)
+            {
+                FileNames = extracted;
+                FileName = extracted[0];
+                DialogResult = true;
+                Close();
+                return;
+            }
+        }
 
         // Check if user entered a full path
         string candidate = Path.IsPathRooted(text) ? text : Path.Combine(_currentDirectory, text);

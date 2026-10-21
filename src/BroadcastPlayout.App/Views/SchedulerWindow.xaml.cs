@@ -136,14 +136,131 @@ public partial class SchedulerWindow : Window, INotifyPropertyChanged
     }
     private void ScheduleGrid_Drop(object sender, DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent("Kashtrix.ScheduleEntry") || e.Data.GetData("Kashtrix.ScheduleEntry") is not ScheduleEntry source) return;
         var row = e.OriginalSource is DependencyObject d ? ItemsControl.ContainerFromElement(ScheduleGrid, d) as DataGridRow : null;
         var target = row?.Item as ScheduleEntry;
-        var oldIndex = _vm.Schedules.IndexOf(source);
-        var newIndex = target is null ? _vm.Schedules.Count - 1 : _vm.Schedules.IndexOf(target);
-        if (oldIndex >= 0 && newIndex >= 0 && oldIndex != newIndex) _vm.Schedules.Move(oldIndex, newIndex);
-        _vm.SaveSchedules();
-        SelectedSchedule = source; ScheduleGrid.SelectedItem = source; e.Handled = true;
+
+        if (e.Data.GetDataPresent("Kashtrix.ScheduleEntry") && e.Data.GetData("Kashtrix.ScheduleEntry") is ScheduleEntry source)
+        {
+            var oldIndex = _vm.Schedules.IndexOf(source);
+            var newIndex = target is null ? _vm.Schedules.Count - 1 : _vm.Schedules.IndexOf(target);
+            if (oldIndex >= 0 && newIndex >= 0 && oldIndex != newIndex) _vm.Schedules.Move(oldIndex, newIndex);
+            _vm.SaveSchedules();
+            SelectedSchedule = source; ScheduleGrid.SelectedItem = source; e.Handled = true;
+            return;
+        }
+
+        string[] files = [];
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)) files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
+        else if (e.Data.GetDataPresent("Kashtrix.MediaFile") && e.Data.GetData("Kashtrix.MediaFile") is string one) files = [one];
+
+        if (files.Length > 0)
+        {
+            var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".mp4", ".mov", ".mxf", ".mkv", ".avi", ".ts", ".m2ts", ".mpg", ".mpeg", ".webm", ".wmv", ".kashtrix"
+            };
+
+            var toImport = new List<string>();
+            foreach (var f in files)
+            {
+                if (File.Exists(f)) toImport.Add(f);
+                else if (Directory.Exists(f))
+                {
+                    try
+                    {
+                        var found = Directory.EnumerateFiles(f, "*.*", SearchOption.AllDirectories)
+                            .Where(x => extensions.Contains(Path.GetExtension(x)));
+                        toImport.AddRange(found);
+                    }
+                    catch { }
+                }
+            }
+
+            ScheduleEntry? lastAdded = null;
+            var baseStart = target?.StartAt ?? (DateTime.Now.AddMinutes(5));
+            foreach (var file in toImport)
+            {
+                try
+                {
+                    if (file.EndsWith(".kashtrix", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var items = PlaylistDocumentService.Load(file);
+                        var dur = TimeSpan.FromTicks(items.Sum(x => x.Duration.Ticks));
+                        var entry = new ScheduleEntry
+                        {
+                            Name = Path.GetFileNameWithoutExtension(file),
+                            StartAt = baseStart,
+                            PlaylistPath = file,
+                            SourceLabel = file,
+                            EventType = "Playlist",
+                            Duration = dur,
+                            Repeat = "One Time",
+                            StartMode = "Hard Start",
+                            Enabled = true
+                        };
+                        _vm.Schedules.Add(entry);
+                        baseStart = baseStart.Add(dur);
+                        lastAdded = entry;
+                    }
+                    else
+                    {
+                        var dur = TimeSpan.FromMinutes(30);
+                        var codec = "auto";
+                        var fps = 25.0;
+                        var format = "1080p25";
+                        try
+                        {
+                            var info = MediaProbe.Read(file);
+                            if (info.Duration > TimeSpan.Zero) dur = info.Duration;
+                            if (!string.IsNullOrWhiteSpace(info.VideoCodec)) codec = info.VideoCodec;
+                            if (info.FramesPerSecond > 0) fps = info.FramesPerSecond;
+                            if (info.Width > 0 && info.Height > 0) format = $"{info.Width}x{info.Height} {fps:0.###}p";
+                        }
+                        catch { }
+
+                        var item = new PlaylistItem
+                        {
+                            Title = Path.GetFileNameWithoutExtension(file),
+                            FilePath = file,
+                            SourceKind = "File",
+                            EventType = "VIDEO",
+                            InPoint = TimeSpan.Zero,
+                            OutPoint = dur,
+                            SourceDuration = dur,
+                            SourceFrameRate = fps,
+                            Codec = codec,
+                            VideoFormat = format
+                        };
+                        var package = SaveSchedulePackage(item);
+                        var entry = new ScheduleEntry
+                        {
+                            Name = item.Title,
+                            StartAt = baseStart,
+                            PlaylistPath = file,
+                            SourceLabel = file,
+                            EventType = "Program",
+                            Duration = dur,
+                            Repeat = "One Time",
+                            StartMode = "Force Play (Hard Cut on Time)",
+                            AutoTrigger = true,
+                            Enabled = true
+                        };
+                        _vm.Schedules.Add(entry);
+                        baseStart = baseStart.Add(dur);
+                        lastAdded = entry;
+                    }
+                }
+                catch { }
+            }
+
+            if (lastAdded is not null)
+            {
+                _vm.SaveSchedules();
+                ScheduleGrid.SelectedItem = lastAdded;
+                SelectedSchedule = lastAdded;
+                e.Handled = true;
+            }
+        }
     }
 
     private void LoadDemo_Click(object sender, RoutedEventArgs e)

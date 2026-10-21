@@ -76,7 +76,60 @@ public partial class PlaylistEditorWindow : Window
     }
     private void PlaylistGrid_PreviewMouseLeftButtonDown(object s,MouseButtonEventArgs e)=>_dragStart=e.GetPosition(PlaylistGrid);
     private void PlaylistGrid_PreviewMouseMove(object s,MouseEventArgs e){if(e.LeftButton!=MouseButtonState.Pressed||_vm.SelectedItem is null)return;var p=e.GetPosition(PlaylistGrid);if(Math.Abs(p.X-_dragStart.X)<SystemParameters.MinimumHorizontalDragDistance&&Math.Abs(p.Y-_dragStart.Y)<SystemParameters.MinimumVerticalDragDistance)return;DragDrop.DoDragDrop(PlaylistGrid,new DataObject("Kashtrix.PlaylistItem",_vm.SelectedItem),DragDropEffects.Move);}
-    private void PlaylistGrid_Drop(object s,DragEventArgs e){if(!e.Data.GetDataPresent("Kashtrix.PlaylistItem")||e.Data.GetData("Kashtrix.PlaylistItem") is not PlaylistItem item)return;var row=e.OriginalSource is DependencyObject d?ItemsControl.ContainerFromElement(PlaylistGrid,d) as DataGridRow:null;var target=row?.Item as PlaylistItem;var idx=target is null?_vm.Playlist.Count-1:_vm.Playlist.IndexOf(target);_vm.MoveItemTo(item,Math.Max(0,idx));e.Handled=true;}
+    private async void PlaylistGrid_Drop(object s, DragEventArgs e)
+    {
+        var row = e.OriginalSource is DependencyObject d ? ItemsControl.ContainerFromElement(PlaylistGrid, d) as DataGridRow : null;
+        var target = row?.Item as PlaylistItem;
+
+        if (e.Data.GetDataPresent("Kashtrix.PlaylistItem") && e.Data.GetData("Kashtrix.PlaylistItem") is PlaylistItem item)
+        {
+            var idx = target is null ? _vm.Playlist.Count - 1 : _vm.Playlist.IndexOf(target);
+            _vm.MoveItemTo(item, Math.Max(0, idx));
+            e.Handled = true;
+            return;
+        }
+
+        string[] files = [];
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)) files = (string[])e.Data.GetData(DataFormats.FileDrop)!;
+        else if (e.Data.GetDataPresent("Kashtrix.MediaFile") && e.Data.GetData("Kashtrix.MediaFile") is string one) files = [one];
+
+        if (files.Length > 0)
+        {
+            var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".mp4", ".mov", ".mxf", ".mkv", ".avi", ".ts", ".m2ts", ".mpg", ".mpeg", ".webm", ".wmv"
+            };
+
+            var toImport = new List<string>();
+            foreach (var f in files)
+            {
+                if (File.Exists(f)) toImport.Add(f);
+                else if (Directory.Exists(f))
+                {
+                    try
+                    {
+                        var found = Directory.EnumerateFiles(f, "*.*", SearchOption.AllDirectories)
+                            .Where(x => extensions.Contains(Path.GetExtension(x)));
+                        toImport.AddRange(found);
+                    }
+                    catch { }
+                }
+            }
+
+            if (toImport.Count > 0)
+            {
+                if (target is not null) _vm.SelectedItem = target;
+                foreach (var file in toImport)
+                {
+                    var imported = await _vm.ImportMediaAtAsync(file, target is not null);
+                    imported.Category = MediaCategoryStore.Get(file);
+                }
+                Renumber();
+                e.Handled = true;
+                return;
+            }
+        }
+    }
     private void Open_Click(object sender,RoutedEventArgs e)=>_vm.OpenPlaylistDocument();
     private void Save_Click(object sender,RoutedEventArgs e)=>_vm.SavePlaylistDocument();
     private void Send_Click(object sender,RoutedEventArgs e)

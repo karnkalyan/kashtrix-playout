@@ -95,11 +95,11 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
                                             <TextBlock Text="LICENSED TO / OPERATOR" Style="{StaticResource SectionCaption}"/>
-                                            <TextBox x:Name="LicensedToBox" Text="Chief Transmission Engineer" Margin="0,3,0,0" Height="28"/>
+                                            <TextBox x:Name="LicensedToBox" Text="Evaluation Operator" IsReadOnly="True" Background="#070A0E" Margin="0,3,0,0" Height="28"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <TextBlock Text="COMPANY / ORGANIZATION" Style="{StaticResource SectionCaption}"/>
-                                            <TextBox x:Name="OrgBox" Text="Kashtrix Broadcast Systems Ltd." Margin="0,3,0,0" Height="28"/>
+                                            <TextBox x:Name="OrgBox" Text="Evaluation Workstation" IsReadOnly="True" Background="#070A0E" Margin="0,3,0,0" Height="28"/>
                                         </StackPanel>
                                     </Grid>
 
@@ -119,15 +119,18 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <!-- SUITE ACTIVATION ACTION BUTTONS -->
+                                    <!-- SUITE ACTIVATION ACTION BUTTONS: AUTO GET + MANUAL ACTIVATE + RESET -->
                                     <Grid Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="1.4*"/>
-                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="1.3*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="1.3*"/>
+                                            <ColumnDefinition Width="6"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0" Content="⚡ ACTIVATE SUITE" Style="{StaticResource DemoActionButton}" Click="ActivateLicense_Click" Height="28" ToolTip="Validate serial key and activate enterprise broadcast features"/>
-                                        <Button Grid.Column="2" Content="RESET UNLICENSED" Style="{StaticResource SmallTool}" Click="ResetToUnlicensed_Click" Height="28" ToolTip="Reset suite back to default unlicensed evaluation state"/>
+                                        <Button Grid.Column="0" Content="⚡ AUTO GET KEY" Style="{StaticResource DemoActionButton}" Click="AutoGetLicense_Click" Height="28" ToolTip="Realtime connection to central server to wait and auto-dispatch license key over TLS"/>
+                                        <Button Grid.Column="2" Content="MANUAL ACTIVATE" Style="{StaticResource SmallTool}" Click="ActivateLicense_Click" Height="28" ToolTip="Manually validate entered license serial key"/>
+                                        <Button Grid.Column="4" Content="RESET" Style="{StaticResource SmallTool}" Click="ResetToUnlicensed_Click" Height="28" ToolTip="Reset suite back to default unlicensed evaluation state"/>
                                     </Grid>
 
                                     <TextBlock Text="WORKSTATION SECURE HARDWARE ID (HWID)" Style="{StaticResource SectionCaption}"/>

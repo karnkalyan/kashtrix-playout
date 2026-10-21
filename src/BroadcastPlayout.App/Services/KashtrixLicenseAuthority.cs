@@ -818,7 +818,7 @@ public static class KashtrixLicenseAuthority
     /// <summary>
     /// Activates the software suite with an entered signed license JWT token.
     /// </summary>
-    public static bool ActivateLicense(string serialKey, string customerName, string company, out string message)
+    public static bool ActivateLicense(string serialKey, string? customerName, string? company, out string message)
     {
         EnsureLoaded();
         var key = serialKey?.Trim() ?? string.Empty;
@@ -882,6 +882,43 @@ public static class KashtrixLicenseAuthority
                     var serial = root.TryGetProperty("lic", out var licEl) ? licEl.GetString() : key;
                     var licId = root.TryGetProperty("jti", out var jtiEl) ? jtiEl.GetString() : ("LIC-KTX-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant());
 
+                    // Extract customer & company details from token claims if provided
+                    string resolvedCustomer = customerName?.Trim() ?? string.Empty;
+                    string resolvedCompany = company?.Trim() ?? string.Empty;
+
+                    if (string.IsNullOrWhiteSpace(resolvedCustomer))
+                    {
+                        if (root.TryGetProperty("cust", out var cEl) && cEl.GetString() is string cVal && !string.IsNullOrWhiteSpace(cVal))
+                            resolvedCustomer = cVal.Trim();
+                        else if (root.TryGetProperty("customerName", out var cnEl) && cnEl.GetString() is string cnVal && !string.IsNullOrWhiteSpace(cnVal))
+                            resolvedCustomer = cnVal.Trim();
+                        else if (root.TryGetProperty("name", out var nEl) && nEl.GetString() is string nVal && !string.IsNullOrWhiteSpace(nVal))
+                            resolvedCustomer = nVal.Trim();
+                    }
+
+                    if (string.IsNullOrWhiteSpace(resolvedCompany))
+                    {
+                        if (root.TryGetProperty("org", out var oEl) && oEl.GetString() is string oVal && !string.IsNullOrWhiteSpace(oVal))
+                            resolvedCompany = oVal.Trim();
+                        else if (root.TryGetProperty("company", out var compEl) && compEl.GetString() is string compVal && !string.IsNullOrWhiteSpace(compVal))
+                            resolvedCompany = compVal.Trim();
+                        else if (root.TryGetProperty("customerOrg", out var coEl) && coEl.GetString() is string coVal && !string.IsNullOrWhiteSpace(coVal))
+                            resolvedCompany = coVal.Trim();
+                    }
+
+                    if (root.TryGetProperty("meta", out var metaEl) && metaEl.ValueKind == JsonValueKind.Object)
+                    {
+                        if (string.IsNullOrWhiteSpace(resolvedCustomer) && metaEl.TryGetProperty("customerName", out var mcn) && mcn.GetString() is string mcnVal && !string.IsNullOrWhiteSpace(mcnVal))
+                            resolvedCustomer = mcnVal.Trim();
+                        if (string.IsNullOrWhiteSpace(resolvedCompany) && metaEl.TryGetProperty("customerOrg", out var mco) && mco.GetString() is string mcoVal && !string.IsNullOrWhiteSpace(mcoVal))
+                            resolvedCompany = mcoVal.Trim();
+                        if (string.IsNullOrWhiteSpace(resolvedCompany) && metaEl.TryGetProperty("company", out var mcomp) && mcomp.GetString() is string mcompVal && !string.IsNullOrWhiteSpace(mcompVal))
+                            resolvedCompany = mcompVal.Trim();
+                    }
+
+                    if (string.IsNullOrWhiteSpace(resolvedCustomer)) resolvedCustomer = "Licensed Operator";
+                    if (string.IsNullOrWhiteSpace(resolvedCompany)) resolvedCompany = "Kashtrix Broadcast Systems Ltd.";
+
                     var modulesSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     if (root.TryGetProperty("mod", out var modEl) && modEl.ValueKind == JsonValueKind.Array)
                     {
@@ -912,8 +949,8 @@ public static class KashtrixLicenseAuthority
                     p.IsActivated = true;
                     p.SerialNumber = serial ?? key;
                     p.LicenseId = licId ?? "LIC-ENTERPRISE";
-                    p.CustomerName = string.IsNullOrWhiteSpace(customerName) ? "Licensed Operator" : customerName.Trim();
-                    p.LicensedCompany = string.IsNullOrWhiteSpace(company) ? "Kashtrix Broadcast Systems Ltd." : company.Trim();
+                    p.CustomerName = resolvedCustomer;
+                    p.LicensedCompany = resolvedCompany;
                     p.RegisteredOrg = p.LicensedCompany;
                     p.ActivationStatus = "Active · Certified License";
                     p.ActivationDate = DateTime.UtcNow.ToString("MMMM dd, yyyy");
@@ -1057,9 +1094,19 @@ public static class KashtrixLicenseAuthority
         }
     }
 
+    public static void TriggerServerReconnect()
+    {
+        lock (_sync)
+        {
+            try { _autoResolveCts?.Cancel(); } catch { }
+            _autoResolveCts = new CancellationTokenSource();
+            _autoResolveTask = Task.Run(() => AutoResolveLoopAsync(_autoResolveCts.Token));
+        }
+    }
+
     private static async Task AutoResolveLoopAsync(CancellationToken ct)
     {
-        while (!ct.IsCancellationRequested && !IsActivated)
+        while (!ct.IsCancellationRequested)
         {
             try
             {
@@ -1070,6 +1117,7 @@ public static class KashtrixLicenseAuthority
                 var timeoutTask = Task.Delay(8000, ct);
                 if (await Task.WhenAny(connectTask, timeoutTask) != connectTask || !tcp.Connected)
                 {
+                    SetServerConnection(false);
                     await Task.Delay(6000, ct);
                     continue;
                 }
@@ -1082,68 +1130,189 @@ public static class KashtrixLicenseAuthority
                     EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls13 | System.Security.Authentication.SslProtocols.Tls12
                 }, ct);
 
-                // Send PROVISION frame
-                var provisionFrame = JsonSerializer.Serialize(new
-                {
-                    type = "PROVISION",
-                    protocol = 2,
-                    clientId = GetOrCreatePersistentClientId(),
-                    tenantId = ProductTenantId.ToLowerInvariant(),
-                    applicationId = ProductApplicationId.ToLowerInvariant(),
-                    hwid = HardwareId.ToLowerInvariant(),
-                    provisioningId = ProvisioningKtxCode
-                }) + "\n";
-
-                var frameBytes = Encoding.UTF8.GetBytes(provisionFrame);
-                await ssl.WriteAsync(frameBytes, ct);
-                await ssl.FlushAsync(ct);
-
                 using var reader = new StreamReader(ssl, Encoding.UTF8, leaveOpen: true);
-                var lastHeartbeat = DateTime.UtcNow;
 
-                while (!ct.IsCancellationRequested && tcp.Connected)
+                if (!IsActivated)
                 {
-                    var readLineTask = reader.ReadLineAsync(ct).AsTask();
-                    var hbWaitTask = Task.Delay(5000, ct);
-                    var completed = await Task.WhenAny(readLineTask, hbWaitTask);
-
-                    if (completed == readLineTask)
+                    // === UNACTIVATED STATE: Send PROVISION frame to keep socket online on server ===
+                    var provisionFrame = JsonSerializer.Serialize(new
                     {
-                        var line = await readLineTask;
-                        if (string.IsNullOrWhiteSpace(line)) break;
+                        type = "PROVISION",
+                        protocol = 2,
+                        clientId = GetOrCreatePersistentClientId(),
+                        tenantId = ProductTenantId.ToLowerInvariant(),
+                        applicationId = ProductApplicationId.ToLowerInvariant(),
+                        hwid = HardwareId.ToLowerInvariant(),
+                        provisioningId = ProvisioningKtxCode
+                    }) + "\n";
 
-                        using var doc = JsonDocument.Parse(line);
-                        var root = doc.RootElement;
-                        var type = root.TryGetProperty("type", out var tEl) ? tEl.GetString() : null;
+                    var frameBytes = Encoding.UTF8.GetBytes(provisionFrame);
+                    await ssl.WriteAsync(frameBytes, ct);
+                    await ssl.FlushAsync(ct);
 
-                        if (type == "LICENSE_READY")
+                    SetServerConnection(true);
+                    var lastHeartbeat = DateTime.UtcNow;
+
+                    while (!ct.IsCancellationRequested && tcp.Connected && !IsActivated)
+                    {
+                        var readLineTask = reader.ReadLineAsync(ct).AsTask();
+                        var hbWaitTask = Task.Delay(5000, ct);
+                        var completed = await Task.WhenAny(readLineTask, hbWaitTask);
+
+                        if (completed == readLineTask)
                         {
-                            if (root.TryGetProperty("licenseKey", out var lkEl) && lkEl.GetString() is string lk && lk.Length > 50)
+                            var line = await readLineTask;
+                            if (string.IsNullOrWhiteSpace(line)) break;
+
+                            using var doc = JsonDocument.Parse(line);
+                            var root = doc.RootElement;
+                            var type = root.TryGetProperty("type", out var tEl) ? tEl.GetString() : null;
+
+                            if (type == "LICENSE_READY")
                             {
-                                if (ActivateLicense(lk, "Licensed Operator", "Kashtrix Broadcast Systems Ltd.", out var msg))
+                                if (root.TryGetProperty("licenseKey", out var lkEl) && lkEl.GetString() is string lk && lk.Length > 50)
                                 {
-                                    OnLicenseDelivered?.Invoke(true, msg);
-                                    return;
+                                    if (ActivateLicense(lk, null, null, out var msg))
+                                    {
+                                        OnLicenseDelivered?.Invoke(true, msg);
+                                        break; // Transition to activated loop
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // Send heartbeat every 25 seconds
-                    if ((DateTime.UtcNow - lastHeartbeat).TotalSeconds >= 25)
+                        // Send PROVISION_HEARTBEAT every 25 seconds
+                        if ((DateTime.UtcNow - lastHeartbeat).TotalSeconds >= 25)
+                        {
+                            var hb = JsonSerializer.Serialize(new { type = "PROVISION_HEARTBEAT", ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n";
+                            var hbBytes = Encoding.UTF8.GetBytes(hb);
+                            await ssl.WriteAsync(hbBytes, ct);
+                            await ssl.FlushAsync(ct);
+                            lastHeartbeat = DateTime.UtcNow;
+                        }
+                    }
+                }
+                else
+                {
+                    // === ACTIVATED STATE: Send HELLO frame with valid license key ===
+                    var helloFrame = JsonSerializer.Serialize(new
                     {
-                        var hb = JsonSerializer.Serialize(new { type = "PROVISION_HEARTBEAT", ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }) + "\n";
-                        var hbBytes = Encoding.UTF8.GetBytes(hb);
-                        await ssl.WriteAsync(hbBytes, ct);
-                        await ssl.FlushAsync(ct);
-                        lastHeartbeat = DateTime.UtcNow;
+                        type = "HELLO",
+                        protocol = 2,
+                        clientId = GetOrCreatePersistentClientId(),
+                        licenseKey = Current.SerialNumber,
+                        tenantId = ProductTenantId.ToLowerInvariant(),
+                        applicationId = ProductApplicationId.ToLowerInvariant(),
+                        hwid = HardwareId.ToLowerInvariant(),
+                        appVersion = ProductVersion,
+                        platform = "win-x64"
+                    }) + "\n";
+
+                    var frameBytes = Encoding.UTF8.GetBytes(helloFrame);
+                    await ssl.WriteAsync(frameBytes, ct);
+                    await ssl.FlushAsync(ct);
+
+                    SetServerConnection(true);
+                    var lastHeartbeat = DateTime.UtcNow;
+
+                    while (!ct.IsCancellationRequested && tcp.Connected && IsActivated)
+                    {
+                        var readLineTask = reader.ReadLineAsync(ct).AsTask();
+                        var hbWaitTask = Task.Delay(5000, ct);
+                        var completed = await Task.WhenAny(readLineTask, hbWaitTask);
+
+                        if (completed == readLineTask)
+                        {
+                            var line = await readLineTask;
+                            if (string.IsNullOrWhiteSpace(line)) break;
+
+                            using var doc = JsonDocument.Parse(line);
+                            var root = doc.RootElement;
+                            var type = root.TryGetProperty("type", out var tEl) ? tEl.GetString() : null;
+
+                            if (type == "WELCOME")
+                            {
+                                // Server accepted our session; parse customer name/email/org
+                                bool updated = false;
+                                if (root.TryGetProperty("customerName", out var cnEl) && cnEl.GetString() is string cn && !string.IsNullOrWhiteSpace(cn))
+                                {
+                                    if (Current.CustomerName != cn.Trim())
+                                    {
+                                        Current.CustomerName = cn.Trim();
+                                        updated = true;
+                                    }
+                                }
+                                if (root.TryGetProperty("customerOrg", out var coEl) && coEl.GetString() is string co && !string.IsNullOrWhiteSpace(co))
+                                {
+                                    if (Current.LicensedCompany != co.Trim())
+                                    {
+                                        Current.LicensedCompany = co.Trim();
+                                        Current.RegisteredOrg = co.Trim();
+                                        updated = true;
+                                    }
+                                }
+                                else if (root.TryGetProperty("tenantId", out var tidEl) && tidEl.GetString() is string tid && !string.IsNullOrWhiteSpace(tid))
+                                {
+                                    if (string.IsNullOrWhiteSpace(Current.LicensedCompany) || Current.LicensedCompany == "Evaluation Workstation")
+                                    {
+                                        Current.LicensedCompany = "Kashtrix Broadcast Suite (" + tid[..Math.Min(8, tid.Length)].ToUpperInvariant() + ")";
+                                        Current.RegisteredOrg = Current.LicensedCompany;
+                                        updated = true;
+                                    }
+                                }
+                                if (updated)
+                                {
+                                    SavePolicy(Current);
+                                    OnLicenseDelivered?.Invoke(true, "License server verified session details.");
+                                }
+                            }
+                            else if (type == "LICENSE_EVENT")
+                            {
+                                var ev = root.TryGetProperty("event", out var evEl) ? evEl.GetString() : "EVENT";
+                                if (ev == "REVOKED")
+                                {
+                                    RevokeLicenseRemotely("License was revoked remotely by administrator.");
+                                    break;
+                                }
+                            }
+                            else if (type == "ERROR")
+                            {
+                                var code = root.TryGetProperty("code", out var cEl) ? cEl.GetString() : "ERROR";
+                                var errMsg = root.TryGetProperty("message", out var mEl) ? mEl.GetString() : "License validation error";
+                                if (code == "BANNED" || code == "REVOKED")
+                                {
+                                    RevokeLicenseRemotely(errMsg ?? "License revoked by server.");
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Send regular HEARTBEAT every 25 seconds
+                        if ((DateTime.UtcNow - lastHeartbeat).TotalSeconds >= 25)
+                        {
+                            var hb = JsonSerializer.Serialize(new
+                            {
+                                type = "HEARTBEAT",
+                                ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                                nonce = Guid.NewGuid().ToString("N")
+                            }) + "\n";
+                            var hbBytes = Encoding.UTF8.GetBytes(hb);
+                            await ssl.WriteAsync(hbBytes, ct);
+                            await ssl.FlushAsync(ct);
+                            lastHeartbeat = DateTime.UtcNow;
+                        }
                     }
                 }
             }
             catch (OperationCanceledException) { break; }
             catch
             {
-                try { await Task.Delay(6000, ct); } catch { break; }
+                SetServerConnection(false);
+                try { await Task.Delay(5000, ct); } catch { break; }
+            }
+            finally
+            {
+                SetServerConnection(false);
             }
         }
     }

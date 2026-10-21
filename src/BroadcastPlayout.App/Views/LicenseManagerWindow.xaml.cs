@@ -239,11 +239,21 @@ public partial class LicenseManagerWindow : Window
         }
     }
 
+    private void AutoGetLicense_Click(object sender, RoutedEventArgs e)
+    {
+        StatusMessageText.Text = "Connecting to license server to wait for automatic license dispatch...";
+        KashtrixLicenseAuthority.TriggerServerReconnect();
+        MessageBox.Show(
+            "Automatic License Delivery listener connected to central server.\n\n" +
+            "The client socket is now online and waiting for server dispatch. When the administrator issues or approves the license from the server dashboard, this suite will activate automatically without manual copying.",
+            "Auto Get License from Server",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
     private void ActivateLicense_Click(object sender, RoutedEventArgs e)
     {
         var key = LicenseKeyBox.Text.Trim();
-        var name = LicensedToBox.Text.Trim();
-        var company = OrgBox.Text.Trim();
 
         if (string.IsNullOrWhiteSpace(key))
         {
@@ -252,8 +262,10 @@ public partial class LicenseManagerWindow : Window
             return;
         }
 
-        if (KashtrixLicenseAuthority.ActivateLicense(key, name, company, out var message))
+        // Pass null operator/company so details are read directly from the authenticated token claims
+        if (KashtrixLicenseAuthority.ActivateLicense(key, null, null, out var message))
         {
+            KashtrixLicenseAuthority.TriggerServerReconnect();
             LoadLicenseDetails();
             StatusMessageText.Text = message;
             MessageBox.Show(message, "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
