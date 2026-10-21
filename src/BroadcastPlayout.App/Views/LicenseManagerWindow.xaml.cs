@@ -74,8 +74,56 @@ public partial class LicenseManagerWindow : Window
         LoadLicenseDetails();
 
         KashtrixLicenseAuthority.OnLicenseDelivered += HandleLicenseDelivered;
-        Closed += (_, _) => KashtrixLicenseAuthority.OnLicenseDelivered -= HandleLicenseDelivered;
+        KashtrixLicenseAuthority.OnServerConnectionChanged += HandleServerConnectionChanged;
+        KashtrixLicenseAuthority.OnLicenseRevokedRemotely += HandleLicenseRevokedRemotely;
+
+        Closed += (_, _) =>
+        {
+            KashtrixLicenseAuthority.OnLicenseDelivered -= HandleLicenseDelivered;
+            KashtrixLicenseAuthority.OnServerConnectionChanged -= HandleServerConnectionChanged;
+            KashtrixLicenseAuthority.OnLicenseRevokedRemotely -= HandleLicenseRevokedRemotely;
+        };
         KashtrixLicenseAuthority.StartAutoResolveListener();
+    }
+
+    private void HandleServerConnectionChanged(bool connected)
+    {
+        Dispatcher.InvokeAsync(() => UpdateServerConnectionUI(connected));
+    }
+
+    private void UpdateServerConnectionUI(bool connected)
+    {
+        if (connected)
+        {
+            ServerStatusDot.Fill = new SolidColorBrush(Color.FromRgb(85, 200, 120));
+            ServerStatusText.Text = "Connected";
+            ServerStatusText.Foreground = new SolidColorBrush(Color.FromRgb(133, 222, 128));
+        }
+        else
+        {
+            ServerStatusDot.Fill = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+            var p = KashtrixLicenseAuthority.Current;
+            if (p.IsActivated)
+            {
+                ServerStatusText.Text = "Disconnected (Offline Mode Active)";
+                ServerStatusText.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+            }
+            else
+            {
+                ServerStatusText.Text = "Disconnected";
+                ServerStatusText.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+            }
+        }
+    }
+
+    private void HandleLicenseRevokedRemotely(string ev, string reason)
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            LoadLicenseDetails();
+            StatusMessageText.Text = $"License event received: {reason}";
+            MessageBox.Show($"License notice: {reason}\n\nBroadcast applications authorization updated.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Warning);
+        });
     }
 
     private void HandleLicenseDelivered(bool success, string msg)
@@ -104,6 +152,7 @@ public partial class LicenseManagerWindow : Window
             ExpirationText.Text = string.IsNullOrWhiteSpace(p.ExpirationDate) ? "Requires License Key Activation" : p.ExpirationDate;
             MaxResText.Text = $"{p.PlayoutMaxResolution} UHD (SD/HD/FHD/4K/8K)";
             SupportContractText.Text = string.IsNullOrWhiteSpace(p.SupportContract) ? "Evaluation Support · Unlicensed" : p.SupportContract;
+            UpdateServerConnectionUI(KashtrixLicenseAuthority.IsServerConnected);
 
             if (p.IsActivated)
             {
@@ -237,7 +286,7 @@ public partial class LicenseManagerWindow : Window
         var p = KashtrixLicenseAuthority.Current;
         if (!p.IsActivated)
         {
-            MessageBox.Show("Cannot activate suite modules: Kashtrix Broadcast Suite is UNLICENSED.\n\nPlease activate with an authentic cryptographically-signed license token first.", "Licensing Authority Security", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Kashtrix Broadcast Suite is UNLICENSED.\n\nPlease activate with a valid broadcast license key first.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -250,7 +299,7 @@ public partial class LicenseManagerWindow : Window
                 activatedCount++;
             }
         }
-        StatusMessageText.Text = $"{activatedCount} certified suite module(s) marked active. Click 'SAVE LICENSE PROFILE' to apply.";
+        StatusMessageText.Text = $"{activatedCount} suite module(s) marked active. Click 'SAVE LICENSE PROFILE' to apply.";
     }
 
     private void DeactivateAll_Click(object sender, RoutedEventArgs e)
@@ -266,7 +315,7 @@ public partial class LicenseManagerWindow : Window
             var p = KashtrixLicenseAuthority.Current;
             if (!p.IsActivated)
             {
-                MessageBox.Show("Cannot save module states while UNLICENSED. Workstation must be activated with a certified license first.", "Licensing Authority Security", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Kashtrix Broadcast Suite is UNLICENSED.\n\nPlease activate with a valid broadcast license key before updating module authorization.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -304,7 +353,7 @@ public partial class LicenseManagerWindow : Window
             KashtrixLicenseAuthority.SavePolicy(p);
             LoadLicenseDetails();
             StatusMessageText.Text = $"License policy profile successfully verified and saved ({DateTime.Now:HH:mm:ss}).";
-            MessageBox.Show("License policy profile successfully updated and secured.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("License policy profile successfully updated.", "Kashtrix License Authority", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
@@ -345,20 +394,17 @@ public partial class LicenseManagerWindow : Window
         {
             try
             {
+                var p = KashtrixLicenseAuthority.Current;
                 var content = JsonSerializer.Serialize(new
                 {
-                    LicensedTo = LicensedToBox.Text,
-                    Company = OrgBox.Text,
+                    LicensedTo = string.IsNullOrWhiteSpace(p.CustomerName) ? LicensedToBox.Text : p.CustomerName,
+                    Company = string.IsNullOrWhiteSpace(p.LicensedCompany) ? OrgBox.Text : p.LicensedCompany,
                     NodeId = NodeIdBox.Text,
-                    KtxToken = KtxTokenBox.Text,
-                    LicenseKey = LicenseKeyBox.Text,
-                    LicenseId = LicenseIdBox.Text,
-                    Tier = "Broadcast Enterprise Master",
-                    Status = "Active · Perpetual",
-                    ServerEndpoint = $"{KashtrixLicenseAuthority.DefaultProductionHost}:{KashtrixLicenseAuthority.DefaultProductionPort}",
-                    TenantId = KashtrixLicenseAuthority.ProductTenantId,
-                    ApplicationId = KashtrixLicenseAuthority.ProductApplicationId,
-                    IssuedAt = DateTime.UtcNow,
+                    LicenseId = p.IsActivated ? p.LicenseId : "UNLICENSED",
+                    Tier = p.IsActivated ? p.TierName : "Kashtrix Broadcast Suite (Evaluation)",
+                    Status = p.IsActivated ? "Active · Licensed" : "Unlicensed · Activation Required",
+                    ExpirationDate = string.IsNullOrWhiteSpace(p.ExpirationDate) ? "Perpetual / Activation Required" : p.ExpirationDate,
+                    ExportedAt = DateTime.UtcNow,
                     ActiveModules = _modules.Where(m => m.IsActive).Select(m => m.AppKey).ToArray(),
                     DeactivatedModules = _modules.Where(m => !m.IsActive).Select(m => m.AppKey).ToArray()
                 }, new JsonSerializerOptions { WriteIndented = true });

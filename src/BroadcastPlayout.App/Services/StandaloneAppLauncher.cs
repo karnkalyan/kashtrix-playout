@@ -57,7 +57,9 @@ public static class StandaloneAppLauncher
         ["Playout"] = new("Kashtrix.Playout", "Kashtrix.Playout.exe", "Kashtrix Playout"),
         ["Playout.app"] = new("Kashtrix.Playout", "Kashtrix.Playout.exe", "Kashtrix Playout"),
         ["PlayoutEngine"] = new("Kashtrix.Playout", "Kashtrix.Playout.exe", "Kashtrix Playout"),
-        ["Kashtrix.Playout"] = new("Kashtrix.Playout", "Kashtrix.Playout.exe", "Kashtrix Playout")
+        ["Kashtrix.Playout"] = new("Kashtrix.Playout", "Kashtrix.Playout.exe", "Kashtrix Playout"),
+        ["LicenseManager"] = new("Kashtrix.LicenseManager", "Kashtrix.LicenseManager.exe", "Kashtrix License Manager"),
+        ["Kashtrix.LicenseManager"] = new("Kashtrix.LicenseManager", "Kashtrix.LicenseManager.exe", "Kashtrix License Manager")
     };
 
     public static bool Launch(string appKey, string? arguments = null)

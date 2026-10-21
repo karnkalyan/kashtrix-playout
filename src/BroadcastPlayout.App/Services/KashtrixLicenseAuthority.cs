@@ -24,7 +24,7 @@ public sealed class KtxModuleDefinition
 {
     public required string code { get; init; }
     public required string name { get; init; }
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Always)]
     public string? description { get; init; }
     public string type { get; init; } = "boolean";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -55,10 +55,142 @@ public static class KashtrixLicenseAuthority
     private static string? _cachedHwid;
     private static string? _cachedKtx;
 
+    // Local License Manager session mutex & heartbeat
+    private static Mutex? _licenseManagerSessionMutex;
+    private const string SessionMutexName = @"Local\Kashtrix_LicenseManager_Running_Session";
+
+    // Server connection state and real-time remote event dispatch
+    public static bool IsServerConnected { get; private set; }
+    public static event Action<bool>? OnServerConnectionChanged;
+    public static event Action<string, string>? OnLicenseRevokedRemotely;
+
     // Background Auto-Wait / Auto-Resolve client
     public static event Action<bool, string>? OnLicenseDelivered;
     private static CancellationTokenSource? _autoResolveCts;
     private static Task? _autoResolveTask;
+
+    public static void RegisterLicenseManagerAsRunning()
+    {
+        try
+        {
+            if (_licenseManagerSessionMutex == null)
+            {
+                _licenseManagerSessionMutex = new Mutex(true, SessionMutexName, out _);
+            }
+            TouchSessionHeartbeat();
+        }
+        catch { }
+    }
+
+    public static void TouchSessionHeartbeat()
+    {
+        try
+        {
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KashtrixPlayout");
+            Directory.CreateDirectory(dir);
+            var file = Path.Combine(dir, "license-manager.session");
+            File.WriteAllText(file, DateTime.UtcNow.ToString("O"));
+        }
+        catch { }
+    }
+
+    public static bool IsLicenseManagerRunning()
+    {
+        try
+        {
+            var curProc = Process.GetCurrentProcess().ProcessName;
+            if (curProc.Contains("LicenseManager", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        catch { }
+
+        try
+        {
+            if (Mutex.TryOpenExisting(SessionMutexName, out var m))
+            {
+                m.Dispose();
+                return true;
+            }
+        }
+        catch { }
+
+        try
+        {
+            var procs = Process.GetProcessesByName("Kashtrix.LicenseManager");
+            if (procs.Length > 0)
+            {
+                foreach (var p in procs) p.Dispose();
+                return true;
+            }
+        }
+        catch { }
+
+        try
+        {
+            var sessionFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KashtrixPlayout", "license-manager.session");
+            if (File.Exists(sessionFile))
+            {
+                var diff = DateTime.UtcNow - File.GetLastWriteTimeUtc(sessionFile);
+                if (diff.TotalSeconds < 25) return true;
+            }
+        }
+        catch { }
+
+        return false;
+    }
+
+    public static void TryAutoLaunchLicenseManagerBackground()
+    {
+        try
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var candidates = new[]
+            {
+                Path.Combine(baseDir, "Kashtrix.LicenseManager.exe"),
+                Path.Combine(baseDir, "LicenseManager.exe"),
+                Path.Combine(baseDir, "Kashtrix.LicenseManager", "Kashtrix.LicenseManager.exe")
+            };
+
+            foreach (var exe in candidates)
+            {
+                if (File.Exists(exe))
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = exe,
+                        Arguments = "--background",
+                        UseShellExecute = true,
+                        CreateNoWindow = true,
+                        WindowStyle = ProcessWindowStyle.Hidden
+                    };
+                    Process.Start(psi);
+                    break;
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static void SetServerConnection(bool connected)
+    {
+        if (IsServerConnected != connected)
+        {
+            IsServerConnected = connected;
+            try { OnServerConnectionChanged?.Invoke(connected); } catch { }
+        }
+    }
+
+    public static void RevokeLicenseRemotely(string reason)
+    {
+        lock (_sync)
+        {
+            _currentPolicy.IsActivated = false;
+            _currentPolicy.SerialNumber = string.Empty;
+            _currentPolicy.AuthorizedModules.Clear();
+            SavePolicy(_currentPolicy);
+        }
+        try { OnLicenseRevokedRemotely?.Invoke("LICENSE_REVOKED", reason); } catch { }
+    }
 
     // Security Obfuscation Key & Entropy Mask (Prevents plain-text discovery / reverse engineering extraction)
     private static readonly byte[] _entropyKey = { 0x5A, 0xC3, 0x1F, 0x8E, 0x72, 0x4B, 0x9D, 0x36 };
@@ -345,7 +477,7 @@ public static class KashtrixLicenseAuthority
 
         if (string.IsNullOrWhiteSpace(loaded.IntegritySignature))
         {
-            breachReason = "Cryptographic integrity signature is missing.";
+            breachReason = "License integrity verification failed.";
             return false;
         }
 
@@ -355,7 +487,7 @@ public static class KashtrixLicenseAuthority
 
         if (expectedBytes.Length != actualBytes.Length || !CryptographicOperations.FixedTimeEquals(expectedBytes, actualBytes))
         {
-            breachReason = "Cryptographic anti-tamper signature mismatch. License policy was modified or forged.";
+            breachReason = "License policy verification failed. License file was modified or invalid.";
             return false;
         }
 
@@ -365,7 +497,7 @@ public static class KashtrixLicenseAuthority
 
         if (!hwidMatches && !string.IsNullOrWhiteSpace(loaded.HwidBinding))
         {
-            breachReason = $"License hardware binding mismatch (License bound to: {loaded.HwidBinding}, Machine: {currentHwid}).";
+            breachReason = "License hardware binding mismatch. This license is registered to another workstation.";
             return false;
         }
 
@@ -519,7 +651,11 @@ public static class KashtrixLicenseAuthority
             modules = SuiteModuleCatalog
         };
 
-        var json = JsonSerializer.Serialize(payload);
+        var options = new JsonSerializerOptions
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+        var json = JsonSerializer.Serialize(payload, options);
         return "KTX1." + Base64UrlEncode(Encoding.UTF8.GetBytes(json));
     }
 
@@ -881,7 +1017,7 @@ public static class KashtrixLicenseAuthority
                     }
 
                     SavePolicy(p);
-                    StopAutoResolveListener();
+                    // Keep auto-resolve listener active to maintain server session & heartbeat
                     message = $"Kashtrix Broadcast Suite successfully activated! Certified for {modulesSet.Count} modules with {p.PlayoutMaxChannels} Playout channels ({p.PlayoutMaxResolution} resolution).";
                     return true;
                 }
@@ -893,7 +1029,7 @@ public static class KashtrixLicenseAuthority
             }
         }
 
-        message = "Invalid license key format. Please paste the official signed cryptographic license key token issued by Kashtrix License Server.";
+        message = "Invalid license key format. Please enter a valid license key issued for this workstation.";
         return false;
     }
 
@@ -1043,32 +1179,62 @@ public static class KashtrixLicenseAuthority
     {
         EnsureLoaded();
         var key = NormalizeAppKey(appName);
+
+        // License Manager itself, Dashboard, and Settings are always permitted to open
         if (key is "LICENSEMANAGER" or "ENGINEDASHBOARD" or "SETTINGS")
         {
             reason = string.Empty;
             return true;
         }
 
+        // 1. Enforce local connection to Kashtrix.LicenseManager:
+        if (!IsLicenseManagerRunning())
+        {
+            TryAutoLaunchLicenseManagerBackground();
+            for (int i = 0; i < 10; i++)
+            {
+                Thread.Sleep(200);
+                if (IsLicenseManagerRunning()) break;
+            }
+        }
+
+        if (!IsLicenseManagerRunning())
+        {
+            reason = "License connection required: Kashtrix License Manager must be running to authorize broadcast operations.";
+            return false;
+        }
+
+        // 2. Activation check:
         if (!_currentPolicy.IsActivated)
         {
             reason = $"License required: Kashtrix Broadcast Suite is UNLICENSED. '{appName}' cannot run without an active license. Please open Kashtrix License Manager to activate.";
             return false;
         }
 
-        // Anti-tamper verification
-        if (!ValidatePolicyIntegrity(_currentPolicy, out var breach))
+        // 3. Offline grace vs Expiration check:
+        if (!string.IsNullOrWhiteSpace(_currentPolicy.ExpirationDate) &&
+            DateTime.TryParse(_currentPolicy.ExpirationDate, out var exp) &&
+            exp <= DateTime.UtcNow)
         {
-            reason = $"Security integrity violation: {breach}. All broadcast modules locked down. Please reactivate via Kashtrix License Manager.";
+            reason = $"License expired: Your license expired on {exp:yyyy-MM-dd}. Please renew via Kashtrix License Manager.";
             return false;
         }
 
+        // 4. Policy integrity check:
+        if (!ValidatePolicyIntegrity(_currentPolicy, out var breach))
+        {
+            reason = $"License verification failed: {breach}. All broadcast modules locked down. Please activate via Kashtrix License Manager.";
+            return false;
+        }
+
+        // 5. Module licensed check:
         if (!IsModuleActive(appName))
         {
             reason = $"Module deactivated: '{appName}' is not licensed or is deactivated in your license profile. Please open Kashtrix License Manager to activate this module.";
             return false;
         }
 
-        // Multi-workstation & Channel Playout quota validation:
+        // 6. Playout quota check:
         if (key == "PLAYOUT")
         {
             var activePlayoutCount = _currentPolicy.AuthorizedNodes.Count(n => n.IsAuthorized && n.ApplicationType.Contains("Playout", StringComparison.OrdinalIgnoreCase));

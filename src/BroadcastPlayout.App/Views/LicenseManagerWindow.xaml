@@ -170,6 +170,17 @@
                                                 <TextBlock Text="RESOLUTION LIMIT" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Column="1" x:Name="MaxResText" Text="FHD (SD / HD / FHD)" FontWeight="SemiBold" Foreground="#38BDF8" TextWrapping="Wrap"/>
                                             </Grid>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="135"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="SERVER CONNECTION" Style="{StaticResource SectionCaption}" VerticalAlignment="Center"/>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="ServerStatusDot" Width="8" Height="8" Fill="#64748B" Margin="0,0,7,0"/>
+                                                    <TextBlock x:Name="ServerStatusText" Text="Connecting..." FontWeight="SemiBold" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Grid>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="135"/>
