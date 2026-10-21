@@ -125,6 +125,9 @@ Source: "{#WorkspaceRoot}\native\*"; DestDir: "{app}\native"; Flags: ignoreversi
 Source: "{#WorkspaceRoot}\src\BroadcastPlayout.App\native\*"; DestDir: "{app}\native"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#WorkspaceRoot}\src\BroadcastPlayout.App\native\ffmpeg\*"; DestDir: "{app}\ffmpeg"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; 4. DirectShow Virtual Output Filter (.ax)
+Source: "{#WorkspaceRoot}\build\VirtualOutput\Release\KashtrixVirtualOutput.ax"; DestDir: "{app}\VirtualOutput"; Flags: ignoreversion regserver restartreplace skipifsourcedoesntexist; Components: output
+Source: "{#WorkspaceRoot}\build\VirtualOutput\Release\KashtrixVirtualOutput.ax"; DestDir: "{localappdata}\KashtrixPlayout\VirtualOutput"; Flags: ignoreversion skipifsourcedoesntexist; Components: output
 ; =====================================================================
 ; START MENU SHORTCUTS
 ; =====================================================================
@@ -177,4 +180,11 @@ Name: "{autodesktop}\Kashtrix License Manager"; Filename: "{app}\LicenseManager\
 ; POST-INSTALLATION RUN
 ; =====================================================================
 [Run]
+Filename: "{sys}\regsvr32.exe"; Parameters: "/s ""{app}\VirtualOutput\KashtrixVirtualOutput.ax"""; StatusMsg: "Registering DirectShow Virtual Output filter..."; Flags: runhidden; Components: output
 Filename: "{app}\Kashtrix.Playout.exe"; Description: "{cm:LaunchProgram,Kashtrix Playout}"; Flags: nowait postinstall skipifsilent; Components: core
+
+; =====================================================================
+; UNINSTALL CLEANUP
+; =====================================================================
+[UninstallRun]
+Filename: "{sys}\regsvr32.exe"; Parameters: "/s /u ""{app}\VirtualOutput\KashtrixVirtualOutput.ax"""; Flags: runhidden; Components: output
